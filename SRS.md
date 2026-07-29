@@ -75,11 +75,14 @@ IRIS is a new, cloud-native SaaS product. The frontend is a Next.js application 
 - FR-1.6: Failed ingestion jobs SHALL be retried up to 3 times, then routed to a Dead-Letter Queue for manual review — never retried indefinitely.
 
 ### FR-2: Retrieval & Question Answering
-- FR-2.1: The system SHALL accept a natural-language question from an authenticated user, scoped to their tenant.
-- FR-2.2: The system SHALL retrieve the most relevant document chunks using hybrid (semantic + keyword) search, filtered strictly to the requesting user's `tenant_id`.
-- FR-2.3: The system SHALL rerank retrieved candidates before synthesis (via Vertex AI Ranking API or an equivalent non-deprecated reranker).
-- FR-2.4: The system SHALL synthesize a final answer using an LLM (Gemini Flash/Flash-Lite), returning structured output that includes citation references mapped to source bbox locations.
-- FR-2.5: The frontend SHALL render citations as clickable highlights that navigate to the exact page/location referenced.
+- FR-2.1: The system SHALL accept a natural-language question from an authenticated user, scoped to their tenant and a specific workspace `session_id`.
+- FR-2.2: The system SHALL retrieve the most relevant document chunks using hybrid (dense vector + keyword BM25) search, filtered strictly to the requesting user's `tenant_id` and the files associated with the active `session_id`.
+- FR-2.3: In Standard Mode, the system SHALL retrieve chunks, apply Reciprocal Rank Fusion (RRF), run the diversity/dedup pass to penalise duplicate source files, and synthesize the response.
+- FR-2.4: In Deep Search Mode, the system SHALL rewrite the query using a sliding window of recent message history (FR-5.3), generate a HyDE hypothesis, search, fuse via RRF, run the diversity/dedup pass, and pass the results to the Vertex AI Ranking API for semantic cross-encoder reranking prior to synthesis.
+- FR-2.5: The system SHALL synthesize a final answer using Gemini Flash via Vertex AI, returning structured output that includes citation references mapped to source bbox locations.
+- FR-2.6: The frontend SHALL render citations as clickable highlights that navigate to the exact page/location referenced.
+- FR-2.7: The system SHALL allow users to delete specific documents or entire sessions, triggering a cascading deletion across Firestore (metadata/history), GCS (raw files), and Qdrant (vectors) to ensure complete data removal (FR-4.5).
+
 
 ### FR-3: Authentication & Authorization
 - FR-3.1: The system SHALL require authentication (Firebase Authentication) for all document upload and query operations.
@@ -92,9 +95,14 @@ IRIS is a new, cloud-native SaaS product. The frontend is a Next.js application 
 - FR-4.3: All conversational state SHALL be stored under a tenant-scoped path and protected by security rules validating the requester's `tenant_id` claim on every read/write.
 - FR-4.4: No API response SHALL ever return data belonging to a `tenant_id` other than the requester's.
 
-### FR-5: Conversational Memory
-- FR-5.1: The system SHALL persist chat history per session, scoped to tenant and session ID.
-- FR-5.2: The system SHALL support follow-up questions by rewriting queries using prior conversational context.
+### FR-5: Conversational Memory & Workspace Sessions
+- FR-5.1: The system SHALL persist named workspace sessions, scoped to a tenant and session ID. Each session document in Firestore SHALL contain a list of attached `document_ids` and a `messages` subcollection.
+- FR-5.2: The system SHALL isolate vector search queries to either the active session's attached documents or allow a global search option across all tenant documents.
+- FR-5.3: The system SHALL support follow-up queries in Deep Search Mode using a **sliding window** of conversational history. The API SHALL fetch only the last N messages (default N=6) from the session's Firestore subcollection and pass them to the query rewriter to contextualize the user's latest prompt.
+- FR-5.4: Deleted items SHALL be removed cleanly across all layers:
+  - Deleting a document SHALL purge its raw GCS file, its Qdrant points (filtered by `document_id`), and remove its ID from the Firestore session document.
+  - Deleting a session SHALL delete the Firestore session document (and its subcollections) and purge all Qdrant points tagged with `session_id`.
+
 
 ### FR-6: Trial & Freemium Controls
 - FR-6.1: The system SHALL support a trial tier with capped usage (pages ingested, queries per period, or credit balance).
@@ -205,9 +213,13 @@ Every read or write MUST be scoped by `tenant_id`, validated against the request
 ## 6. External Interface Requirements
 
 ### 6.1 APIs
-- `POST /documents/upload` — authenticated, tenant-scoped, triggers ingestion pipeline.
-- `POST /query` — authenticated, tenant-scoped, returns synthesized answer + citations.
-- `GET /documents/{doc_id}/view-url` — returns a short-lived signed GCS URL.
+- `POST /documents/upload` — authenticated, uploads PDF to tenant-prefixed GCS and triggers the ingestion worker.
+- `DELETE /documents/{doc_id}` — authenticated, initiates cascading deletion of raw file from GCS, vectors from Qdrant, and references from the Firestore session.
+- `POST /query` — authenticated, user query endpoint supporting `query_mode: "standard" | "deep"` and scoped to a `session_id`.
+- `POST /sessions` — authenticated, creates a new named workspace session.
+- `GET /sessions` — authenticated, lists all active workspace sessions and their metadata.
+- `DELETE /sessions/{session_id}` — authenticated, initiates cascading deletion of Firestore session state and Qdrant points tagged with the session ID.
+- `GET /documents/{doc_id}/view-url` — returns a short-lived signed GCS URL for PDF rendering.
 - `GET /usage` — returns current usage/quota status for the caller's tenant.
 
 ### 6.2 Third-Party Services

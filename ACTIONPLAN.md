@@ -100,7 +100,7 @@ A working, testable `ModelProvider` interface with one live backend (Vertex AI) 
 Build the document upload → parse → route → chunk → embed → store pipeline, with a page-wise VLM router that minimises Gemini Vision API calls to only the elements that genuinely require them.
 
 ### Tasks
-- 1.1: Create tenant-prefixed GCS buckets (`gs://iris-raw-pdfs/{tenant_id}/...`) with IAM conditions.
+- 1.1: Create tenant-prefixed GCS buckets (`gs://iris-raw-pdfs/{tenant_id}/...`) with IAM conditions. Scaffolding for `/documents/{doc_id}` cascading delete.
 - 1.2: Build the pre-ingestion payload scanner (reject >500 pages, corrupt PDF trailers) before queuing.
 - 1.3: Implement the Ingestion Worker on Cloud Run, triggered via Pub/Sub on new upload events.
 - 1.4: Integrate Docling for layout-aware parsing — every element (text block, table, figure) comes out with its normalised `[left, top, right, bottom]` bounding-box coordinates and an element-type label (`Text`, `Table`, `Picture`, `Caption`, etc.).
@@ -154,12 +154,13 @@ Stand up the production vector database and the core search + retrieval pipeline
 - 2.1: Provision a self-hosted Qdrant instance on a small GCE VM (e.g., `e2-small`/`e2-medium`) with Binary Quantization enabled.
 - 2.2: Configure collections with `is_tenant=True` and appropriate `payload_m`/`m` settings for tenant-isolated HNSW sub-graphs.
 - 2.3: Point the Ingestion Worker (Phase 1.0) at the production Qdrant instance.
-- 2.4: Build the Retrieval API's `/search` endpoint with **hybrid search**: dense cosine vector search + BM25 full-text search, both executed against the same Qdrant collection in parallel.
+- 2.4: Build the Retrieval API's `/search` endpoint supporting **hybrid search** (dense cosine vector search + BM25 full-text search) executed against the same Qdrant collection, filtered by `tenant_id` and the session's active document list.
 - 2.5: Implement **Reciprocal Rank Fusion (RRF)** to merge the dense and BM25 rank lists into a single coherent ordered list. RRF is rank-based and score-agnostic — it handles the incompatibility between cosine similarity scores and BM25 scores without normalisation hacks.
 - 2.6: Implement the **Diversity / Dedup pass** on top of the RRF-fused list. This step applies a `0.5×` score multiplier to any chunk whose `source_file` has already appeared in the current top-K window. This prevents a single highly-relevant source document from flooding all top-K slots and starving synthesis of breadth. *This is a separate concern from reranking — RRF handles fusion, diversity handles source over-representation.*
-- 2.7: Wire the **Standard Mode** query path: embed query (Vertex AI `text-embedding-004`, 3072-d) → hybrid search → RRF → diversity pass → return top-K chunks.
-- 2.8: Wire the **Deep Search Mode** query path (user-toggled): same as Standard, but after the diversity pass, run the fused+diversified list through the **Vertex AI Ranking API** (cross-encoder semantic reranker) before returning. Deep Search mode also enables SLM query rewriting and HyDE (Phase 8.0).
+- 2.7: Wire the **Standard Mode** query path: embed query (Vertex AI `text-embedding-004`, 3072-d) → hybrid search (filtered by tenant and active session documents) → RRF → diversity pass → return top-K chunks.
+- 2.8: Wire the **Deep Search Mode** query path (user-toggled): Fetch sliding window of recent conversation history (last N messages, default N=6) from Firestore (FR-5.3) → rewrite query with SLM → generate HyDE → hybrid search → RRF → diversity pass → Vertex AI Ranking API cross-encoder rerank → return.
 - 2.9: Enforce a server-side tenant filter (app-layer for now; JWT-level enforcement lands in Phase 4.0).
+- 2.10: Build cascading delete backend hooks: `DELETE /documents/{doc_id}` (purges raw GCS PDF + Qdrant points with `document_id` filter) and `DELETE /sessions/{session_id}` (purges Qdrant points with `session_id` filter).
 
 ### Services Touched
 GCE (Qdrant host), Cloud Run (Retrieval API), Qdrant, Vertex AI (Ranking API, `text-embedding-004`).
@@ -222,7 +223,10 @@ Harden the system from "trusting app code" to "enforced at the engine level" —
 - 4.1: Wire Firebase Authentication into the frontend and backend; issue JWTs with server-set `tenant_id`/`role` claims.
 - 4.2: Update the Retrieval API to extract `tenant_id` from the validated JWT and **rewrite** (not merely check) the Qdrant query filter server-side.
 - 4.3: Write Firestore Security Rules enforcing `request.auth.token.tenant_id == resource.data.tenant_id` on all reads/writes.
-- 4.4: Implement session isolation: `session_id` scoped under `/{tenant_id}/sessions/{session_id}`.
+- 4.4: Implement session isolation and management:
+  - Scaffolding route `/tenants/{tenant_id}/sessions/{session_id}` in Firestore.
+  - Implement named workspace sessions API endpoints (`POST /sessions`, `GET /sessions`, `DELETE /sessions/{session_id}`).
+  - Implement cascading deletion: deleting a session deletes all related Firestore messages + triggers Qdrant point purges for all vectors with `session_id` payload match. Deleting a document removes GCS raw file + Qdrant points with `document_id` payload match + removes reference from Firestore.
 - 4.5: Implement short-lived (15-minute) signed GCS URLs for document viewing.
 - 4.6: Add Cloud Armor / API Gateway rate limiting on upload and query endpoints.
 
