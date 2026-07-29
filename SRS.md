@@ -40,7 +40,7 @@ Out of scope for MVP: GPU-based self-hosted inference (designed for, not require
 ## 2. Overall Description
 
 ### 2.1 Product Perspective
-NaturePivot-RAG is a new, cloud-native SaaS product. The frontend is a Next.js application deployed on Vercel; the backend is a set of independently-scaling Cloud Run services on GCP, backed by a vector database (Qdrant), a document store (GCS), and an operational database (Firestore).
+IRIS is a new, cloud-native SaaS product. The frontend is a Next.js application deployed on Vercel; the backend is a set of independently-scaling Cloud Run services on GCP, backed by a vector database (Qdrant), a document store (GCS), and an operational database (Firestore).
 
 ### 2.2 User Classes
 
@@ -49,7 +49,7 @@ NaturePivot-RAG is a new, cloud-native SaaS product. The frontend is a Next.js a
 | **Client Admin** | The primary account holder for an enterprise tenant | Manage users, view usage, manage documents |
 | **Client Member** | An end user within a tenant, asking questions | Fast, accurate, cited answers |
 | **Trial User** | A prospect testing the product before purchase | Free, capped access without needing an invite |
-| **Platform Operator (Internal)** | NaturePivot staff | Monitor cost, security, and system health |
+| **Platform Operator (Internal)** | IRIS staff | Monitor cost, security, and system health |
 
 ### 2.3 Operating Environment
 - Frontend: Vercel Edge Network (global CDN), Next.js runtime.

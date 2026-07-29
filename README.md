@@ -1,8 +1,8 @@
-# NaturePivot-RAG
+# IRIS
 
 **A secure, multi-tenant, spatially-grounded document Q&A platform, built serverless-first on Google Cloud Platform.**
 
-NaturePivot-RAG lets enterprise clients upload dense documents (legal filings, government gazettes, scanned reports) and ask natural-language questions about them. Every answer is grounded in a **pixel-accurate citation** — a clickable highlight that jumps straight to the exact location on the exact page the answer came from.
+IRIS lets enterprise clients upload dense documents (legal filings, government gazettes, scanned reports) and ask natural-language questions about them. Every answer is grounded in a **pixel-accurate citation** — a clickable highlight that jumps straight to the exact location on the exact page the answer came from.
 
 This repository/architecture is the result of synthesizing two independent architecture proposals (`GCP_PLAN.md` and `GCP_ALT_GEM_PLAN.md`) into one unified, execution-ready plan. See `SRS.md` for the full requirements spec and `ACTIONPLAN.md` for the phase-by-phase build plan.
 
@@ -153,7 +153,7 @@ User submits question
 ```bash
 # Clone
 git clone <repo-url>
-cd naturepivot-rag
+cd iris
 
 # Backend (Ingestion Worker + Retrieval API)
 cd services/ingestion-worker && pip install -r requirements.txt --break-system-packages
@@ -174,7 +174,7 @@ docker compose up      # spins up local Qdrant + emulated Firestore for dev
 ## 6. Repository Structure (Target)
 
 ```
-naturepivot-rag/
+iris/
 ├── services/
 │   ├── ingestion-worker/     # Cloud Run service: Docling parsing, chunking, embedding, chunk QA view
 │   └── retrieval-api/        # Cloud Run service: search, rerank, synthesis, citation registry
@@ -183,7 +183,7 @@ naturepivot-rag/
 ├── docs/
 │   ├── SRS.md
 │   ├── ACTIONPLAN.md
-│   └── NaturePivot_Grand_Architecture_Plan.md
+│   └── IRIS_Grand_Architecture_Plan.md
 └── README.md
 ```
 
@@ -198,7 +198,7 @@ We containerize **per service, not per development phase** — one Docker image 
 |---|---|
 | `SRS.md` | Full Software Requirements Specification — functional, non-functional, security, and data requirements |
 | `ACTIONPLAN.md` | Phase-by-phase build plan (Phase 0.0 → 11.0) with benchmarks and test criteria for each phase |
-| `NaturePivot_Grand_Architecture_Plan.md` | The original deep-dive architecture rationale, cost analysis, and hosting strategy |
+| `IRIS_Grand_Architecture_Plan.md` | The original deep-dive architecture rationale, cost analysis, and hosting strategy |
 
 ---
 

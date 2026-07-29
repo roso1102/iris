@@ -1,4 +1,4 @@
-# NaturePivot-RAG — Phased Action Plan
+# IRIS — Phased Action Plan
 
 **Format:** Every phase lists Scope → Tasks → Services Touched → Deliverables → Benchmarks & Testing → Exit Criteria.
 A phase is not considered "done" until its Exit Criteria are met — not just its tasks completed.
@@ -100,7 +100,7 @@ A working, testable `ModelProvider` interface with one live backend (Vertex AI) 
 Build the document upload → parse → route → chunk → embed → store pipeline, with a page-wise VLM router that minimises Gemini Vision API calls to only the elements that genuinely require them.
 
 ### Tasks
-- 1.1: Create tenant-prefixed GCS buckets (`gs://naturepivot-raw-pdfs/{tenant_id}/...`) with IAM conditions.
+- 1.1: Create tenant-prefixed GCS buckets (`gs://iris-raw-pdfs/{tenant_id}/...`) with IAM conditions.
 - 1.2: Build the pre-ingestion payload scanner (reject >500 pages, corrupt PDF trailers) before queuing.
 - 1.3: Implement the Ingestion Worker on Cloud Run, triggered via Pub/Sub on new upload events.
 - 1.4: Integrate Docling for layout-aware parsing — every element (text block, table, figure) comes out with its normalised `[left, top, right, bottom]` bounding-box coordinates and an element-type label (`Text`, `Table`, `Picture`, `Caption`, etc.).
@@ -281,7 +281,7 @@ A live, working product on the existing domain.
 
 ## 🏁 MVP LAUNCH BOUNDARY
 
-**At this point (end of Phase 5.0), NaturePivot-RAG is a secure, working, cost-protected product ready for real (manually onboarded) clients.**
+**At this point (end of Phase 5.0), IRIS is a secure, working, cost-protected product ready for real (manually onboarded) clients.**
 
 MVP includes: secure multi-tenant auth & isolation, full ingestion → retrieval → synthesis → citation pipeline, billing/ingestion kill switches, and a live frontend on the existing domain.
 
