@@ -11,7 +11,8 @@ This repository/architecture is the result of synthesizing two independent archi
 ## 1. What This System Does
 
 1. A client uploads a PDF (scanned or digital).
-2. The system reads the document's layout — text, tables, figures — and records **exactly where** every piece of content sits on the page (bounding-box coordinates).
+2. The system reads the document's layout — text, tables, figures — and records **exactly where** every piece of content sits on the pa
+ge (bounding-box coordinates).
 3. The content is chunked, embedded, and stored in a vector database, tagged to that client only.
 4. When a user asks a question, the system retrieves the most relevant chunks, reranks them, and asks an LLM to synthesize a grounded answer with citations.
 5. The frontend renders the answer with a highlight overlay pointing to the exact source location.
