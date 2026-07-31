@@ -8,7 +8,7 @@ Before starting work in this repository, read **`CONTEXT.md`** (or consult `READ
 
 - **Architecture:** IRIS is a serverless-first, multi-tenant document Q&A platform built on GCP (Cloud Run, GCS, Pub/Sub, Firestore, Vertex AI, Qdrant).
 - **Model Interface:** All model calls (embedding, VLM/OCR, synthesis) MUST go through the `ModelProvider` abstraction (`MODEL_BACKEND` env config).
-- **Embeddings:** Vertex AI `text-embedding-004` (3072-d, multilingual).
+- **Embeddings:** Vertex AI `text-embedding-004` (768-d, multilingual).
 - **Ingestion & Page Router:** Docling layout parsing + targeted Gemini Vision calls.
   - Text-rich pages (≥150 clean chars): Docling text directly (zero API cost).
   - Table / Figure elements: Gemini Vision on cropped element image.

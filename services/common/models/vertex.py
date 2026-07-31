@@ -41,7 +41,7 @@ class VertexAIProvider(ModelProvider):
         
         model = TextEmbeddingModel.from_pretrained(self.embedding_model_name)
         inputs = [TextEmbeddingInput(text=text, task_type="RETRIEVAL_DOCUMENT")]
-        kwargs = {"output_dimensionality": 3072} if "004" in self.embedding_model_name else {}
+        kwargs = {"output_dimensionality": 768} if "004" in self.embedding_model_name else {}
         embeddings = model.get_embeddings(inputs, **kwargs)
         return embeddings[0].values
 

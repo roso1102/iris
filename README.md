@@ -39,7 +39,7 @@ Upload PDF to GCS
           │     └──────────────────────────────────────────────────────────┘
           │
           ├─ Chunk + Embed via ModelProvider.embed()
-          │     └─ Vertex AI text-embedding-004 (3072-d, multilingual)
+          │     └─ Vertex AI text-embedding-004 (768-d, multilingual)
           │
           └─ Write to Qdrant (vectors + bbox + tenant_id + page metadata)
                                     │
@@ -51,7 +51,7 @@ Upload PDF to GCS
 User submits question
   │
   ├─ [Standard Mode]
-  │     Embed query (Vertex AI 3072-d)
+  │     Embed query (Vertex AI 768-d)
   │       → Qdrant Dense Search (cosine)
   │       → Qdrant BM25 Full-Text Search
   │       → RRF Fusion  (merge both rank lists into one)
@@ -97,7 +97,7 @@ User submits question
 | Document Parsing | **Docling** (MIT license, open-source) | Layout-aware extraction — text, tables, figures + per-element bbox coordinates |
 | Page-Wise VLM Router | **Docling element labels + char count threshold** | Routes each page element to the cheapest correct processor (see §1 flow) |
 | Table / Figure / Scanned Pages | **Gemini Vision (Vertex AI)** on cropped bbox regions | Called only when Docling signals a Table, Figure, or low-text (<150 char) page — not on every page |
-| Embeddings | **Vertex AI `text-embedding-004`** (3072-d, multilingual) | Unified English + Hindi/Devanagari vector space; no local ONNX model required |
+| Embeddings | **Vertex AI `text-embedding-004`** (768-d, multilingual) | Unified English + Hindi/Devanagari vector space; no local ONNX model required |
 | LLM Synthesis | **Gemini Flash (Vertex AI)** | Generates the final grounded answer with structured citations |
 | Retrieval — Fusion | **Reciprocal Rank Fusion (RRF)** | Merges BM25 and dense cosine rank lists into one coherent ordered list |
 | Retrieval — Diversity | **Custom diversity/dedup pass** | Applies 0.5× penalty to repeated `source_file` hits after RRF, preventing source over-representation |

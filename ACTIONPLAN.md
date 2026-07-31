@@ -116,7 +116,7 @@ Build the document upload → parse → route → chunk → embed → store pipe
   *Rationale: Gemini Vision reads rendered pixels, so KrutiDev/DevLys legacy Hindi font encoding and scanned Devanagari text are handled transparently — no custom font decoder or RapidOCR pipeline required. VLM is only invoked where Docling’s text extraction is absent or structurally insufficient (tables, figures, scanned pages).*
 
 - 1.6: Chunk routed content. Text blocks: sentence-boundary chunking at ~512 tokens. VLM outputs: treated as single chunks with the source element’s bbox attached.
-- 1.7: Embed each chunk via `ModelProvider.embed()` → **Vertex AI `text-embedding-004`** (3072-d, multilingual). No local ONNX model required.
+- 1.7: Embed each chunk via `ModelProvider.embed()` → **Vertex AI `text-embedding-004`** (768-d, multilingual). No local ONNX model required.
 - 1.8: Configure the Pub/Sub subscription with max 3 delivery attempts, routing failures to a DLQ topic.
 - 1.9: Write parsed, embedded chunks (with bbox + `tenant_id` + `page_number` + `element_type` metadata) to Qdrant.
 - 1.10: Build an internal **Chunk Visualization / QA view** — an admin-only page that overlays every extracted chunk’s bounding box on the source PDF page, so a human can visually sanity-check Docling’s parsing and the VLM router’s decisions on a new or unusual document type before it goes live.
@@ -157,7 +157,7 @@ Stand up the production vector database and the core search + retrieval pipeline
 - 2.4: Build the Retrieval API's `/search` endpoint supporting **hybrid search** (dense cosine vector search + BM25 full-text search) executed against the same Qdrant collection, filtered by `tenant_id` and the session's active document list.
 - 2.5: Implement **Reciprocal Rank Fusion (RRF)** to merge the dense and BM25 rank lists into a single coherent ordered list. RRF is rank-based and score-agnostic — it handles the incompatibility between cosine similarity scores and BM25 scores without normalisation hacks.
 - 2.6: Implement the **Diversity / Dedup pass** on top of the RRF-fused list. This step applies a `0.5×` score multiplier to any chunk whose `source_file` has already appeared in the current top-K window. This prevents a single highly-relevant source document from flooding all top-K slots and starving synthesis of breadth. *This is a separate concern from reranking — RRF handles fusion, diversity handles source over-representation.*
-- 2.7: Wire the **Standard Mode** query path: embed query (Vertex AI `text-embedding-004`, 3072-d) → hybrid search (filtered by tenant and active session documents) → RRF → diversity pass → return top-K chunks.
+- 2.7: Wire the **Standard Mode** query path: embed query (Vertex AI `text-embedding-004`, 768-d) → hybrid search (filtered by tenant and active session documents) → RRF → diversity pass → return top-K chunks.
 - 2.8: Wire the **Deep Search Mode** query path (user-toggled): Fetch sliding window of recent conversation history (last N messages, default N=6) from Firestore (FR-5.3) → rewrite query with SLM → generate HyDE → hybrid search → RRF → diversity pass → Vertex AI Ranking API cross-encoder rerank → return.
 - 2.9: Enforce a server-side tenant filter (app-layer for now; JWT-level enforcement lands in Phase 4.0).
 - 2.10: Build cascading delete backend hooks: `DELETE /documents/{doc_id}` (purges raw GCS PDF + Qdrant points with `document_id` filter) and `DELETE /sessions/{session_id}` (purges Qdrant points with `session_id` filter).

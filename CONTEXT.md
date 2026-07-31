@@ -29,7 +29,7 @@ IRIS is a secure, multi-tenant, spatially-grounded document Q&A platform on GCP.
 - **Tenant isolation at the engine level:** JWT `tenant_id` claim drives Qdrant filter rewriting server-side; never trust client-supplied tenant IDs. Firestore security rules enforce `request.auth.token.tenant_id == resource.data.tenant_id`.
 - **Cost-capped by default:** billing circuit breaker + ingestion DLQ built in Phase 0.0, before any product code.
 - **Page-wise VLM router:** Docling does layout extraction with bboxes; Gemini Vision is called ONLY for tables, figures, and low-text (<150 char) pages — never on clean text pages. Handles KrutiDev/DevLys legacy Hindi + scanned Devanagari without custom decoders.
-- **Stack specifics:** Qdrant self-hosted on GCE VM (`is_tenant=True`, hybrid BM25 + cosine, RRF fusion, diversity/dedup pass); Vertex AI `text-embedding-004` (3072-d); Gemini Flash synthesis; Firestore for sessions/history/quotas; GCS tenant-prefixed buckets.
+- **Stack specifics:** Qdrant self-hosted on GCE VM (`is_tenant=True`, hybrid BM25 + cosine, RRF fusion, diversity/dedup pass); Vertex AI `text-embedding-004` (768-d); Gemini Flash synthesis; Firestore for sessions/history/quotas; GCS tenant-prefixed buckets.
 - **Two query modes:** Standard (fast/free) and user-toggled Deep Search (SLM rewrite + HyDE + Vertex AI Ranking rerank).
 - **Licensing:** Docling (MIT) OK; **Marker is banned** (Open-RAIL-M revenue trap). Cohere Rerank v3.5 is deprecating — use `rerank-4-fast` or Vertex AI Ranking API.
 - **Milestone checklist (working state, not a locked decision):**
