@@ -1,31 +1,45 @@
 # Active Context & Project State — IRIS
 
-## Active Phase
-- **Phase 0.0 & Phase 0.1 Setup** (Foundations, Safety Nets & Model Provider Abstraction)
+A secure, multi-tenant, spatially-grounded document Q&A platform on GCP. Clients upload dense PDFs (legal filings, gazettes, scanned reports) and ask natural-language questions. Answers carry **pixel-accurate citations** — clickable highlights mapped to exact bounding boxes on source pages. Built serverless-first, CPU-only, cost-capped by a $300 GCP credit. Frontend on Vercel (Next.js); backend on Cloud Run + Qdrant + Firestore + GCS + Pub/Sub + Vertex AI.
 
-## Binding Architectural Decisions
-
-1. **Model Abstraction:** All model calls (embedding, VLM extraction, synthesis) go through the `ModelProvider` abstract class. Active backend controlled by `MODEL_BACKEND` env var (`vertex` default).
-2. **Embeddings:** Vertex AI `text-embedding-004` (3072 dimensions, multilingual).
-3. **Ingestion & VLM Router:**
-   - Docling extracts text + normalized bounding boxes `[left, top, right, bottom]`.
-   - Router evaluates Docling output per element:
-     - Clean text (≥150 chars, Text element): Docling text directly ($0 cost).
-     - Table element: Gemini Vision on cropped table bbox image.
-     - Figure/Picture element: Gemini Vision on cropped figure bbox image.
-     - Scanned / low-text page (<150 chars): Gemini Vision on full-page crop.
-   - RapidOCR removed; Gemini Vision handles KrutiDev / legacy Hindi font encodings via pixel reading.
-4. **Retrieval Pipeline (Strict Sequential Order):**
-   - Hybrid Search (Qdrant Cosine + BM25 full-text parallel search).
-   - Reciprocal Rank Fusion (RRF) to merge rank lists.
-   - Diversity / Dedup Pass (0.5× penalty to recurring `source_file` hits in top-K).
-   - [Deep Search Mode only] Vertex AI Ranking API cross-encoder rerank + SLM query rewrite + HyDE.
-5. **Sessions & Memory:**
-   - Workspace sessions stored in Firestore `/tenants/{tenant_id}/sessions/{session_id}`.
-   - Deep Search mode fetches a **sliding window** of the last N=6 messages from Firestore.
-   - Deletion of documents/sessions triggers a clean cascading purge across Firestore, GCS, and Qdrant.
+## Current State
+- **Phase:** 0.0 Foundations (not started — repo is docs-only)
+- **Implemented:** nothing yet. Repo contains `README.md`, `SRS.md`, `ACTIONPLAN.md`, `.agents/AGENTS.md`, `COMMANDCODE.md`, and this file.
+- **Next up:** Phase 0.0 — GCP project setup, billing budget + kill-switch (Billing Alert → Pub/Sub → Cloud Function setting `max-instances=0`), least-privilege IAM, VPC/Private Service Connect, Secret Manager, Firebase Auth, repo scaffolding + CI, base Terraform. Then Phase 0.1 — `ModelProvider` abstraction scaffold.
 
 ## Current Milestone & Next Steps
 - [x] Initial specification and roadmap committed & pushed to GitHub.
 - [x] Auto-loaded `.agents/AGENTS.md` and `CONTEXT.md` initialized.
 - [ ] Implement `ModelProvider` abstract interface and `VertexAIProvider` implementation (Phase 0.1).
+
+## Key Decisions (locked in the docs — do not violate)
+- **Serverless-first:** every compute component scales to zero; no idle billing.
+- **CPU-only for MVP:** no GPU quota available. All model calls go through a `ModelProvider` interface so GPU swap-in later is a config change (`MODEL_BACKEND` env var), not a rewrite.
+- **Tenant isolation at the engine level:** JWT `tenant_id` claim drives Qdrant filter rewriting server-side; never trust client-supplied tenant IDs. Firestore security rules enforce `request.auth.token.tenant_id == resource.data.tenant_id`.
+- **Cost-capped by default:** billing circuit breaker + ingestion DLQ built in Phase 0.0, before any product code.
+- **Page-wise VLM router:** Docling does layout extraction with bboxes; Gemini Vision is called ONLY for tables, figures, and low-text (<150 char) pages — never on clean text pages. Handles KrutiDev/DevLys legacy Hindi + scanned Devanagari without custom decoders.
+- **Stack specifics:** Qdrant self-hosted on GCE VM (`is_tenant=True`, hybrid BM25 + cosine, RRF fusion, diversity/dedup pass); Vertex AI `text-embedding-004` (3072-d); Gemini Flash synthesis; Firestore for sessions/history/quotas; GCS tenant-prefixed buckets.
+- **Two query modes:** Standard (fast/free) and user-toggled Deep Search (SLM rewrite + HyDE + Vertex AI Ranking rerank).
+- **Licensing:** Docling (MIT) OK; **Marker is banned** (Open-RAIL-M revenue trap). Cohere Rerank v3.5 is deprecating — use `rerank-4-fast` or Vertex AI Ranking API.
+
+## Active Work Session (log each session here)
+<!-- Format: date · tool · what was done · decisions made · next step -->
+- 2026-07-31 · discussion · Set up shared-context files (`COMMANDCODE.md` → `CONTEXT.md` ← `AGENTS.md`). Updated `CONTEXT.md` with complete project state and rules structure. Next: decide whether to start Phase 0.0 GCP scaffolding.
+
+## Gotchas & Notes
+- Docling emits normalized `[left, top, right, bottom]` bbox per element — verify coordinate space against PDF.js rendering in Phase 5.0.
+- Phase numbering in ACTIONPLAN has a known quirk: Phase 15.0 and 16.0 reuse task numbers (10.x / 11.x) — don't let that confuse references.
+- Chunking target: ~512 tokens, sentence-boundary; VLM outputs become single chunks with the source element's bbox.
+- Latency budgets that gate acceptance: `/search` < 500ms, `/query` < 2s, rewrite step < 300ms, HyDE < 400ms, graph traversal < 300ms.
+
+## Open Questions
+- When to actually start Phase 0.0 (needs GCP account access + the $300 credit org).
+- Trial/freemium credit model numbers (1 page ≈ 5 credits, 1 query ≈ 1 credit are placeholders).
+- Whether Deep Search should be enabled at MVP or held for Phase 8.0+.
+
+---
+
+## How to use this file (for agents)
+1. Read this file first when starting a session.
+2. Respect "Key Decisions" — they are binding constraints.
+3. When a session ends (or you learn something durable), update "Active Work Session" with the date, what was done, and what's next. Keep it to 3–5 lines.
