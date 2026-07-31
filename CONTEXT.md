@@ -30,6 +30,7 @@ IRIS is a secure, multi-tenant, spatially-grounded document Q&A platform on GCP.
 - **Cost-capped by default:** billing circuit breaker + ingestion DLQ built in Phase 0.0, before any product code.
 - **Page-wise VLM router:** Docling does layout extraction with bboxes; Gemini Vision is called ONLY for tables, figures, and low-text (<150 char) pages — never on clean text pages. Handles KrutiDev/DevLys legacy Hindi + scanned Devanagari without custom decoders.
 - **Stack specifics:** Qdrant self-hosted on GCE VM (`is_tenant=True`, hybrid BM25 + cosine, RRF fusion, diversity/dedup pass); Vertex AI `text-embedding-004` (768-d); Gemini Flash synthesis; Firestore for sessions/history/quotas; GCS tenant-prefixed buckets.
+- **Embeddings locked at 768-d for MVP:** `text-embedding-004` @ 768-d is the MVP standard (multilingual, verified live). The 3072-d `gemini-embedding-001` upgrade is explicitly **post-MVP** — it requires a full re-embed + Qdrant collection migration, not a config swap. Documented in `SRS.md` §5.2. Do not plan MVP work around 3072-d vectors.
 - **Two query modes:** Standard (fast/free) and user-toggled Deep Search (SLM rewrite + HyDE + Vertex AI Ranking rerank).
 - **Licensing:** Docling (MIT) OK; **Marker is banned** (Open-RAIL-M revenue trap). Cohere Rerank v3.5 is deprecating — use `rerank-4-fast` or Vertex AI Ranking API.
 - **Milestone checklist (working state, not a locked decision):**
@@ -47,6 +48,8 @@ IRIS is a secure, multi-tenant, spatially-grounded document Q&A platform on GCP.
 - 2026-07-31 · discussion · Set up shared-context files (`COMMANDCODE.md` → `CONTEXT.md` ← `AGENTS.md`). Updated `CONTEXT.md` with complete project state and rules structure. Next: decide whether to start Phase 0.0 GCP scaffolding.
 - 2026-07-31 · Command Code · Verified the bridge end-to-end: `COMMANDCODE.md` (Command Code, auto-load) and `.agents/AGENTS.md` (Antigravity, auto-load) both resolve to `CONTEXT.md` as the single source of truth. Confirmed the other agent's rewrite of `CONTEXT.md` preserved all key decisions. Next: decide whether to start Phase 0.0 GCP scaffolding, or Phase 0.1 `ModelProvider` scaffold.
 - 2026-07-31 · Antigravity · Authenticated local `gcloud` CLI with GCP project `naturepivot-rag`. Successfully executed live Vertex AI `text-embedding-004` integration test returning 768-d vector. Next: proceed to Phase 1.0 Core Ingestion Worker.
+- 2026-07-31 · Command Code · Locked embeddings at 768-d for MVP (`text-embedding-004`, multilingual) and documented the 3072-d `gemini-embedding-001` upgrade as explicitly post-MVP (re-embed + Qdrant migration required) in `SRS.md` §5.2. Updated `CONTEXT.md` §3 with the decision. Next: Phase 1.0 Core Ingestion Worker — Task 1.1 tenant-prefixed GCS buckets.
+- 2026-07-31 · Antigravity · Created `BENCHMARK.md` containing the technical RAG evaluation suite (Recall@5, MRR, RAGAS Faithfulness, WER, Latency P95, and comparison baselines). Next: Phase 1.0 Core Ingestion Worker.
 
 ---
 
