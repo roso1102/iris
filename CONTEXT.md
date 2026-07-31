@@ -18,9 +18,9 @@ IRIS is a secure, multi-tenant, spatially-grounded document Q&A platform on GCP.
 
 ## 2. Current State
 
-- **Phase:** 0.0 Foundations (not started — repo is docs-only)
-- **Implemented:** nothing yet. Repo contains `README.md`, `SRS.md`, `ACTIONPLAN.md`, `.agents/AGENTS.md`, `COMMANDCODE.md`, and this file.
-- **Next up:** Phase 0.0 — GCP project setup, billing budget + kill-switch (Billing Alert → Pub/Sub → Cloud Function setting `max-instances=0`), least-privilege IAM, VPC/Private Service Connect, Secret Manager, Firebase Auth, repo scaffolding + CI, base Terraform. Then Phase 0.1 — `ModelProvider` abstraction scaffold.
+- **Phase:** Phase 0.1 complete (ModelProvider scaffold + live Vertex AI integration verified), Phase 1.0 next.
+- **Implemented:** `ModelProvider` abstract class, `VertexAIProvider`, `MockModelProvider`, `factory.py`, unit tests, and live Vertex AI `text-embedding-004` (768-d) integration test.
+- **Next up:** Phase 1.0 — Core Ingestion Worker scaffold (GCS upload bucket handler, Pub/Sub payload trigger, Docling layout parser + Page-Wise VLM Router).
 
 ## 3. Key Decisions (frozen — do not violate)
 
@@ -36,6 +36,7 @@ IRIS is a secure, multi-tenant, spatially-grounded document Q&A platform on GCP.
   - [x] Initial specification and roadmap committed & pushed to GitHub.
   - [x] Auto-loaded `.agents/AGENTS.md` and `CONTEXT.md` initialized.
   - [x] Implement `ModelProvider` abstract interface, `VertexAIProvider`, and `MockModelProvider` scaffold (Phase 0.1).
+  - [x] Authenticate local gcloud CLI & verify live Vertex AI `text-embedding-004` 768-d embedding call.
 
 ---
 
@@ -45,7 +46,7 @@ IRIS is a secure, multi-tenant, spatially-grounded document Q&A platform on GCP.
 
 - 2026-07-31 · discussion · Set up shared-context files (`COMMANDCODE.md` → `CONTEXT.md` ← `AGENTS.md`). Updated `CONTEXT.md` with complete project state and rules structure. Next: decide whether to start Phase 0.0 GCP scaffolding.
 - 2026-07-31 · Command Code · Verified the bridge end-to-end: `COMMANDCODE.md` (Command Code, auto-load) and `.agents/AGENTS.md` (Antigravity, auto-load) both resolve to `CONTEXT.md` as the single source of truth. Confirmed the other agent's rewrite of `CONTEXT.md` preserved all key decisions. Next: decide whether to start Phase 0.0 GCP scaffolding, or Phase 0.1 `ModelProvider` scaffold.
-- 2026-07-31 · Antigravity · Built Phase 0.1 `ModelProvider` scaffold (`base.py`, `vertex.py`, `mock.py`, `factory.py`) + unit tests passing cleanly in Python 3.12 venv. Next: begin Phase 1.0 Core Ingestion Worker scaffold.
+- 2026-07-31 · Antigravity · Authenticated local `gcloud` CLI with GCP project `naturepivot-rag`. Successfully executed live Vertex AI `text-embedding-004` integration test returning 768-d vector. Next: proceed to Phase 1.0 Core Ingestion Worker.
 
 ---
 
