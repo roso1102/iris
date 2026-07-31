@@ -45,7 +45,7 @@ IRIS is a secure, multi-tenant, spatially-grounded document Q&A platform on GCP.
 
 - 2026-07-31 · discussion · Set up shared-context files (`COMMANDCODE.md` → `CONTEXT.md` ← `AGENTS.md`). Updated `CONTEXT.md` with complete project state and rules structure. Next: decide whether to start Phase 0.0 GCP scaffolding.
 - 2026-07-31 · Command Code · Verified the bridge end-to-end: `COMMANDCODE.md` (Command Code, auto-load) and `.agents/AGENTS.md` (Antigravity, auto-load) both resolve to `CONTEXT.md` as the single source of truth. Confirmed the other agent's rewrite of `CONTEXT.md` preserved all key decisions. Next: decide whether to start Phase 0.0 GCP scaffolding, or Phase 0.1 `ModelProvider` scaffold.
-- 2026-07-31 · Antigravity · Created GCP service account `iris-backend-sa` (Application data). Noted IAM policy permission requirement for project-level role assignment. Next: proceed with Phase 0.1 ModelProvider scaffold.
+- 2026-07-31 · Antigravity · Created GCP service account `iris-backend-sa` (Application data). Identified roles needed: Vertex AI User, Storage Object Admin, Datastore User, Pub/Sub Editor. Next: proceed with Phase 0.1 ModelProvider scaffold.
 
 ---
 
