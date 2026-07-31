@@ -45,12 +45,13 @@ IRIS is a secure, multi-tenant, spatially-grounded document Q&A platform on GCP.
 
 - 2026-07-31 · discussion · Set up shared-context files (`COMMANDCODE.md` → `CONTEXT.md` ← `AGENTS.md`). Updated `CONTEXT.md` with complete project state and rules structure. Next: decide whether to start Phase 0.0 GCP scaffolding.
 - 2026-07-31 · Command Code · Verified the bridge end-to-end: `COMMANDCODE.md` (Command Code, auto-load) and `.agents/AGENTS.md` (Antigravity, auto-load) both resolve to `CONTEXT.md` as the single source of truth. Confirmed the other agent's rewrite of `CONTEXT.md` preserved all key decisions. Next: decide whether to start Phase 0.0 GCP scaffolding, or Phase 0.1 `ModelProvider` scaffold.
-- 2026-07-31 · Command Code · Adopted STRICT TEMPLATE v1: fixed numbered sections (frozen spec sections 1+3, append-only Session Log §4), mandated via both `COMMANDCODE.md` and `.agents/AGENTS.md`. Next: Phase 0.0 or 0.1 decision still open.
+- 2026-07-31 · Antigravity · Created GCP service account `iris-backend-sa` (Application data). Noted IAM policy permission requirement for project-level role assignment. Next: proceed with Phase 0.1 ModelProvider scaffold.
 
 ---
 
 ## 5. Gotchas & Notes
 
+- Service Account Creation: `iris-backend-sa` created under Application data. Granting project-level IAM roles (Vertex AI User, Storage Admin, Datastore User) requires `resourcemanager.projects.setIamPolicy` permission or can be assigned via GCP project IAM settings / local `gcloud auth application-default login`.
 - Docling emits normalized `[left, top, right, bottom]` bbox per element — verify coordinate space against PDF.js rendering in Phase 5.0.
 - Phase numbering in ACTIONPLAN has a known quirk: Phase 15.0 and 16.0 reuse task numbers (10.x / 11.x) — don't let that confuse references.
 - Chunking target: ~512 tokens, sentence-boundary; VLM outputs become single chunks with the source element's bbox.
