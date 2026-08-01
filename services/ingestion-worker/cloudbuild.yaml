@@ -1,0 +1,13 @@
+# IRIS — Ingestion Worker build config (Cloud Build).
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-t"
+      - "${_REPO}/ingestion-worker:latest"
+      - "-f"
+      - "services/ingestion-worker/Dockerfile"
+      - "."
+
+images:
+  - "${_REPO}/ingestion-worker:latest"

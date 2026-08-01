@@ -13,9 +13,9 @@ class TestModelProviderScaffold(unittest.TestCase):
         self.assertIsInstance(provider, MockModelProvider)
 
     def test_mock_embed(self):
-        provider = MockModelProvider(embed_dim=3072)
+        provider = MockModelProvider(embed_dim=768)
         vec = provider.embed("Sample text for embedding")
-        self.assertEqual(len(vec), 3072)
+        self.assertEqual(len(vec), 768)
 
     def test_mock_synthesize(self):
         provider = MockModelProvider()

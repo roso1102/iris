@@ -1,0 +1,15 @@
+# IRIS — Ingestion Worker runtime dependencies (Phase 1.0).
+
+flask==3.*
+pydantic==2.*
+google-cloud-storage==3.*
+google-cloud-pubsub==2.*
+google-cloud-run==0.16.*
+
+# Layout-aware parsing (ACTIONPLAN 1.4) — CPU-only, runs inside the container.
+docling==2.*
+# Chunk store write path (ACTIONPLAN 1.9) — gated behind QDRANT_URL (Phase 2.0).
+qdrant-client==1.*
+
+# Preflight payload scanner (ACTIONPLAN 1.2)
+pypdf==5.*

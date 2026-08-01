@@ -1,0 +1,9 @@
+# IRIS — root dev/test dependencies (local venv + CI).
+# Service runtime deps live in services/<svc>/requirements.txt.
+
+# Test runner
+pytest==8.*
+# Local .env loading for dev
+python-dotenv==1.*
+# Preflight payload scanner (Phase 1.2)
+pypdf==5.*

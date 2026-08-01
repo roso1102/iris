@@ -1,0 +1,144 @@
+"""Ingestion orchestrator (ACTIONPLAN Tasks 1.2-1.9).
+
+Order: preflight -> download -> parse -> route -> chunk -> embed -> store.
+Returns an ack/retry decision for the Pub/Sub handler.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import List, Optional
+
+from services.common.ingestion.chunker import chunk_routed
+from services.common.ingestion.models import Chunk
+from services.common.ingestion.parser import DoclingParser, MockDocParser
+from services.common.ingestion.preflight import PreflightError, check_pdf
+from services.common.ingestion.store import ChunkStore, get_chunk_store
+from services.common.ingestion.vlm_router import MockVlmRouter, RouterVlmRouter
+from services.common.models.base import ModelProvider
+from services.common.models.factory import get_model_provider
+
+logger = logging.getLogger(__name__)
+
+
+class RejectError(Exception):
+    """Payload must be rejected forever (never queued / straight to DLQ)."""
+
+
+class RetryError(Exception):
+    """Transient failure; Pub/Sub should redeliver (up to 3 attempts)."""
+
+
+@dataclass
+class IngestResult:
+    doc_id: str
+    tenant_id: str
+    page_count: int
+    chunk_count: int
+    vlm_calls: int
+
+
+class IngestionPipeline:
+    def __init__(
+        self,
+        provider: Optional[ModelProvider] = None,
+        store: Optional[ChunkStore] = None,
+        parser=None,
+        router=None,
+        gcs_client=None,
+        bucket: Optional[str] = None,
+    ) -> None:
+        self._provider = provider or get_model_provider()
+        self._store = store or get_chunk_store()
+        self._parser = parser or self._default_parser()
+        self._router = router or self._default_router()
+        self._gcs = gcs_client
+        self._bucket = bucket or os.getenv("GCS_RAW_BUCKET", "iris-raw-pdfs")
+
+    @staticmethod
+    def _default_parser():
+        backend = os.getenv("MODEL_BACKEND", "vertex").lower()
+        if backend == "mock":
+            return MockDocParser()
+        return DoclingParser()
+
+    def _default_router(self):
+        backend = os.getenv("MODEL_BACKEND", "vertex").lower()
+        if backend == "mock":
+            return MockVlmRouter()
+        return RouterVlmRouter(provider=self._provider, renderer=NoopPageRendererIfNoVlm())
+
+    def ingest(self, gcs_uri: str, tenant_id: str, doc_id: str) -> IngestResult:
+        """Full pipeline for one uploaded document."""
+        if not gcs_uri or not tenant_id or not doc_id:
+            raise RejectError("Missing gcs_uri/tenant_id/doc_id in message")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            local_path = self._download(gcs_uri, tmpdir, doc_id)
+
+            try:
+                meta = check_pdf(local_path)
+            except PreflightError as exc:
+                # Reject forever: oversized or corrupt payload never enters pipeline.
+                raise RejectError(str(exc)) from exc
+
+            elements = self._parser.parse(local_path)
+            routed = self._router.route(elements, pdf_path=str(local_path))
+            chunks = chunk_routed(routed, tenant_id=tenant_id, doc_id=doc_id)
+
+            self._embed(chunks)
+            written = self._store.upsert_batch(chunks)
+
+            return IngestResult(
+                doc_id=doc_id,
+                tenant_id=tenant_id,
+                page_count=meta["page_count"],
+                chunk_count=written,
+                vlm_calls=getattr(self._router, "vlm_calls", 0),
+            )
+
+    def _download(self, gcs_uri: str, tmpdir: str, doc_id: str) -> Path:
+        if self._gcs is not None:
+            from google.cloud import storage
+
+            bucket_name, blob_name = _split_gcs_uri(gcs_uri)
+            client = self._gcs or storage.Client()
+            blob = client.bucket(bucket_name).blob(blob_name)
+            local = Path(tmpdir) / f"{doc_id}.pdf"
+            blob.download_to_filename(str(local))
+            return local
+
+        # Local dev: gcs_uri is a plain filesystem path.
+        path = Path(gcs_uri)
+        if not path.exists():
+            raise RetryError(f"Local file not found: {path}")
+        return path
+
+    def _embed(self, chunks: List[Chunk]) -> None:
+        for chunk in chunks:
+            chunk.embedding = self._provider.embed(chunk.text)
+
+
+class NoopPageRendererIfNoVlm:
+    """Placeholder renderer; RouterVlmRouter overrides per-page rendering.
+
+    The full VLM path (Docling page rasterization + crops) is wired when the
+    production parser is active; this keeps the class instantiable before
+    that dependency is present.
+    """
+
+    def render_page(self, pdf_path: str, page_number: int, scale: float = 2.0):
+        raise NotImplementedError(
+            "Full VLM cropping requires a page renderer (Phase 1.5 integration)."
+        )
+
+
+def _split_gcs_uri(uri: str) -> tuple[str, str]:
+    if not uri.startswith("gs://"):
+        raise RejectError(f"Not a GCS URI: {uri}")
+    parts = uri[5:].split("/", 1)
+    return parts[0], parts[1]

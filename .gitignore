@@ -21,3 +21,10 @@ env/
 # Temporary files
 *.log
 /tmp/
+
+# Terraform
+terraform.tfvars
+*.tfstate
+*.tfstate.*
+.terraform/
+crash.log

@@ -1,0 +1,13 @@
+# IRIS — Retrieval API build config (Cloud Build).
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-t"
+      - "${_REPO}/retrieval-api:latest"
+      - "-f"
+      - "services/retrieval-api/Dockerfile"
+      - "."
+
+images:
+  - "${_REPO}/retrieval-api:latest"

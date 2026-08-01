@@ -9,7 +9,7 @@ from services.common.models.base import ModelProvider, StructuredAnswer, Citatio
 class MockModelProvider(ModelProvider):
     """Mock implementation returning deterministic outputs for local testing."""
 
-    def __init__(self, embed_dim: int = 3072):
+    def __init__(self, embed_dim: int = 768):
         self.embed_dim = embed_dim
 
     def embed(self, text: str) -> List[float]:

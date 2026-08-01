@@ -205,7 +205,17 @@ IRIS is a new, cloud-native SaaS product. The frontend is a Next.js application 
 | Session | Firestore | `session_id`, `tenant_id`, `user_id`, chat history |
 | Usage Quota | Firestore | `tenant_id`/`trial_id`, pages_ingested, queries_used, credit_balance, period_reset_at |
 
-### 5.2 Data Isolation Rule (applies to every entity above)
+### 5.2 Embedding Model Decision (MVP)
+
+**MVP uses `text-embedding-004` at 768 dimensions (multilingual).** This covers English + Hindi/Devanagari in one vector space and is verified working (live integration test, Phase 0.1).
+
+**Not in MVP scope — future upgrade path:** the larger `gemini-embedding-001` model (up to 3072 dimensions, state-of-the-art multilingual quality) may replace `text-embedding-004` in a future phase. If adopted, this requires:
+1. Re-embedding all stored chunks (vector dimension change breaks the existing Qdrant collection), and
+2. Re-indexing to a new Qdrant collection at the new dimension — a data migration, not a config swap.
+
+The `ModelProvider` abstraction (FR-8) keeps this a contained change; the migration itself is a deliberate post-MVP decision. Do not plan any MVP work around 3072-d vectors.
+
+### 5.3 Data Isolation Rule (applies to every entity above)
 Every read or write MUST be scoped by `tenant_id`, validated against the requester's JWT claim — never trusted from client-supplied input alone.
 
 ---

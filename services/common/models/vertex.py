@@ -1,6 +1,6 @@
 """
 VertexAIProvider wrapping Google Cloud Vertex AI SDK.
-Uses text-embedding-004 (3072-d) and Gemini Flash models.
+Uses text-embedding-004 (768-d) and Gemini Flash models.
 """
 
 import os

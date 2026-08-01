@@ -28,7 +28,7 @@ class ModelProvider(ABC):
     @abstractmethod
     def embed(self, text: str) -> List[float]:
         """
-        Generates a 3072-dimensional vector embedding using the configured model
+        Generates a 768-dimensional vector embedding using the configured model
         (default: Vertex AI text-embedding-004).
         """
         pass
