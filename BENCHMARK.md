@@ -115,3 +115,17 @@ python -m tests.eval_ragas --dataset tests/datasets/golden_dataset.json
 # Run latency load test
 locust -f tests/load_test.py --host=http://localhost:8080
 ```
+
+---
+
+## 7. Phase Execution Schedule (per ACTIONPLAN.md)
+
+| Phase | Benchmark / Test Focus | Success Criteria |
+|---|---|---|
+| **Phase 1.0 (Ingestion)** | • Test 1-A: VLM Router Accuracy<br>• Test 1-B: Scanned/Devanagari Page Routing<br>• Test 1-C: Dead-Letter Queue Recovery | • Clean text incurs $0$ VLM cost<br>• Scanned Hindi routed to VLM<br>• Corrupt PDF routed to DLQ after 3 retries |
+| **Phase 2.0 (Retrieval)** | • Test 2-A: Retrieval Recall@5 & MRR<br>• Test 2-B: Tenant Isolation Filter<br>• Test 2-C: Hybrid vs. Single-Modality Lift<br>• Test 2-D: Diversity Pass Flooding Prevention<br>• Test 2-E: Deep Search Rerank Lift<br>• Test 2-F: Search Latency | • Recall@5 $\ge 0.85$<br>• 0% cross-tenant data leaks<br>• Hybrid+RRF beats single-modality by $\ge 5\%$<br>• No single doc $>50\%$ of top-10<br>• Search P95 $< 500\text{ms}$ |
+| **Phase 3.0 (Synthesis)** | • Test 3-A: Citation Bbox Accuracy<br>• Test 3-B: RAGAS Faithfulness & Answer Quality<br>• Test 3-C: End-to-End Query Latency | • **100%** valid bbox citations<br>• Faithfulness $\ge 0.90$<br>• Query P95 $< 2.0\text{s}$ |
+| **Phase 4.0 (Security)** | • Test 4-A: Cross-Tenant Penetration Test<br>• Test 4-C: Signed URL Expiry | • **0** cross-tenant leaks (JWT claim override)<br>• 15-min signed GCS URL expiration |
+| **Phase 5.0 (MVP Gate)** | • Full System Benchmark Suite | • All Phase 1–4 criteria met concurrently |
+| **Phase 6.0+ (Post-MVP)** | • Test 6.0: SLM Query Rewrite & HyDE<br>• Test 7.0: Citation Bbox Overlay Merging<br>• Test 10.0: Graph Traversal Latency | • Rewrite latency $< 300\text{ms}$<br>• Merged overlapping highlights<br>• Graph traversal $< 300\text{ms}$ |
+
