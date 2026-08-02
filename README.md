@@ -95,8 +95,8 @@ User submits question
 | API / Compute | **Google Cloud Run** (Ingestion Worker + Retrieval API) | Scales to zero; hosts all backend logic |
 | Messaging | **Google Pub/Sub** | Decouples ingestion from retrieval; drives the Dead-Letter Queue |
 | Document Parsing | **Docling** (MIT license, open-source) | Layout-aware extraction — text, tables, figures + per-element bbox coordinates |
-| Page-Wise VLM Router | **Docling element labels + char count threshold** | Routes each page element to the cheapest correct processor (see §1 flow) |
-| Table / Figure / Scanned Pages | **Gemini Vision (Vertex AI)** on cropped bbox regions | Called only when Docling signals a Table, Figure, or low-text (<150 char) page — not on every page |
+| Page-Wise VLM Router | **4-signal composite decision tree** (Docling element labels + valid word ratio + text area coverage + OCR confidence) | Routes each page to the cheapest correct processor — zero API cost on clean text (see §1 flow) |
+| Table / Figure / Scanned / Garbled Pages | **Gemini Vision (Vertex AI)** on cropped bbox regions or full-page crop | Called only when composite router signals a Table, Figure, low-coverage, or low-quality-OCR page — never on clean text |
 | Embeddings | **Vertex AI `text-embedding-004`** (768-d, multilingual) | Unified English + Hindi/Devanagari vector space; no local ONNX model required |
 | LLM Synthesis | **Gemini Flash (Vertex AI)** | Generates the final grounded answer with structured citations |
 | Retrieval — Fusion | **Reciprocal Rank Fusion (RRF)** | Merges BM25 and dense cosine rank lists into one coherent ordered list |

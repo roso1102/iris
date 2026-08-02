@@ -55,9 +55,19 @@ Answer quality is evaluated using the open-source **RAGAS** (`ragas`) and **Deep
 
 ## 3. Ingestion & VLM Router Metrics
 
-### 3.1 Page-Wise VLM Router Accuracy
-- **Definition:** Evaluates the classification accuracy of the page router (Docling layout signals + char count threshold) against manually labeled test pages (`Text`, `Table`, `Figure`, `Scanned`).
-- **Target:** $\ge 95\%$ correct routing decisions.
+### 3.1 Page-Wise VLM Router Accuracy (4-Signal Composite)
+- **Definition:** Evaluates the classification accuracy of the composite page router against manually labeled test pages (`Text`, `Table`, `Figure`, `Scanned`, `Garbled-OCR`). The router uses four ordered signals:
+  1. **Signal 1 — Structural classification** (Docling element labels: Table/Figure/Text)
+  2. **Signal 2 — Valid word ratio** (< 75% valid words → garbled OCR → VLM)
+  3. **Signal 3 — Text area coverage** (< 0.15 page coverage AND < 300 chars → image-heavy → VLM)
+  4. **Signal 4 — OCR confidence** (mean confidence < 0.70 → unreliable extraction → VLM)
+- **GCP Tool:** For Signal 4, **Cloud Document AI** (`LAYOUT_PARSER_PROCESSOR`) natively provides per-block OCR confidence scores. Use as an optional higher-confidence arbiter for borderline pages.
+- **Targets:** $\ge 95\%$ correct routing decisions. $\le 5\%$ false-positive VLM escalations on clean-text pages.
+
+### 3.1.1 VLM False-Positive Escalation Rate (NEW)
+- **Definition:** The percentage of clean-text pages that the composite router incorrectly escalates to Gemini Vision. A false positive wastes API cost with no quality improvement.
+- **How to measure:** Label 50 known-clean text pages; run the router; count how many trigger a VLM call.
+- **Target:** $\le 5\%$ false-positive escalation rate on clean text pages.
 
 ### 3.2 Table & Figure Structure Extraction Accuracy
 - **Definition:** Evaluates cell-level accuracy of Gemini Vision Markdown extraction on cropped table image regions compared to ground-truth CSV/Markdown data.

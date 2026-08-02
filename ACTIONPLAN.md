@@ -104,16 +104,49 @@ Build the document upload → parse → route → chunk → embed → store pipe
 - 1.2: Build the pre-ingestion payload scanner (reject >500 pages, corrupt PDF trailers) before queuing.
 - 1.3: Implement the Ingestion Worker on Cloud Run, triggered via Pub/Sub on new upload events.
 - 1.4: Integrate Docling for layout-aware parsing — every element (text block, table, figure) comes out with its normalised `[left, top, right, bottom]` bounding-box coordinates and an element-type label (`Text`, `Table`, `Picture`, `Caption`, etc.).
-- 1.5: Implement the **Page-Wise VLM Router**. After Docling processes each page, the router inspects Docling's output and makes a routing decision per element:
+- 1.5: Implement the **Page-Wise VLM Router** using a **4-signal composite decision tree**. After Docling processes each page, the router evaluates four independent signals in sequence and routes accordingly:
 
-  | Docling Signal | Condition | Route |
-  |---|---|---|
-  | Element type = `Text` / `Paragraph` | Char count ≥ 150 | **Docling text directly** — zero API cost |
-  | Element type = `Table` | Any char count | **Gemini Vision** on cropped table bbox region |
-  | Element type = `Picture` / `Figure` | Any char count | **Gemini Vision** on cropped figure bbox region for captioning |
-  | Any element type | Char count < 150 (scanned / image-only page) | **Gemini Vision** on full page crop |
+  **Signal 1 — Structural Element Classification (Docling layout labels):**
+  | Element Type | Route |
+  |---|---|
+  | `Table` | **Gemini Vision** on cropped table bbox region |
+  | `Picture` / `Figure` | **Gemini Vision** on cropped figure bbox region |
+  | `Text` / `Paragraph` / `Header` | Proceed to Signals 2–4 |
 
-  *Rationale: Gemini Vision reads rendered pixels, so KrutiDev/DevLys legacy Hindi font encoding and scanned Devanagari text are handled transparently — no custom font decoder or RapidOCR pipeline required. VLM is only invoked where Docling’s text extraction is absent or structurally insufficient (tables, figures, scanned pages).*
+  **Signal 2 — Valid Word Ratio (Garbage OCR Detection):**
+  Compute the fraction of extracted words that are valid (real dictionary words, numbers, standard punctuation). If < 75% of words are valid → garbled OCR / unmapped font encoding → route to full-page Gemini Vision. *Catches KrutiDev/DevLys pages that Docling partially attempts but produces gibberish on.*
+
+  **Signal 3 — Text Area Coverage Ratio (Image-Heavy Page Detection):**
+  Compute: `coverage = sum(bbox areas of all text blocks) / total page area`. If coverage < 0.15 AND extracted char count < 300 → page is visually dominated by an untagged image/diagram → route to full-page Gemini Vision. *Catches cover pages, infographic pages, and scanned-over-printed pages where Docling picks up a caption strip but misses the visual content.*
+
+  **Signal 4 — OCR Confidence Score (Unreliable Extraction Gate):**
+  If Docling exposes per-word/per-block confidence scores (or GCP Document AI Layout Parser is used as a fallback — see GCP Note below), and the page-level mean confidence is < 0.70 → route to full-page Gemini Vision.
+
+  **All signals green → Docling text used directly — zero API cost.**
+
+  ```python
+  def route_page(page_layout) -> RouteDecision:
+      # Signal 1 — structural elements
+      if page_layout.has_tables or page_layout.has_figures:
+          return RouteDecision.CROP_VLM
+      # Signal 2 — valid word ratio
+      if valid_word_ratio(page_layout.text) < 0.75:
+          return RouteDecision.FULL_PAGE_VLM
+      # Signal 3 — area coverage
+      coverage = sum_bbox_areas(page_layout.bboxes) / page_layout.page_area
+      if coverage < 0.15 and len(page_layout.text) < 300:
+          return RouteDecision.FULL_PAGE_VLM
+      # Signal 4 — OCR confidence (if available)
+      if page_layout.mean_ocr_confidence < 0.70:
+          return RouteDecision.FULL_PAGE_VLM
+      # All clear — use Docling text directly
+      return RouteDecision.DOCLING_DIRECT
+  ```
+
+  > **GCP Note — Document AI Layout Parser as Signal 4 Source:**
+  > GCP's **Cloud Document AI** (`LAYOUT_PARSER_PROCESSOR`) natively returns per-block OCR confidence scores in its structured output. For pages where Docling signals are ambiguous (Signals 2 & 3 borderline), we can optionally route through Document AI as a higher-confidence arbiter before committing to a Gemini Vision call. This is a call-once-per-ambiguous-page pattern — not a default — to avoid double API costs on clean pages. Evaluate at Phase 5.0 production hardening.
+
+  *Rationale: Gemini Vision reads rendered pixels, so KrutiDev/DevLys legacy Hindi font encoding and scanned Devanagari text are handled transparently — no custom font decoder or RapidOCR pipeline required. VLM is only invoked where the composite router signals indicate Docling's text extraction is absent, low-quality, or structurally insufficient.*
 
 - 1.6: Chunk routed content. Text blocks: sentence-boundary chunking at ~512 tokens. VLM outputs: treated as single chunks with the source element’s bbox attached.
 - 1.7: Embed each chunk via `ModelProvider.embed()` → **Vertex AI `text-embedding-004`** (768-d, multilingual). No local ONNX model required.
@@ -132,11 +165,12 @@ A working pipeline: PDF in → page-wise routed, bbox-tagged, embedded chunks ou
 - **Test 1-B (Oversized Rejection):** Upload a 600-page PDF; confirm it is rejected pre-queue with a clear error, never entering the pipeline.
 - **Test 1-C (Corrupt File):** Upload a deliberately corrupted PDF; confirm it fails gracefully and lands in the DLQ after 3 attempts — not an infinite retry loop.
 - **Test 1-D (VLM Router — Table):** Upload a document containing a known complex multi-column table; confirm the router triggers a Gemini Vision call for that element and the resulting chunk contains structured markdown, not scrambled text.
-- **Test 1-E (VLM Router — Scanned Page):** Upload a scanned-only page (char count < 150 from Docling); confirm the router triggers a full-page Gemini Vision call and produces readable text output.
-- **Test 1-F (VLM Router — Clean Text):** Upload a clean text page; confirm *no* Gemini Vision API call is made for it (verify via cost log / call counter).
-- **Test 1-G (Bbox Accuracy):** Spot-check 10 randomly sampled chunks against the source PDF; bbox coordinates must visually align with the correct content when manually overlaid.
-- **Test 1-H (Chunk Visualization QA):** Confirm the internal QA view correctly renders bbox overlays for a sample of 5 documents spanning different layouts (dense text, tables, scanned/rotated pages).
-- **Benchmark:** VLM call count per 50-page document logged; typical gazette expected to trigger ≤ 20% of pages as VLM calls. Ingestion cost per document tracked against daily budget cap.
+- **Test 1-E (VLM Router — Scanned/Garbled Page):** Upload a scanned-only page AND a KrutiDev-encoded page; confirm Signal 2 (valid word ratio < 0.75) or Signal 3 (area coverage < 0.15) triggers correctly and routes both to full-page Gemini Vision.
+- **Test 1-F (VLM Router — Clean Text, No False Positives):** Upload a clean text page with 40 chars (e.g., a short title page) AND a full-text page with 200 chars; confirm the composite router sends the 200-char page to Docling direct and only escalates the 40-char title page if Signal 3 (area coverage) confirms it is image-heavy — verify via VLM call counter, no API call on pure-text title.
+- **Test 1-G (Composite Router — All 4 Signals):** Build a synthetic 4-page test document: one clean text page, one garbled-OCR page (Signal 2), one image-heavy page (Signal 3), one low-confidence OCR page (Signal 4). Confirm all four route correctly.
+- **Test 1-H (Bbox Accuracy):** Spot-check 10 randomly sampled chunks against the source PDF; bbox coordinates must visually align with the correct content when manually overlaid.
+- **Test 1-I (Chunk Visualization QA):** Confirm the internal QA view correctly renders bbox overlays for a sample of 5 documents spanning different layouts (dense text, tables, scanned/rotated pages).
+- **Benchmark:** VLM call count per 50-page document logged; typical gazette expected to trigger ≤ 20% of pages as VLM calls. Composite router must show ≤ 5% false-positive VLM escalations on clean-text pages. Ingestion cost per document tracked against daily budget cap.
 
 ### Exit Criteria
 ✅ Happy path works end-to-end. ✅ VLM router correctly classifies all four page types in tests. ✅ No VLM call triggered on clean text pages. ✅ Oversized and corrupt files handled safely. ✅ DLQ populated correctly on failure. ✅ Bbox accuracy manually verified.
