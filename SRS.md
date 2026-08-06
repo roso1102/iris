@@ -53,7 +53,7 @@ IRIS is a new, cloud-native SaaS product. The frontend is a Next.js application 
 
 ### 2.3 Operating Environment
 - Frontend: Vercel Edge Network (global CDN), Next.js runtime.
-- Backend: Google Cloud Platform, primarily `us-central1` (or nearest low-cost region), Cloud Run (Linux containers).
+- Backend: Google Cloud Platform, primarily `asia-south1` (or nearest low-cost region), Cloud Run (Linux containers).
 - Client access: modern web browsers over HTTPS.
 
 ### 2.4 Assumptions and Dependencies

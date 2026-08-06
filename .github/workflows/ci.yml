@@ -25,6 +25,7 @@ jobs:
         env:
           MODEL_BACKEND: mock
           QDRANT_URL: ""
+          RUN_VERTEX_LIVE_TESTS: "0"
         run: |
           python -m unittest discover -s tests
           pytest tests/ -q

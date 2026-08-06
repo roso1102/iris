@@ -35,9 +35,15 @@ class TestDownloadLocalDevGate(unittest.TestCase):
 
     def test_local_dev_allows_test_docs_path(self):
         os.environ["IRIS_LOCAL_DEV"] = "1"
+        self.test_docs.mkdir(parents=True, exist_ok=True)
         pdf = self.test_docs / "only_eng_india.pdf"
-        result = self.pipe._download(str(pdf), tempfile.mkdtemp(), "test")
-        self.assertEqual(result, pdf)
+        pdf.write_bytes(b"%PDF-1.4\n% dummy pdf for testing\n")
+        try:
+            result = self.pipe._download(str(pdf), tempfile.mkdtemp(), "test")
+            self.assertEqual(result, pdf.resolve())
+        finally:
+            if pdf.exists():
+                pdf.unlink()
 
     def test_local_dev_blocks_path_outside_test_docs(self):
         os.environ["IRIS_LOCAL_DEV"] = "1"

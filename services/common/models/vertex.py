@@ -42,7 +42,7 @@ class VertexAIProvider(ModelProvider):
     def __init__(
         self,
         project_id: Optional[str] = None,
-        location: str = "us-central1",
+        location: str = "asia-south1",
         synthesis_model: str = "gemini-flash",
         lite_model: str = "gemini-flash-lite",
         embedding_model: str = "text-embedding-004",

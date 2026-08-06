@@ -8,7 +8,7 @@ variable "project_id" {
 variable "region" {
   description = "Primary GCP region for Cloud Run, functions, and data stores."
   type        = string
-  default     = "us-central1"
+  default     = "asia-south1"
 }
 
 variable "billing_account_id" {

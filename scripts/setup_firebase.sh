@@ -5,7 +5,7 @@
 set -euo pipefail
 
 PROJECT_ID="${1:-$(gcloud config get-value project 2>/dev/null)}"
-REGION="${2:-us-central1}"
+REGION="${2:-asia-south1}"
 SECRET_ID="FIREBASE_CONFIG"
 
 if [[ -z "${PROJECT_ID}" || "${PROJECT_ID}" == "(unset)" ]]; then
