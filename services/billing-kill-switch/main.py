@@ -14,9 +14,18 @@ from google.cloud import pubsub_v1
 from google.protobuf import field_mask_pb2
 from google.pubsub_v1 import types as pubsub_types
 
-PROJECT = os.environ.get("GCP_PROJECT", "")
-SUBSCRIPTION = os.environ.get("TARGET_SUBSCRIPTION", "iris-ingestion-sub")
-MONTHLY_CAP = float(os.environ.get("MONTHLY_CAP", "25000"))
+PROJECT = os.environ.get("GCP_PROJECT")
+if not PROJECT:
+    raise RuntimeError("GCP_PROJECT environment variable is required")
+
+SUBSCRIPTION = os.environ.get("TARGET_SUBSCRIPTION")
+if not SUBSCRIPTION:
+    raise RuntimeError("TARGET_SUBSCRIPTION environment variable is required")
+
+try:
+    MONTHLY_CAP = float(os.environ["MONTHLY_CAP"])
+except (KeyError, ValueError):
+    raise RuntimeError("MONTHLY_CAP must be a numeric value in the project's billing currency")
 
 logger = logging.getLogger("kill-switch")
 logging.basicConfig(level=logging.INFO)

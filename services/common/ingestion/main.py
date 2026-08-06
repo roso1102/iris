@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +24,8 @@ from services.common.models.base import ModelProvider
 from services.common.models.factory import get_model_provider
 
 logger = logging.getLogger(__name__)
+
+_ALLOWED_URI_PATTERN = re.compile(r"^gs://[a-z0-9][a-z0-9._-]{2,61}/.+$")
 
 
 class RejectError(Exception):
@@ -102,21 +105,29 @@ class IngestionPipeline:
             )
 
     def _download(self, gcs_uri: str, tmpdir: str, doc_id: str) -> Path:
-        if self._gcs is not None:
-            from google.cloud import storage
+        if os.getenv("IRIS_LOCAL_DEV", "0") == "1":
+            path = Path(gcs_uri)
+            if not path.is_absolute():
+                raise RejectError(f"Local dev: path must be absolute: {gcs_uri}")
+            resolved = path.resolve()
+            allowed_root = Path(__file__).resolve().parents[3] / "test-docs"
+            if not str(resolved).startswith(str(allowed_root)):
+                raise RejectError(f"Local dev: path outside test-docs: {gcs_uri}")
+            if not resolved.exists():
+                raise RetryError(f"Local file not found: {resolved}")
+            return resolved
 
-            bucket_name, blob_name = _split_gcs_uri(gcs_uri)
-            client = self._gcs or storage.Client()
-            blob = client.bucket(bucket_name).blob(blob_name)
-            local = Path(tmpdir) / f"{doc_id}.pdf"
-            blob.download_to_filename(str(local))
-            return local
+        if not _ALLOWED_URI_PATTERN.match(gcs_uri):
+            raise RejectError(f"Invalid GCS URI: {gcs_uri}")
 
-        # Local dev: gcs_uri is a plain filesystem path.
-        path = Path(gcs_uri)
-        if not path.exists():
-            raise RetryError(f"Local file not found: {path}")
-        return path
+        from google.cloud import storage
+
+        bucket_name, blob_name = _split_gcs_uri(gcs_uri)
+        client = self._gcs or storage.Client()
+        blob = client.bucket(bucket_name).blob(blob_name)
+        local = Path(tmpdir) / f"{doc_id}.pdf"
+        blob.download_to_filename(str(local))
+        return local
 
     def _embed(self, chunks: List[Chunk]) -> None:
         for chunk in chunks:

@@ -9,6 +9,7 @@ Auth is added in Phase 4.0; today the route is bound to the worker app only.
 
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 import tempfile
@@ -21,21 +22,45 @@ from services.common.ingestion.store import ChunkStore, get_chunk_store
 logger = logging.getLogger(__name__)
 
 
+def _qa_secret() -> Optional[str]:
+    return os.environ.get("QA_VIEW_SECRET")
+
+
+def _enforce_auth() -> bool:
+    return os.environ.get("QA_VIEW_ENFORCE_AUTH", "0") == "1"
+
+
 def build_qa_response(
     doc_id: str,
     page_number: int,
     tenant_id: str,
+    auth_header: str = "",
     store: Optional[ChunkStore] = None,
     gcs_client=None,
 ) -> tuple[dict, int]:
     """Return chunk overlay data for one page of a document.
 
+    Requires QA_VIEW_SECRET shared-secret auth header (Phase 4.0 will
+    replace this with Firebase Auth JWT validation).
+
     Renders the page to a PNG (via pypdf + PIL) and draws bboxes as red
     rectangles, base64-encoded in the response. Falls back to the page count
     from the store when no renderer is available.
     """
+    if _enforce_auth():
+        secret = _qa_secret()
+        if not secret or not auth_header:
+            return {"error": "QA view not configured"}, 403
+
+        expected = auth_header.removeprefix("Bearer ").strip()
+        if not hmac.compare_digest(expected, secret):
+            return {"error": "unauthorized"}, 403
+
+    if not tenant_id or not doc_id:
+        return {"error": "tenant_id and doc_id required"}, 400
+
     store = store or get_chunk_store()
-    chunks = store.get_by_doc(doc_id)
+    chunks = store.get_by_doc(doc_id, tenant_id=tenant_id)
     page_chunks = [c for c in chunks if c.page_number == page_number]
 
     image_b64 = _render_overlay(doc_id, tenant_id, page_number, gcs_client)

@@ -28,9 +28,9 @@ class TestMemoryChunkStore(unittest.TestCase):
     def test_upsert_and_get_by_doc(self):
         store = MemoryChunkStore()
         store.upsert_batch([_chunk("d1"), _chunk("d1"), _chunk("d2")])
-        self.assertEqual(len(store.get_by_doc("d1")), 2)
-        self.assertEqual(len(store.get_by_doc("d2")), 1)
-        self.assertEqual(store.get_by_doc("nope"), [])
+        self.assertEqual(len(store.get_by_doc("d1", "tenant-a")), 2)
+        self.assertEqual(len(store.get_by_doc("d2", "tenant-a")), 1)
+        self.assertEqual(store.get_by_doc("nope", "tenant-a"), [])
 
     def test_empty_batch(self):
         store = MemoryChunkStore()

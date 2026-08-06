@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import uuid
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
@@ -33,23 +34,26 @@ class ChunkStore(ABC):
         """Persist chunks; returns the number written."""
 
     @abstractmethod
-    def get_by_doc(self, doc_id: str) -> List[Chunk]:
-        """Return all chunks for a document (QA view, cascading delete)."""
+    def get_by_doc(self, doc_id: str, tenant_id: str) -> List[Chunk]:
+        """Return all chunks for a document, enforcing tenant isolation."""
 
 
 class MemoryChunkStore(ChunkStore):
-    """In-memory store for dev/tests. Thread-safe enough for a single worker."""
+    """In-memory store for dev/tests. Thread-safe."""
 
     def __init__(self) -> None:
         self._by_doc: Dict[str, List[Chunk]] = {}
+        self._lock = threading.Lock()
 
     def upsert_batch(self, chunks: List[Chunk]) -> int:
-        for chunk in chunks:
-            self._by_doc.setdefault(chunk.doc_id, []).append(chunk)
+        with self._lock:
+            for chunk in chunks:
+                self._by_doc.setdefault(chunk.doc_id, []).append(chunk)
         return len(chunks)
 
-    def get_by_doc(self, doc_id: str) -> List[Chunk]:
-        return list(self._by_doc.get(doc_id, []))
+    def get_by_doc(self, doc_id: str, tenant_id: str) -> List[Chunk]:
+        with self._lock:
+            return [c for c in self._by_doc.get(doc_id, []) if c.tenant_id == tenant_id]
 
 
 class QdrantChunkStore(ChunkStore):
@@ -92,15 +96,20 @@ class QdrantChunkStore(ChunkStore):
         self._client.upsert(collection_name=self._collection, points=points)
         return len(points)
 
-    def get_by_doc(self, doc_id: str) -> List[Chunk]:
+    def get_by_doc(self, doc_id: str, tenant_id: str) -> List[Chunk]:
         from qdrant_client import models
 
         hits, _ = self._client.scroll(
             collection_name=self._collection,
             scroll_filter=models.Filter(
-                must=[models.FieldCondition(
-                    key="doc_id", match=models.MatchValue(value=doc_id)
-                )]
+                must=[
+                    models.FieldCondition(
+                        key="doc_id", match=models.MatchValue(value=doc_id)
+                    ),
+                    models.FieldCondition(
+                        key="tenant_id", match=models.MatchValue(value=tenant_id)
+                    ),
+                ]
             ),
             with_payload=True,
             with_vectors=False,
