@@ -8,8 +8,13 @@ google-cloud-run==0.16.*
 
 # Layout-aware parsing (ACTIONPLAN 1.4) — CPU-only, runs inside the container.
 docling==2.*
+# Page rendering for VLM router crops (PyMuPDF).
+pymupdf==1.*
 # Chunk store write path (ACTIONPLAN 1.9) — gated behind QDRANT_URL (Phase 2.0).
 qdrant-client==1.*
 
 # Preflight payload scanner (ACTIONPLAN 1.2)
 pypdf==5.*
+
+# Vertex AI SDK for Gemini Vision + text embeddings (ACTIONPLAN 1.6-1.7).
+google-cloud-aiplatform[vertexai]==1.*

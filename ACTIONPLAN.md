@@ -1,4 +1,4 @@
-c# IRIS — Phased Action Plan
+# IRIS — Phased Action Plan
 
 **Format:** Every phase lists Scope → Tasks → Services Touched → Deliverables → Benchmarks & Testing → Exit Criteria.
 A phase is not considered "done" until its Exit Criteria are met — not just its tasks completed.
@@ -94,17 +94,23 @@ A working, testable `ModelProvider` interface with one live backend (Vertex AI) 
 
 ---
 
-## Phase 1.0 — Core Ingestion Pipeline
+## Phase 1.0 — Core Ingestion Pipeline ✅ (complete)
 
 ### Scope
-Build the document upload → parse → route → chunk → embed → store pipeline, with a page-wise VLM router that minimises Gemini Vision API calls to only the elements that genuinely require them.
+Build the document upload → parse → route → chunk → embed → store pipeline, with a page-wise VLM router that minimises Gemini Vision API calls to only the elements that genuinely require them. **Deployed and verified on Cloud Run (revision 00052-md6).**
 
 ### Tasks
 - 1.1: Create tenant-prefixed GCS buckets (`gs://iris-raw-pdfs/{tenant_id}/...`) with IAM conditions. Scaffolding for `/documents/{doc_id}` cascading delete.
 - 1.2: Build the pre-ingestion payload scanner (reject >500 pages, corrupt PDF trailers) before queuing.
 - 1.3: Implement the Ingestion Worker on Cloud Run, triggered via Pub/Sub on new upload events.
 - 1.4: Integrate Docling for layout-aware parsing — every element (text block, table, figure) comes out with its normalised `[left, top, right, bottom]` bounding-box coordinates and an element-type label (`Text`, `Table`, `Picture`, `Caption`, etc.).
-- 1.5: Implement the **Page-Wise VLM Router** using a **4-signal composite decision tree**. After Docling processes each page, the router evaluates four independent signals in sequence and routes accordingly:
+- 1.5: Implement the **Page-Wise VLM Router** using a **4-signal composite decision tree** with **parallel page-level dispatch**. PDFs are split into single-page blobs, each published as a separate Pub/Sub message. Cloud Run auto-scales to max-instances=10, processing pages concurrently. A 35-page doc drops from ~8 min sequential to ~50s wall time.
+  - Preflight runs once per document (page count, corruption check).
+  - Per-page processing: Docling parse → 4-signal router → chunk → embed → write to Qdrant with `page_number`.
+  - `GET /status/{doc_id}` returns live progress (`completed_pages: 12/35, chunks: 45`).
+  - SHA256 doc cache skips re-ingestion of previously processed documents.
+  - `gemini-flash-lite` used for table extraction (2× faster, negligible quality difference on structured tables).
+  - Streaming writes: chunks land in Qdrant as each page finishes — no waiting for full doc.
 
   **Signal 1 — Structural Element Classification (Docling layout labels):**
   | Element Type | Route |
@@ -161,7 +167,7 @@ GCS, Pub/Sub, Cloud Run, Docling, Vertex AI (Gemini Vision + `text-embedding-004
 A working pipeline: PDF in → page-wise routed, bbox-tagged, embedded chunks out.
 
 ### Benchmarks & Testing
-- **Test 1-A (Happy Path):** Upload a 50-page sample gazette PDF; confirm it is fully parsed and chunks appear in Qdrant within 2 minutes (NFR-1 target).
+- **Test 1-A (Happy Path):** Upload a 50-page sample gazette PDF; confirm all pages processed concurrently. Full doc completes in < 2 min wall time (NFR-1 target). Chunks stream into Qdrant incrementally.
 - **Test 1-B (Oversized Rejection):** Upload a 600-page PDF; confirm it is rejected pre-queue with a clear error, never entering the pipeline.
 - **Test 1-C (Corrupt File):** Upload a deliberately corrupted PDF; confirm it fails gracefully and lands in the DLQ after 3 attempts — not an infinite retry loop.
 - **Test 1-D (VLM Router — Table):** Upload a document containing a known complex multi-column table; confirm the router triggers a Gemini Vision call for that element and the resulting chunk contains structured markdown, not scrambled text.

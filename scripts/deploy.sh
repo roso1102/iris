@@ -36,9 +36,11 @@ gcloud run deploy ingestion-worker \
   --image="${REPO}/ingestion-worker:latest" \
   --region="${REGION}" --project="${PROJECT_ID}" \
   --no-allow-unauthenticated \
-  --cpu=2 --memory=4Gi --max-instances=10 --min-instances=0 \
+  --cpu=2 --memory=8Gi --max-instances=10 --min-instances=1 --concurrency=1 \
+  --timeout=900 \
   --service-account="ingestion-worker-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --vpc-connector=iris-connector --vpc-egress=private-ranges-only
+  --vpc-connector=iris-connector --vpc-egress=private-ranges-only \
+  --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,VERTEX_VISION_LOCATION=us-central1"
 
 gcloud run deploy retrieval-api \
   --image="${REPO}/retrieval-api:latest" \
@@ -65,7 +67,7 @@ gcloud functions deploy billing-kill-switch \
   --source=services/billing-kill-switch \
   --entry-point=kill_switch \
   --service-account="billing-kill-switch-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --set-env-vars="GCP_PROJECT=${PROJECT_ID},GCP_LOCATION=${REGION},TARGET_SERVICE=ingestion-worker,MONTHLY_CAP=25000"
+  --set-env-vars="GCP_PROJECT=${PROJECT_ID},TARGET_SUBSCRIPTION=iris-ingestion-sub,MONTHLY_CAP=500"
 
 echo "==> Wiring Eventarc trigger: ingestion topic -> ingestion-worker"
 gcloud eventarc triggers create iris-ingest \

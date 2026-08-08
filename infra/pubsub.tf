@@ -36,6 +36,13 @@ resource "google_pubsub_subscription" "ingestion_sub" {
   }
 }
 
+# --- DLQ pull subscription: exhausted retries land here, drained manually.
+resource "google_pubsub_subscription" "ingestion_dlq_sub" {
+  name    = "iris-ingestion-dlq-sub"
+  project = var.project_id
+  topic   = google_pubsub_topic.ingestion_dlq.id
+}
+
 # --- Billing topic subscription for the kill-switch function (Eventarc-managed).
 # Created here so iam.tf can bind the trigger SA's subscriber role; the actual
 # push wiring is created by `gcloud eventarc triggers create` in deploy.sh.

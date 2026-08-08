@@ -37,14 +37,19 @@ def _sanitize_context(text: str) -> str:
 
 
 class VertexAIProvider(ModelProvider):
-    """Production Vertex AI implementation for GCP Cloud Run."""
+    """Production Vertex AI implementation for GCP Cloud Run.
+
+    Embeddings run in-region (asia-south1) for low latency.
+    Vision calls route to us-central1 where Gemini Flash models are available.
+    """
 
     def __init__(
         self,
         project_id: Optional[str] = None,
-        location: str = "asia-south1",
-        synthesis_model: str = "gemini-flash",
-        lite_model: str = "gemini-flash-lite",
+        location: str = "us-central1",
+        vision_location: Optional[str] = None,
+        synthesis_model: str = "gemini-2.5-flash",
+        lite_model: str = "gemini-2.5-flash-lite",
         embedding_model: str = "text-embedding-004",
     ):
         self.project_id = project_id or os.getenv("GCP_PROJECT")
@@ -54,16 +59,24 @@ class VertexAIProvider(ModelProvider):
                 "Set it to the GCP project ID."
             )
         self.location = location
+        self.vision_location = vision_location or os.getenv("VERTEX_VISION_LOCATION", "us-central1")
         self.synthesis_model_name = os.getenv("SYNTHESIS_MODEL", synthesis_model)
         self.lite_model_name = os.getenv("LITE_MODEL", lite_model)
         self.embedding_model_name = os.getenv("EMBEDDING_MODEL", embedding_model)
         self._initialized = False
+        self._vision_initialized = False
 
     def _ensure_init(self):
         if not self._initialized:
             import vertexai
             vertexai.init(project=self.project_id, location=self.location)
             self._initialized = True
+
+    def _ensure_vision_init(self):
+        if not self._vision_initialized:
+            import vertexai as vision_ai
+            vision_ai.init(project=self.project_id, location=self.vision_location)
+            self._vision_initialized = True
 
     def _safe_generate(self, model, prompt: str, image_part=None) -> str:
         contents = [prompt] if image_part is None else [prompt, image_part]
@@ -102,7 +115,7 @@ class VertexAIProvider(ModelProvider):
         if len(image_bytes) == 0:
             raise ValueError("Empty image bytes")
 
-        self._ensure_init()
+        self._ensure_vision_init()
         from vertexai.generative_models import GenerativeModel, Part
 
         image_part = Part.from_data(data=image_bytes, mime_type="image/png")

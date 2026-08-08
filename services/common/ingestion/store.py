@@ -64,13 +64,16 @@ class QdrantChunkStore(ChunkStore):
 
         self._client = QdrantClient(url=url, api_key=api_key or os.getenv("QDRANT_API_KEY"))
         self._collection = collection
-        self._client.create_collection(
-            collection_name=collection,
-            vectors_config=models.VectorParams(
-                size=EMBEDDING_DIM,
-                distance=models.Distance.COSINE,
-            ),
-        )
+        try:
+            self._client.get_collection(collection_name=collection)
+        except Exception:
+            self._client.create_collection(
+                collection_name=collection,
+                vectors_config=models.VectorParams(
+                    size=EMBEDDING_DIM,
+                    distance=models.Distance.COSINE,
+                ),
+            )
         logger.info("Ensured Qdrant collection '%s' exists", collection)
 
     def upsert_batch(self, chunks: List[Chunk]) -> int:

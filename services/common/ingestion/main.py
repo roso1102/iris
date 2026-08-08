@@ -19,7 +19,7 @@ from services.common.ingestion.models import Chunk
 from services.common.ingestion.parser import DoclingParser, MockDocParser
 from services.common.ingestion.preflight import PreflightError, check_pdf
 from services.common.ingestion.store import ChunkStore, get_chunk_store
-from services.common.ingestion.vlm_router import MockVlmRouter, RouterVlmRouter
+from services.common.ingestion.vlm_router import FitzPageRenderer, MockVlmRouter, RouterVlmRouter
 from services.common.models.base import ModelProvider
 from services.common.models.factory import get_model_provider
 
@@ -73,7 +73,10 @@ class IngestionPipeline:
         backend = os.getenv("MODEL_BACKEND", "vertex").lower()
         if backend == "mock":
             return MockVlmRouter()
-        return RouterVlmRouter(provider=self._provider, renderer=NoopPageRendererIfNoVlm())
+        return RouterVlmRouter(
+            provider=self._provider,
+            renderer=FitzPageRenderer(),
+        )
 
     def ingest(self, gcs_uri: str, tenant_id: str, doc_id: str) -> IngestResult:
         """Full pipeline for one uploaded document."""
@@ -132,20 +135,6 @@ class IngestionPipeline:
     def _embed(self, chunks: List[Chunk]) -> None:
         for chunk in chunks:
             chunk.embedding = self._provider.embed(chunk.text)
-
-
-class NoopPageRendererIfNoVlm:
-    """Placeholder renderer; RouterVlmRouter overrides per-page rendering.
-
-    The full VLM path (Docling page rasterization + crops) is wired when the
-    production parser is active; this keeps the class instantiable before
-    that dependency is present.
-    """
-
-    def render_page(self, pdf_path: str, page_number: int, scale: float = 2.0):
-        raise NotImplementedError(
-            "Full VLM cropping requires a page renderer (Phase 1.5 integration)."
-        )
 
 
 def _split_gcs_uri(uri: str) -> tuple[str, str]:
