@@ -74,7 +74,7 @@ Before building any real ingestion or retrieval logic, establish the `ModelProvi
 ### Tasks
 - Define abstract interfaces: `embed(text) -> vector`, `extract_table(image) -> markdown`, `synthesize(context, query) -> structured_answer`, `ocr(pdf_page) -> text+bbox`.
 - Implement `VertexAIProvider` (the only active implementation for MVP).
-- Stub `SelfHostedGPUProvider` (unimplemented, dormant, but present in code with clear TODOs).
+- Stub `SelfHostedGPUProvider` ✅ (unimplemented, dormant, but present in code with clear TODOs).
 - Wire provider selection via `MODEL_BACKEND` env var read from Secret Manager.
 
 ### Services Touched
