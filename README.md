@@ -158,7 +158,7 @@ cd iris
 
 # Backend (Ingestion Worker + Retrieval API)
 cd services/ingestion-worker && pip install -r requirements.txt --break-system-packages
-cd ../retrieval-api && pip install -r requirements.txt --break-system-packages
+cd ../retrieval_api && pip install -r requirements.txt --break-system-packages
 
 # Frontend
 cd ../../frontend && npm install
@@ -178,7 +178,7 @@ docker compose up      # spins up local Qdrant + emulated Firestore for dev
 iris/
 ├── services/
 │   ├── ingestion-worker/     # Cloud Run service: Docling parsing, chunking, embedding, chunk QA view
-│   └── retrieval-api/        # Cloud Run service: search, rerank, synthesis, citation registry
+│   └── retrieval_api/         # Cloud Run service: search, rerank, synthesis, citation registry
 ├── frontend/                 # Next.js app (deployed on Vercel), incl. PDF.js citation side panel
 ├── infra/                    # Terraform / deployment scripts (IAM, Pub/Sub, budgets)
 ├── docs/
@@ -189,7 +189,7 @@ iris/
 ```
 
 ### Containerization approach
-We containerize **per service, not per development phase** — one Docker image for `ingestion-worker`, one for `retrieval-api`. Each completed phase is git-tagged (e.g., `v9.0-citation-registry`) and deployed to a staging Cloud Run revision for benchmark testing before merging to production, giving phase-level checkpoints without fragmenting the system into dozens of containers. Full rationale in `ACTIONPLAN.md` → "Deployment & Containerization Strategy."
+We containerize **per service, not per development phase** — one Docker image for `ingestion-worker`, one for `retrieval_api`. Each completed phase is git-tagged (e.g., `v9.0-citation-registry`) and deployed to a staging Cloud Run revision for benchmark testing before merging to production, giving phase-level checkpoints without fragmenting the system into dozens of containers. Full rationale in `ACTIONPLAN.md` → "Deployment & Containerization Strategy."
 
 ---
 

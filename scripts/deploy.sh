@@ -25,7 +25,7 @@ gcloud builds submit --config=services/ingestion-worker/cloudbuild.yaml \
   echo "ERROR: ingestion-worker build failed" >&2
   exit 1
 }
-gcloud builds submit --config=services/retrieval-api/cloudbuild.yaml \
+gcloud builds submit --config=services/retrieval_api/cloudbuild.yaml \
   --project="${PROJECT_ID}" --region="${REGION}" --substitutions=_REPO="${REPO}" . || {
   echo "ERROR: retrieval-api build failed" >&2
   exit 1
@@ -40,7 +40,7 @@ gcloud run deploy ingestion-worker \
   --timeout=900 \
   --service-account="ingestion-worker-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
   --vpc-connector=iris-connector --vpc-egress=private-ranges-only \
-  --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,VERTEX_VISION_LOCATION=us-central1"
+  --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,VERTEX_VISION_LOCATION=us-central1,QDRANT_URL=http://10.0.0.5:6333,RETRIEVAL_COLLECTION=iris_chunks_v2"
 
 gcloud run deploy retrieval-api \
   --image="${REPO}/retrieval-api:latest" \
@@ -48,7 +48,8 @@ gcloud run deploy retrieval-api \
   --no-allow-unauthenticated \
   --cpu=2 --memory=2Gi --max-instances=10 --min-instances=0 \
   --service-account="retrieval-api-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --vpc-connector=iris-connector --vpc-egress=private-ranges-only
+  --vpc-connector=iris-connector --vpc-egress=private-ranges-only \
+  --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://10.0.0.5:6333"
 
 echo "==> Granting Cloud Run IAM (kill-switch run.admin, trigger run.invoker)"
 gcloud run services add-iam-policy-binding ingestion-worker \

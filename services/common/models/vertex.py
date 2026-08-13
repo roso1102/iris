@@ -29,6 +29,15 @@ _DIMENSIONALITY_MAP: dict[str, int | None] = {
 }
 
 
+def _is_resource_exhausted(exc: Exception) -> bool:
+    """Return True if the exception is a Vertex/API rate-limit condition."""
+    name = type(exc).__name__.lower()
+    if "resourceexhausted" in name or "resource_exhausted" in name:
+        return True
+    text = str(exc).lower()
+    return "429" in text or "resource exhausted" in text or "rate exceeded" in text
+
+
 def _sanitize_context(text: str) -> str:
     cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]", "", text)
     cleaned = _PROMPT_BOUNDARY_PATTERN.sub("[REDACTED]", cleaned)
@@ -82,7 +91,13 @@ class VertexAIProvider(ModelProvider):
         contents = [prompt] if image_part is None else [prompt, image_part]
         response = model.generate_content(
             contents,
-            generation_config={"temperature": 0.0, "max_output_tokens": 8192},
+            generation_config={
+                "temperature": 0.0,
+                "max_output_tokens": 8192,
+                # Thinking mode bills 5-8x standard output tokens. IRIS never
+                # needs chain-of-thought, so disable it on every call.
+                "thinking_config": {"thinking_budget": 0},
+            },
         )
 
         if not response:
@@ -127,7 +142,13 @@ class VertexAIProvider(ModelProvider):
                 return self._safe_generate(model, prompt, image_part)
             except Exception as exc:
                 last_exc = exc
-                if attempt < _MAX_RETRIES - 1:
+                if attempt >= _MAX_RETRIES - 1:
+                    break
+                # 429/resource-exhaustion needs the per-minute quota to
+                # replenish; other errors are transient and can retry sooner.
+                if _is_resource_exhausted(exc):
+                    time.sleep(60 * (attempt + 1))
+                else:
                     time.sleep(2 ** attempt)
         raise RuntimeError(f"Gemini Vision failed after {_MAX_RETRIES} attempts") from last_exc
 

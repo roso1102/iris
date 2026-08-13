@@ -195,18 +195,21 @@ Stand up the production vector database and the core search + retrieval pipeline
 - 2.2: Configure collections with `is_tenant=True` and appropriate `payload_m`/`m` settings for tenant-isolated HNSW sub-graphs.
 - 2.3: Point the Ingestion Worker (Phase 1.0) at the production Qdrant instance.
 - 2.4: Build the Retrieval API's `/search` endpoint supporting **hybrid search** (dense cosine vector search + BM25 full-text search) executed against the same Qdrant collection, filtered by `tenant_id` and the session's active document list.
+- 2.4a: **Async Event-Loop Non-Negotiable:** Wrap all blocking `provider.embed()` gRPC network calls in `asyncio.to_thread()` inside `SearchOrchestrator` to prevent event-loop starvation under concurrent requests.
+- 2.4b: **Structured Search Observability:** Emit structured JSON logs (`logger.info("search_completed", extra={...})`) capturing `latency_ms`, `mode`, `top_score`, `num_results`, and `tenant_id` to GCP Cloud Logging.
 - 2.5: Implement **Reciprocal Rank Fusion (RRF)** to merge the dense and BM25 rank lists into a single coherent ordered list. RRF is rank-based and score-agnostic — it handles the incompatibility between cosine similarity scores and BM25 scores without normalisation hacks.
-- 2.6: Implement the **Diversity / Dedup pass** on top of the RRF-fused list. This step applies a `0.5×` score multiplier to any chunk whose `source_file` has already appeared in the current top-K window. This prevents a single highly-relevant source document from flooding all top-K slots and starving synthesis of breadth. *This is a separate concern from reranking — RRF handles fusion, diversity handles source over-representation.*
+- 2.5a: **BM25 TF-IDF Upgrade:** Replace raw term-frequency with `rank_bm25` (pure Python) to penalize statutory boilerplate words across large legal/gazette documents.
+- 2.6: Implement the **Diversity / Dedup pass** on top of the RRF-fused list. This step applies a `0.5×` score multiplier to any chunk whose `source_file` has already appeared in the current top-K window. This prevents a single highly-relevant source document from flooding all top-K slots and starving synthesis of breadth.
 - 2.7: Wire the **Standard Mode** query path: embed query (Vertex AI `text-embedding-004`, 768-d) → hybrid search (filtered by tenant and active session documents) → RRF → diversity pass → return top-K chunks.
 - 2.8: Wire the **Deep Search Mode** query path (user-toggled): Fetch sliding window of recent conversation history (last N messages, default N=6) from Firestore (FR-5.3) → rewrite query with SLM → generate HyDE → hybrid search → RRF → diversity pass → Vertex AI Ranking API cross-encoder rerank → return.
 - 2.9: Enforce a server-side tenant filter (app-layer for now; JWT-level enforcement lands in Phase 4.0).
 - 2.10: Build cascading delete backend hooks: `DELETE /documents/{doc_id}` (purges raw GCS PDF + Qdrant points with `document_id` filter) and `DELETE /sessions/{session_id}` (purges Qdrant points with `session_id` filter).
 
 ### Services Touched
-GCE (Qdrant host), Cloud Run (Retrieval API), Qdrant, Vertex AI (Ranking API, `text-embedding-004`).
+GCE (Qdrant host), Cloud Run (Retrieval API), Qdrant, Vertex AI (Ranking API, `text-embedding-004`), Cloud Logging.
 
 ### Deliverables
-A working `/search` endpoint returning tenant-scoped results processed through the full RRF → diversity → [optional rerank] pipeline.
+A working, non-blocking `/search` endpoint returning tenant-scoped results processed through the full RRF → diversity → [optional rerank] pipeline with structured Cloud Logging.
 
 ### Benchmarks & Testing
 - **Test 2-A (Relevance):** Run a fixed set of 20 known question/answer pairs against a test corpus; measure retrieval precision (top-5 chunk relevance) manually or via a scoring rubric.
@@ -218,9 +221,37 @@ A working `/search` endpoint returning tenant-scoped results processed through t
 - **Benchmark:** Qdrant VM memory/CPU usage stays within the provisioned instance size under a simulated 5-tenant load.
 
 ### Exit Criteria
-✅ Standard and Deep Search paths both operational. ✅ RRF correctly fuses both rank lists. ✅ Diversity pass demonstrably prevents source flooding. ✅ Tenant filter holds under test. ✅ Latency benchmark met.
+✅ Standard and Deep Search paths both operational. ✅ Non-blocking async event loop verified. ✅ Structured logs visible in GCP Cloud Logging. ✅ RRF correctly fuses both rank lists. ✅ Diversity pass demonstrably prevents source flooding. ✅ Tenant filter holds under test. ✅ Latency benchmark met.
 
 **Est. Effort:** 1–1.5 weeks
+
+---
+
+## Phase 2.5 — Empirical Validation & Pipeline Hardening
+
+### Scope
+Empirically validate heuristics, validate extracted Markdown table structures, and establish data-backed benchmarks separating retrieval quality from generation quality.
+
+### Tasks
+- 2.5.1: **VLM Table Markdown Validation:** Implement post-extraction row/column matrix validation (`validate_table_markdown()`). Tag structural anomalies or merged cells with `confidence: low` in Qdrant payload.
+- 2.5.2: **Golden Dataset Creation:** Curate a golden dataset of 50 ground-truth Q/A pairs and a 150-page labeled PDF dataset (clean text, scanned Hindi, multi-column tables).
+- 2.5.3: **RAGAS Evaluation Framework:** Integrate `ragas` to evaluate **Retrieval Quality** (`Recall@5`, `ContextPrecision`) separately from **Generation Quality** (`Faithfulness`, `AnswerRelevancy`).
+- 2.5.4: **HyDE & Reranker A/B Benchmarks:** Benchmark Standard vs Deep Search (HyDE + Cross-Encoder) on latency vs recall lift to verify if HyDE justifies $+400\text{ms}$ query latency.
+- 2.5.5: **VLM Signal Threshold Sweep:** Sweep word ratio ($0.75$) and area coverage ($0.15$) on the labeled dataset to minimize false-positive VLM API spend.
+- 2.5.6: **Diversity Penalty Tuning:** Sweep diversity penalty multipliers ($0.25, 0.5, 0.75$) to optimize source breadth without dropping recall.
+
+### Services Touched
+RAGAS Framework, Vertex AI, Python Test Suite.
+
+### Deliverables
+- A RAGAS automated test suite running against a 50-question golden dataset.
+- Data-backed empirical threshold values for VLM signals and diversity penalty.
+- Markdown table validation layer preventing silent financial/data corruption.
+
+### Exit Criteria
+✅ VLM table validation prevents corrupt tables. ✅ RAGAS suite evaluates retrieval separate from generation. ✅ HyDE latency vs. recall lift empirically proven. ✅ VLM signal thresholds backed by 150-page dataset.
+
+**Est. Effort:** 3–4 days
 
 ---
 

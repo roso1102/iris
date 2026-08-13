@@ -19,7 +19,7 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install -r services/ingestion-worker/requirements.txt
-          pip install -r services/retrieval-api/requirements.txt
+          pip install -r services/retrieval_api/requirements.txt
 
       - name: Run unit tests (unittest + pytest)
         env:
@@ -53,7 +53,7 @@ jobs:
             --substitutions=_REPO=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/iris .
       - name: Build retrieval-api
         run: |
-          gcloud builds submit --config=services/retrieval-api/cloudbuild.yaml \
+          gcloud builds submit --config=services/retrieval_api/cloudbuild.yaml \
             --substitutions=_REPO=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/iris .
 
       - name: Deploy ingestion-worker

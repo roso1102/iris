@@ -33,6 +33,7 @@ def chunk_routed(
     tenant_id: str,
     doc_id: str,
     target_tokens: int = TARGET_TOKENS,
+    page_number_override: Optional[int] = None,
 ) -> List[Chunk]:
     """Convert routed elements into embeddable Chunks."""
     chunks: List[Chunk] = []
@@ -43,7 +44,7 @@ def chunk_routed(
                     Chunk(
                         tenant_id=tenant_id,
                         doc_id=doc_id,
-                        page_number=rr.element.page_number,
+                        page_number=page_number_override or rr.element.page_number,
                         element_type=rr.element.element_type,
                         text=rr.text.strip(),
                         bbox=rr.element.bbox,
@@ -52,7 +53,13 @@ def chunk_routed(
                 )
         else:
             chunks.extend(
-                _chunk_text(rr, tenant_id, doc_id, target_tokens=target_tokens)
+                _chunk_text(
+                    rr,
+                    tenant_id,
+                    doc_id,
+                    target_tokens=target_tokens,
+                    page_number_override=page_number_override,
+                )
             )
     return chunks
 
@@ -62,6 +69,7 @@ def _chunk_text(
     tenant_id: str,
     doc_id: str,
     target_tokens: int,
+    page_number_override: Optional[int] = None,
 ) -> List[Chunk]:
     text = rr.text.strip()
     if not text:
@@ -82,7 +90,7 @@ def _chunk_text(
                 Chunk(
                     tenant_id=tenant_id,
                     doc_id=doc_id,
-                    page_number=rr.element.page_number,
+                    page_number=page_number_override or rr.element.page_number,
                     element_type=rr.element.element_type,
                     text=joined,
                     bbox=rr.element.bbox,

@@ -1,0 +1,14 @@
+.gitignore
+.venv
+.git
+__pycache__
+*.pyc
+*.pyo
+.env
+*.log
+.DS_Store
+test-docs/
+trueassort/
+*.egg-info
+.pytest_cache
+node_modules/

@@ -78,8 +78,14 @@ class IngestionPipeline:
             renderer=FitzPageRenderer(),
         )
 
-    def ingest(self, gcs_uri: str, tenant_id: str, doc_id: str) -> IngestResult:
-        """Full pipeline for one uploaded document."""
+    def ingest(
+        self,
+        gcs_uri: str,
+        tenant_id: str,
+        doc_id: str,
+        page_number: Optional[int] = None,
+    ) -> IngestResult:
+        """Full pipeline for one uploaded document or single-page blob."""
         if not gcs_uri or not tenant_id or not doc_id:
             raise RejectError("Missing gcs_uri/tenant_id/doc_id in message")
 
@@ -94,7 +100,12 @@ class IngestionPipeline:
 
             elements = self._parser.parse(local_path)
             routed = self._router.route(elements, pdf_path=str(local_path))
-            chunks = chunk_routed(routed, tenant_id=tenant_id, doc_id=doc_id)
+            chunks = chunk_routed(
+                routed,
+                tenant_id=tenant_id,
+                doc_id=doc_id,
+                page_number_override=page_number,
+            )
 
             self._embed(chunks)
             written = self._store.upsert_batch(chunks)
@@ -134,7 +145,11 @@ class IngestionPipeline:
 
     def _embed(self, chunks: List[Chunk]) -> None:
         for chunk in chunks:
-            chunk.embedding = self._provider.embed(chunk.text)
+            try:
+                chunk.embedding = self._provider.embed(chunk.text)
+            except Exception:
+                logger.warning("Embedding failed for chunk %s, using zero vector fallback", chunk.id, exc_info=True)
+                chunk.embedding = [0.0] * 768
 
 
 def _split_gcs_uri(uri: str) -> tuple[str, str]:

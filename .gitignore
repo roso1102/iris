@@ -12,6 +12,20 @@ venv/
 ENV/
 env/
 
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Graphify generated analysis cache (not source)
+graphify-out/cache/
+
+# Python packaging / test artifacts
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # IDE & OS files
 .vscode/
 .idea/

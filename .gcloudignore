@@ -1,0 +1,12 @@
+# Exclude development artifacts from Cloud Build source upload.
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.pytest_cache/
+graphify-out/
+test-docs/
+node_modules/
+.env
+*.log

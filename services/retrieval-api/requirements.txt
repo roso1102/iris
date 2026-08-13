@@ -1,4 +1,0 @@
-# IRIS — Retrieval API runtime dependencies.
-# FastAPI + qdrant-client + vertexai land with Phases 2.0/3.0.
-
-flask==3.*

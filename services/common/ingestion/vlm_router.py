@@ -18,9 +18,12 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
+import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, List
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import fitz  # PyMuPDF
 from PIL import Image
@@ -31,6 +34,31 @@ from services.common.models.base import ModelProvider
 logger = logging.getLogger(__name__)
 
 MIN_TEXT_CHARS = 150
+
+# Optional on-disk VLM cache for zero-cost local test replay. Keyed by image
+# SHA256 (content-addressed), so the same crop/page always reuses the same
+# output. Disabled by default; set VLM_CACHE_DIR to enable (local dev only).
+def _vlm_cache_dir() -> Optional[Path]:
+    raw = os.getenv("VLM_CACHE_DIR", "").strip()
+    return Path(raw) if raw else None
+
+
+def _load_cached_vlm(img_hash: str) -> Optional[str]:
+    cache_dir = _vlm_cache_dir()
+    if cache_dir is None:
+        return None
+    cache_path = cache_dir / f"{img_hash}.txt"
+    if cache_path.exists():
+        return cache_path.read_text(encoding="utf-8")
+    return None
+
+
+def _store_cached_vlm(img_hash: str, text: str) -> None:
+    cache_dir = _vlm_cache_dir()
+    if cache_dir is None:
+        return
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    (cache_dir / f"{img_hash}.txt").write_text(text, encoding="utf-8")
 
 
 @dataclass
@@ -131,6 +159,7 @@ class RouterVlmRouter(VlmRouter):
         self._min_text_chars = min_text_chars
         self._vlm_cache: Dict[str, str] = {}
         self.vlm_calls = 0
+        self._vlm_semaphore = threading.BoundedSemaphore(value=10)
 
     def route(self, elements: List[ParsedElement], pdf_path: str = "") -> List[RoutingResult]:
         results: List[RoutingResult] = []
@@ -182,8 +211,16 @@ class RouterVlmRouter(VlmRouter):
         img_hash = hashlib.sha256(image_bytes).hexdigest()
         if img_hash in self._vlm_cache:
             return self._vlm_cache[img_hash]
-        text = extractor(image_bytes)
+
+        cached = _load_cached_vlm(img_hash)
+        if cached is not None:
+            self._vlm_cache[img_hash] = cached
+            return cached
+
+        with self._vlm_semaphore:
+            text = extractor(image_bytes)
         self._vlm_cache[img_hash] = text
+        _store_cached_vlm(img_hash, text)
         self.vlm_calls += 1
         return text
 

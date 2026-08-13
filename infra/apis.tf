@@ -6,7 +6,7 @@ locals {
     "cloudresourcemanager.googleapis.com",   # IAM / project APIs
     "cloudbilling.googleapis.com",           # billing budgets
     "compute.googleapis.com",                # VPC, subnets, PSC addresses
-    "run.googleapis.com",                    # Cloud Run (ingestion-worker, retrieval-api)
+    "run.googleapis.com",                    # Cloud Run (ingestion-worker, retrieval_api)
     "eventarc.googleapis.com",               # Pub/Sub -> Cloud Run triggers
     "pubsub.googleapis.com",                 # ingestion topic + DLQ + billing alerts
     "firestore.googleapis.com",              # sessions, quotas, kill-switch state

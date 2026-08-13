@@ -58,6 +58,7 @@ class Chunk(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     tenant_id: str
     doc_id: str
+    session_id: Optional[str] = None
     page_number: int = Field(ge=1)
     element_type: ElementType
     text: str

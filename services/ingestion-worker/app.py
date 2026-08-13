@@ -64,31 +64,66 @@ def _pubsub_topic() -> str:
 # ── Core ingestion (per-page) ──────────────────────────────────────────────
 
 
+def _decode_pubsub_payload(envelope: dict) -> tuple[dict, dict]:
+    """Return (data_payload, attributes) from a Pub/Sub/Eventarc push envelope.
+
+    Eventarc and raw Pub/Sub push can place attributes at either the top level
+    or inside `message.attributes`. The actual document payload is the
+    base64-encoded JSON inside `message.data`.
+    """
+    message = envelope.get("message", envelope) or {}
+    attributes = dict(message.get("attributes") or {})
+    # Some Eventarc delivery variants put attributes at the envelope root.
+    root_attributes = envelope.get("attributes") or {}
+    attributes.update({k: v for k, v in root_attributes.items() if v})
+
+    data: dict = {}
+    raw = message.get("data", "")
+    if raw:
+        try:
+            decoded = json.loads(base64.b64decode(raw).decode("utf-8"))
+            if isinstance(decoded, dict):
+                data = decoded
+        except Exception:
+            data = {}
+
+    return data, attributes
+
+
+def _first_present(data: dict, attributes: dict, key: str) -> str:
+    """Prefer the decoded message payload, fall back to Pub/Sub attributes."""
+    value = data.get(key)
+    if value not in (None, ""):
+        return value
+    return attributes.get(key, "")
+
+
 @app.post("/")
 def ingest_page():
     """Process a single page (delivered by Pub/Sub push)."""
     envelope = request.get_json(silent=True) or {}
-    message = envelope.get("message", envelope)
+    logger.info(
+        "raw_pubsub_envelope",
+        extra={"body": str(envelope)[:2000]},
+    )
 
-    data = {}
-    raw = message.get("data", "")
-    if raw:
-        try:
-            data = json.loads(base64.b64decode(raw).decode("utf-8"))
-        except Exception:
-            data = {}
+    data, attributes = _decode_pubsub_payload(envelope)
+    gcs_uri = _first_present(data, attributes, "gcs_uri")
+    tenant_id = _first_present(data, attributes, "tenant_id")
+    doc_id = _first_present(data, attributes, "doc_id")
+    page_number = _first_present(data, attributes, "page_number")
+    total_pages = _first_present(data, attributes, "total_pages")
 
-    gcs_uri = data.get("gcs_uri") or (message.get("attributes") or {}).get("gcs_uri")
-    tenant_id = data.get("tenant_id") or (message.get("attributes") or {}).get("tenant_id")
-    doc_id = data.get("doc_id") or (message.get("attributes") or {}).get("doc_id")
-    page_number = data.get("page_number") or (message.get("attributes") or {}).get("page_number")
-    total_pages = data.get("total_pages") or (message.get("attributes") or {}).get("total_pages")
-
-    page_number = int(page_number) if page_number else 0
-    total_pages = int(total_pages) if total_pages else 0
+    page_number = int(page_number) if str(page_number).isdigit() else 0
+    total_pages = int(total_pages) if str(total_pages).isdigit() else 0
 
     try:
-        result = _get_pipeline().ingest(gcs_uri=gcs_uri, tenant_id=tenant_id, doc_id=doc_id)
+        result = _get_pipeline().ingest(
+            gcs_uri=gcs_uri,
+            tenant_id=tenant_id,
+            doc_id=doc_id,
+            page_number=page_number or None,
+        )
         _mark_page_done(doc_id, page_number)
         logger.info(
             "Ingested doc_id=%s page=%s/%s tenant=%s chunks=%s vlm_calls=%s",
@@ -193,8 +228,9 @@ def ingestion_status(doc_id: str):
     Returns: {"doc_id": ..., "total_pages": N, "completed_pages": M,
               "chunks": C, "failed_pages": [p1, p2]}
     """
+    tenant_id = request.args.get("tenant_id", "")
     store = get_chunk_store()
-    chunks = store.get_by_doc(doc_id, tenant_id="")
+    chunks = store.get_by_doc(doc_id, tenant_id=tenant_id)
     completed = len({c.page_number for c in chunks})
 
     with _progress_lock:
