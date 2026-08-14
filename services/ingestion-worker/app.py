@@ -20,7 +20,7 @@ from collections import defaultdict
 
 from flask import Flask, jsonify, request
 
-from google.cloud import pubsub_v1
+from google.cloud import firestore, pubsub_v1
 
 from services.common.ingestion.cache import get_cached_chunks
 from services.common.ingestion.main import (
@@ -40,8 +40,13 @@ app = Flask(__name__)
 PORT = int(os.environ.get("PORT", 8080))
 _pipeline = None
 
-_progress: dict[str, dict] = {}
-_progress_lock = threading.Lock()
+
+def _firestore() -> firestore.Client:
+    return firestore.Client()
+
+
+def _progress_doc_path(tenant_id: str, doc_id: str) -> str:
+    return f"ingestion_progress/{tenant_id}/{doc_id}"
 
 
 def _get_pipeline() -> IngestionPipeline:
@@ -102,9 +107,14 @@ def _first_present(data: dict, attributes: dict, key: str) -> str:
 def ingest_page():
     """Process a single page (delivered by Pub/Sub push)."""
     envelope = request.get_json(silent=True) or {}
+    message = envelope.get("message", envelope) or {}
     logger.info(
-        "raw_pubsub_envelope",
-        extra={"body": str(envelope)[:2000]},
+        "pubsub_envelope_received",
+        extra={
+            "message_id": message.get("messageId", ""),
+            "has_data": bool(message.get("data")),
+            "subscription": str(envelope.get("subscription", ""))[:120],
+        },
     )
 
     data, attributes = _decode_pubsub_payload(envelope)
@@ -124,21 +134,21 @@ def ingest_page():
             doc_id=doc_id,
             page_number=page_number or None,
         )
-        _mark_page_done(doc_id, page_number)
+        _mark_page_done(tenant_id, doc_id, page_number)
         logger.info(
             "Ingested doc_id=%s page=%s/%s tenant=%s chunks=%s vlm_calls=%s",
             doc_id, page_number, total_pages, tenant_id, result.chunk_count, result.vlm_calls,
         )
         return jsonify({"status": "ok", "doc_id": doc_id, "page_number": page_number}), 200
     except RejectError as exc:
-        _mark_page_failed(doc_id, page_number)
+        _mark_page_failed(tenant_id, doc_id, page_number)
         logger.warning("Rejected %s page %s: %s", doc_id, page_number, exc)
         return jsonify({"status": "rejected", "reason": str(exc)}), 200
     except RetryError as exc:
         logger.warning("Transient failure for %s page %s: %s", doc_id, page_number, exc)
         return jsonify({"error": str(exc)}), 500
     except Exception as exc:
-        _mark_page_failed(doc_id, page_number)
+        _mark_page_failed(tenant_id, doc_id, page_number)
         logger.exception("Pipeline failed for doc_id=%s page=%s", doc_id, page_number)
         return jsonify({"error": str(exc)}), 500
 
@@ -207,7 +217,7 @@ def ingest_document():
         )
 
     total_pages = page_messages[0]["total_pages"]
-    _init_progress(doc_id, total_pages)
+    _init_progress(tenant_id, doc_id, total_pages)
 
     logger.info("Fanned out %d pages for doc_id=%s", total_pages, doc_id)
     return jsonify({
@@ -233,10 +243,14 @@ def ingestion_status(doc_id: str):
     chunks = store.get_by_doc(doc_id, tenant_id=tenant_id)
     completed = len({c.page_number for c in chunks})
 
-    with _progress_lock:
-        prog = _progress.get(doc_id, {})
-        total = prog.get("total_pages", 0)
-        failed = prog.get("failed_pages", [])
+    total = 0
+    failed: list[int] = []
+    if tenant_id:
+        snapshot = _firestore().document(_progress_doc_path(tenant_id, doc_id)).get()
+        if snapshot.exists:
+            data = snapshot.to_dict() or {}
+            total = int(data.get("total_pages", 0))
+            failed = [int(p) for p in data.get("failed_pages", [])]
 
     return jsonify({
         "doc_id": doc_id,
@@ -270,28 +284,28 @@ def memory_view():
     return jsonify(result), status
 
 
-# ── In-memory progress tracking (reset on cold start) ──────────────────────
+# ── Firestore-backed progress tracking (survives cold starts / scale-out) ──
 
 
-def _init_progress(doc_id: str, total_pages: int):
-    with _progress_lock:
-        _progress[doc_id] = {
-            "total_pages": total_pages,
-            "completed_pages": set(),
-            "failed_pages": [],
-        }
+def _init_progress(tenant_id: str, doc_id: str, total_pages: int):
+    _firestore().document(_progress_doc_path(tenant_id, doc_id)).set({
+        "total_pages": total_pages,
+        "failed_pages": [],
+        "updated_at": firestore.SERVER_TIMESTAMP,
+    })
 
 
-def _mark_page_done(doc_id: str, page_number: int):
-    with _progress_lock:
-        if doc_id in _progress:
-            _progress[doc_id]["completed_pages"].add(page_number)
+def _mark_page_done(tenant_id: str, doc_id: str, page_number: int):
+    _firestore().document(_progress_doc_path(tenant_id, doc_id)).update({
+        "updated_at": firestore.SERVER_TIMESTAMP,
+    })
 
 
-def _mark_page_failed(doc_id: str, page_number: int):
-    with _progress_lock:
-        if doc_id in _progress:
-            _progress[doc_id]["failed_pages"].append(page_number)
+def _mark_page_failed(tenant_id: str, doc_id: str, page_number: int):
+    _firestore().document(_progress_doc_path(tenant_id, doc_id)).update({
+        "failed_pages": firestore.ArrayUnion([page_number]),
+        "updated_at": firestore.SERVER_TIMESTAMP,
+    })
 
 
 if __name__ == "__main__":

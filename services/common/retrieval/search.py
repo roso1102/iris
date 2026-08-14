@@ -63,7 +63,7 @@ class SearchOrchestrator:
         fused = reciprocal_rank_fusion(dense, sparse)
 
         scored = await asyncio.to_thread(
-            self._resolve_chunks, fused, top_k * 3
+            self._resolve_chunks, fused, top_k * 3, tenant_id
         )
         diversified = diversity_penalty(scored, top_k=top_k)
         results = diversified[:top_k]
@@ -116,7 +116,7 @@ class SearchOrchestrator:
         fused = reciprocal_rank_fusion(dense, sparse)
 
         scored = await asyncio.to_thread(
-            self._resolve_chunks, fused, top_k * 3
+            self._resolve_chunks, fused, top_k * 3, tenant_id
         )
         diversified = diversity_penalty(scored, top_k=top_k)
         results = diversified[:top_k]
@@ -136,14 +136,14 @@ class SearchOrchestrator:
         return results
 
     def _resolve_chunks(
-        self, fused: List[Tuple[str, float]], limit: int
+        self, fused: List[Tuple[str, float]], limit: int, tenant_id: str
     ) -> List[ScoredChunk]:
         """Resolve RRF-fused (chunk_id, score) into full ScoredChunk objects."""
         fused_ids = [cid for cid, _ in fused[:limit]]
         if not fused_ids:
             return []
 
-        chunks = self.store.get_by_ids(fused_ids)
+        chunks = self.store.get_by_ids(fused_ids, tenant_id)
         chunk_map: Dict[str, Chunk] = {c.id: c for c in chunks}
 
         results: List[ScoredChunk] = []
@@ -163,6 +163,7 @@ class SearchOrchestrator:
                     element_type=chunk.element_type.value,
                     source=chunk.source.value,
                     score=rrf_score,
+                    metadata=dict(chunk.metadata or {}),
                 )
             )
         return results

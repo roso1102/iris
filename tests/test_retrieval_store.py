@@ -90,17 +90,22 @@ class TestMemoryChunkStoreSearch(unittest.TestCase):
         self.assertEqual(len(results), 2)
 
     def test_get_by_ids(self):
-        chunks = self.store.get_by_ids([self.c1.id, self.c2.id])
+        chunks = self.store.get_by_ids([self.c1.id, self.c2.id], "tenant-a")
         ids = {c.id for c in chunks}
         self.assertEqual(ids, {self.c1.id, self.c2.id})
 
+    def test_get_by_ids_cross_tenant_excluded(self):
+        chunks = self.store.get_by_ids([self.c1.id, self.c4.id], "tenant-a")
+        ids = {c.id for c in chunks}
+        self.assertEqual(ids, {self.c1.id})
+
     def test_get_by_ids_missing(self):
-        chunks = self.store.get_by_ids([self.c1.id, "nonexistent"])
+        chunks = self.store.get_by_ids([self.c1.id, "nonexistent"], "tenant-a")
         ids = {c.id for c in chunks}
         self.assertEqual(ids, {self.c1.id})
 
     def test_get_by_ids_empty(self):
-        self.assertEqual(self.store.get_by_ids([]), [])
+        self.assertEqual(self.store.get_by_ids([], "tenant-a"), [])
 
 
 class TestRetrievalStoreFactory(unittest.TestCase):

@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Shell(gcloud config list 2>&1; echo \"---\"; gcloud auth list 2>&1)"
-    ],
-    "deny": [],
-    "defaultMode": "default"
-  }
-}

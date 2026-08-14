@@ -24,6 +24,17 @@ resource "google_pubsub_subscription" "ingestion_sub" {
 
   ack_deadline_seconds = 600
 
+  # Push delivery to the ingestion-worker Cloud Run service. This pushConfig
+  # is normally created by `gcloud eventarc triggers create` in deploy.sh, but
+  # declaring it here lets Terraform ADOPT the existing config instead of
+  # detaching it on the next apply (FIX-002).
+  push_config {
+    push_endpoint = "https://ingestion-worker-zzdrfa3kqa-el.a.run.app"
+    oidc_token {
+      service_account_email = "ingest-trigger-sa@${var.project_id}.iam.gserviceaccount.com"
+    }
+  }
+
   # Task 1.8: max delivery attempts, then DLQ. Pub/Sub minimum is 5 (as of 2026).
   retry_policy {
     minimum_backoff = "30s"

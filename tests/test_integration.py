@@ -2,6 +2,10 @@
 
 Tests 1-A through 1-G per ACTIONPLAN Phase 1.0 Benchmarks & Testing.
 Uses PyMuPDF for text extraction + MockVlmRouter for routing simulation.
+
+Marked `integration` — excluded from the Tier 0 gate (`-m "not live and not
+integration"`) because it reads real PDF fixtures from test-docs/ (several
+minutes for the full corpus, and some fixture files are not always present).
 """
 
 import io
@@ -11,6 +15,8 @@ import tempfile
 import unittest
 from pathlib import Path
 from collections import Counter
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -153,6 +159,7 @@ def _box(title: str, stats: dict) -> None:
 # Test 1-A: Happy Path -- End-to-End Pipeline
 # ======================================================================
 
+@pytest.mark.integration
 class Test1A_HappyPath(unittest.TestCase):
 
     def test_end_to_end_eng_hindi_mix(self):
@@ -240,6 +247,7 @@ class Test1A_HappyPath(unittest.TestCase):
 # Test 1-B: Oversized Rejection
 # ======================================================================
 
+@pytest.mark.integration
 class Test1B_OversizedRejection(unittest.TestCase):
 
     def test_rejects_600_page_pdf(self):
@@ -268,6 +276,7 @@ class Test1B_OversizedRejection(unittest.TestCase):
 # Test 1-C: Corrupt File
 # ======================================================================
 
+@pytest.mark.integration
 class Test1C_CorruptRejection(unittest.TestCase):
 
     def test_rejects_corrupt_trailer(self):
@@ -295,6 +304,7 @@ class Test1C_CorruptRejection(unittest.TestCase):
 # Test 1-D: Table Routing
 # ======================================================================
 
+@pytest.mark.integration
 class Test1D_TableRouting(unittest.TestCase):
 
     def test_assam_gazette_routing(self):
@@ -340,6 +350,7 @@ class Test1D_TableRouting(unittest.TestCase):
 # Test 1-E: Scanned Page -- VLM Full-Page OCR
 # ======================================================================
 
+@pytest.mark.integration
 class Test1E_ScannedPage(unittest.TestCase):
 
     def test_hindi_low_text_triggers_vlm(self):
@@ -399,6 +410,7 @@ class Test1E_ScannedPage(unittest.TestCase):
 # Test 1-F: Clean Text -- Zero VLM Cost
 # ======================================================================
 
+@pytest.mark.integration
 class Test1F_CleanTextZeroCost(unittest.TestCase):
 
     def test_clean_english_elements_no_vlm(self):
@@ -468,6 +480,7 @@ class Test1F_CleanTextZeroCost(unittest.TestCase):
 # Test 1-G: Bbox Accuracy
 # ======================================================================
 
+@pytest.mark.integration
 class Test1G_BboxAccuracy(unittest.TestCase):
 
     def test_bbox_integrity_all_docs(self):
@@ -510,6 +523,7 @@ class Test1G_BboxAccuracy(unittest.TestCase):
 # Per-Document Pipeline Report
 # ======================================================================
 
+@pytest.mark.integration
 class TestPerDocumentPipeline(unittest.TestCase):
 
     def test_all_documents_individually(self):

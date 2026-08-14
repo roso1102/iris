@@ -2,12 +2,18 @@
 
 Runs the FULL production pipeline: Docling parse -> VLM route -> chunk -> store.
 Requires: Docling models downloaded (first run downloads ~40MB).
+
+Marked `integration` — excluded from the Tier 0 gate (`-m "not live and not
+integration"`), because each test parses a real PDF with Docling and takes
+minutes. Run explicitly when validating the pipeline locally.
 """
 import os
 import sys
 import unittest
 from pathlib import Path
 from collections import Counter
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services"))
@@ -82,6 +88,7 @@ def run_doc_on(doc_name, parser, router_class=None):
     }
 
 
+@pytest.mark.integration
 class TestDoclingPipeline(unittest.TestCase):
 
     @classmethod

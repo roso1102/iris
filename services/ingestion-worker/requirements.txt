@@ -5,6 +5,7 @@ pydantic==2.*
 google-cloud-storage==3.*
 google-cloud-pubsub==2.*
 google-cloud-run==0.16.*
+google-cloud-firestore>=2.0
 
 # Layout-aware parsing (ACTIONPLAN 1.4) — CPU-only, runs inside the container.
 docling==2.*
@@ -14,6 +15,7 @@ pymupdf==1.*
 qdrant-client==1.13.0
 # BM25 sparse-vector generation during ingestion (Phase 2.0 upsert_batch).
 rank-bm25==0.2.*
+mmh3==4.*
 
 # Preflight payload scanner (ACTIONPLAN 1.2)
 pypdf==5.*

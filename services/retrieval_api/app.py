@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 
 from fastapi import FastAPI, Header, HTTPException
 
@@ -31,13 +32,17 @@ _RAW_BUCKET = "iris-raw-pdfs"
 
 
 def _get_gcs_client():
-    """Lazy-initialize GCS client (no-op in test/CI environments)."""
-    return None
+    """Lazy-initialize GCS client."""
+    from google.cloud import storage
+
+    return storage.Client()
 
 
 def _get_firestore_client():
-    """Lazy-initialize Firestore client (no-op in test/CI environments)."""
-    return None
+    """Lazy-initialize Firestore client."""
+    from google.cloud import firestore
+
+    return firestore.Client()
 
 
 def _delete_gcs_blob(blob_path: str) -> None:
@@ -117,6 +122,7 @@ async def search(request: SearchRequest, tenant_id: str = Header(...)):
     if not tenant_id.strip():
         raise HTTPException(status_code=400, detail="Missing tenant_id header")
     try:
+        t0 = time.perf_counter()
         if request.mode == "deep":
             results = await orchestrator.deep_search(
                 query=request.query,
@@ -132,7 +138,7 @@ async def search(request: SearchRequest, tenant_id: str = Header(...)):
                 doc_ids=request.doc_ids,
                 top_k=request.top_k,
             )
-        latency = getattr(results, "latency_ms", 0.0) if hasattr(results, "latency_ms") else 0.0
+        latency = round((time.perf_counter() - t0) * 1000, 2)
         return SearchResponse(
             results=results,
             mode=request.mode,

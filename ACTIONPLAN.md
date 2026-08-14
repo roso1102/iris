@@ -197,11 +197,11 @@ Stand up the production vector database and the core search + retrieval pipeline
 - 2.4: Build the Retrieval API's `/search` endpoint supporting **hybrid search** (dense cosine vector search + BM25 full-text search) executed against the same Qdrant collection, filtered by `tenant_id` and the session's active document list.
 - 2.4a: **Async Event-Loop Non-Negotiable:** Wrap all blocking `provider.embed()` gRPC network calls in `asyncio.to_thread()` inside `SearchOrchestrator` to prevent event-loop starvation under concurrent requests.
 - 2.4b: **Structured Search Observability:** Emit structured JSON logs (`logger.info("search_completed", extra={...})`) capturing `latency_ms`, `mode`, `top_score`, `num_results`, and `tenant_id` to GCP Cloud Logging.
-- 2.5: Implement **Reciprocal Rank Fusion (RRF)** to merge the dense and BM25 rank lists into a single coherent ordered list. RRF is rank-based and score-agnostic — it handles the incompatibility between cosine similarity scores and BM25 scores without normalisation hacks.
-- 2.5a: **BM25 TF-IDF Upgrade:** Replace raw term-frequency with `rank_bm25` (pure Python) to penalize statutory boilerplate words across large legal/gazette documents.
-- 2.6: Implement the **Diversity / Dedup pass** on top of the RRF-fused list. This step applies a `0.5×` score multiplier to any chunk whose `source_file` has already appeared in the current top-K window. This prevents a single highly-relevant source document from flooding all top-K slots and starving synthesis of breadth.
-- 2.7: Wire the **Standard Mode** query path: embed query (Vertex AI `text-embedding-004`, 768-d) → hybrid search (filtered by tenant and active session documents) → RRF → diversity pass → return top-K chunks.
-- 2.8: Wire the **Deep Search Mode** query path (user-toggled): Fetch sliding window of recent conversation history (last N messages, default N=6) from Firestore (FR-5.3) → rewrite query with SLM → generate HyDE → hybrid search → RRF → diversity pass → Vertex AI Ranking API cross-encoder rerank → return.
+- 2.5: ✅ Implement **Reciprocal Rank Fusion (RRF)** to merge the dense and BM25 rank lists into a single coherent ordered list. RRF is rank-based and score-agnostic — it handles the incompatibility between cosine similarity scores and BM25 scores without normalisation hacks.
+- 2.5a: ⚠️ **[DEFERRED to Phase 3] BM25 TF-IDF Upgrade:** Replace raw term-frequency with `rank_bm25` (pure Python) or Qdrant native sparse index to penalize statutory boilerplate words across large legal/gazette documents. (Currently using weak `hash(term)` logic).
+- 2.6: ✅ Implement the **Diversity / Dedup pass** on top of the RRF-fused list. This step applies a `0.5×` score multiplier to any chunk whose `source_file` has already appeared in the current top-K window. This prevents a single highly-relevant source document from flooding all top-K slots and starving synthesis of breadth.
+- 2.7: ✅ Wire the **Standard Mode** query path: embed query (Vertex AI `text-embedding-004`, 768-d) → hybrid search (filtered by tenant and active session documents) → RRF → diversity pass → return top-K chunks.
+- 2.8: ⚠️ **[PARTIALLY DEFERRED] Deep Search Mode** query path (user-toggled): Fetch sliding window of recent conversation history (last N messages, default N=6) from Firestore (FR-5.3) → rewrite query with SLM → generate HyDE → hybrid search → RRF → diversity pass → Vertex AI Ranking API cross-encoder rerank → return. (Note: Reranker deferred to Phase 12.0).
 - 2.9: Enforce a server-side tenant filter (app-layer for now; JWT-level enforcement lands in Phase 4.0).
 - 2.10: Build cascading delete backend hooks: `DELETE /documents/{doc_id}` (purges raw GCS PDF + Qdrant points with `document_id` filter) and `DELETE /sessions/{session_id}` (purges Qdrant points with `session_id` filter).
 
@@ -221,7 +221,7 @@ A working, non-blocking `/search` endpoint returning tenant-scoped results proce
 - **Benchmark:** Qdrant VM memory/CPU usage stays within the provisioned instance size under a simulated 5-tenant load.
 
 ### Exit Criteria
-✅ Standard and Deep Search paths both operational. ✅ Non-blocking async event loop verified. ✅ Structured logs visible in GCP Cloud Logging. ✅ RRF correctly fuses both rank lists. ✅ Diversity pass demonstrably prevents source flooding. ✅ Tenant filter holds under test. ✅ Latency benchmark met.
+✅ Standard Mode path operational. ✅ Non-blocking async event loop verified. ✅ Structured logs visible in GCP Cloud Logging. ✅ RRF correctly fuses both rank lists. ✅ Tenant filter holds under test. ✅ Cascading deletes function securely. ⚠️ Diversity pass requires tuning to prevent source flooding. ⚠️ Deep Search fully operational path blocked by Phase 12.0 reranker. ⚠️ Task 2.5a (BM25) deferred.
 
 **Est. Effort:** 1–1.5 weeks
 
@@ -233,12 +233,12 @@ A working, non-blocking `/search` endpoint returning tenant-scoped results proce
 Empirically validate heuristics, validate extracted Markdown table structures, and establish data-backed benchmarks separating retrieval quality from generation quality.
 
 ### Tasks
-- 2.5.1: **VLM Table Markdown Validation:** Implement post-extraction row/column matrix validation (`validate_table_markdown()`). Tag structural anomalies or merged cells with `confidence: low` in Qdrant payload.
+- 2.5.1: ⚠️ **[DEFERRED] VLM Table Markdown Validation:** Implement post-extraction row/column matrix validation (`validate_table_markdown()`). Tag structural anomalies or merged cells with `confidence: low` in Qdrant payload.
 - 2.5.2: **Golden Dataset Creation:** Curate a golden dataset of 50 ground-truth Q/A pairs and a 150-page labeled PDF dataset (clean text, scanned Hindi, multi-column tables).
 - 2.5.3: **RAGAS Evaluation Framework:** Integrate `ragas` to evaluate **Retrieval Quality** (`Recall@5`, `ContextPrecision`) separately from **Generation Quality** (`Faithfulness`, `AnswerRelevancy`).
 - 2.5.4: **HyDE & Reranker A/B Benchmarks:** Benchmark Standard vs Deep Search (HyDE + Cross-Encoder) on latency vs recall lift to verify if HyDE justifies $+400\text{ms}$ query latency.
 - 2.5.5: **VLM Signal Threshold Sweep:** Sweep word ratio ($0.75$) and area coverage ($0.15$) on the labeled dataset to minimize false-positive VLM API spend.
-- 2.5.6: **Diversity Penalty Tuning:** Sweep diversity penalty multipliers ($0.25, 0.5, 0.75$) to optimize source breadth without dropping recall.
+- 2.5.7: ✅ **[DONE — Emergency Fix] BM25 Hash Determinism:** Replace Python's built-in `hash(term)` (PEP 456 randomized per process) with `mmh3` (MurmurHash3). This was a silent production failure: ingestion-worker and retrieval-api generated different sparse indices for the same word, causing every sparse search to return zero matches. `mmh3==4.*` added to both service `requirements.txt`. This is a bug fix only — it makes sparse retrieval functional without improving its quality. Full quality upgrade is Task 3.5.
 
 ### Services Touched
 RAGAS Framework, Vertex AI, Python Test Suite.
@@ -249,7 +249,7 @@ RAGAS Framework, Vertex AI, Python Test Suite.
 - Markdown table validation layer preventing silent financial/data corruption.
 
 ### Exit Criteria
-✅ VLM table validation prevents corrupt tables. ✅ RAGAS suite evaluates retrieval separate from generation. ✅ HyDE latency vs. recall lift empirically proven. ✅ VLM signal thresholds backed by 150-page dataset.
+✅ BM25 hash determinism fixed (Task 2.5.7 — done). ⚠️ VLM table validation deferred (Task 2.5.1). ⚠️ RAGAS suite evaluates retrieval separate from generation. ⚠️ HyDE latency vs. recall lift empirically proven. ⚠️ VLM signal thresholds backed by 150-page dataset.
 
 **Est. Effort:** 3–4 days
 
@@ -258,30 +258,42 @@ RAGAS Framework, Vertex AI, Python Test Suite.
 ## Phase 3.0 — LLM Synthesis Layer
 
 ### Scope
-Turn retrieved chunks into a final, cited, structured answer.
+Turn retrieved chunks into a final, cited, structured answer. **Also includes the production BM25 sparse retrieval upgrade (Task 3.5), which replaces the emergency mmh3/TF fix from Phase 2.5 with a proper pre-trained sparse model.**
 
 ### Tasks
 - 3.1: Implement `ModelProvider.synthesize()` using Gemini Flash/Flash-Lite via Vertex AI.
 - 3.2: Define a Pydantic schema for structured output: answer text + list of citations (each mapped to `doc_id`, `page_number`, `bbox`).
 - 3.3: Wire the `/query` endpoint: retrieve → rerank → synthesize → return structured response.
 - 3.4: Add basic prompt-engineering safeguards against hallucinated citations (e.g., reject/re-ask if a citation doesn't map to a real retrieved chunk).
+- 3.5: **FastEmbed BM25 Sparse Retrieval Upgrade** (replaces Phase 2.5.7 emergency fix):
+  - Install `fastembed` in both service `requirements.txt`.
+  - Replace `services/common/retrieval/bm25.py` entirely with Qdrant's native `fastembed.sparse.BM25` model.
+  - Use the **same pinned model version** in both `ingestion-worker` (encoding chunks at write time) and `retrieval-api` (encoding queries at search time). This is the guarantee of index/query alignment — not a hash function.
+  - The FastEmbed BM25 model ships with pre-trained IDF values from a large real-world corpus (MSMARCO/BEIR). This penalizes common words (including legal boilerplate like "section", "act", "notification") without requiring any corpus state at runtime.
+  - **Important:** After deploying the new model, the existing Qdrant `iris_chunks_v2` sparse vectors are stale (encoded with the old `mmh3+TF` approach). All documents must be **re-ingested** after this upgrade to rebuild sparse vectors under the new model. Plan for a re-ingest window.
+  - **Latency cost:** ~3ms per query for BM25 encoding. Negligible vs. the 500ms budget.
+  - **Memory cost:** FastEmbed BM25 IDF table is ~50–100MB loaded at startup. Acceptable within the `retrieval-api` 2GiB limit.
+  - **Quality gain expected:** MRR improvement on exact-match queries (section numbers, dates, proper nouns) and reduction in boilerplate-driven false matches.
 
 ### Services Touched
-Vertex AI (Gemini), Cloud Run (Retrieval API).
+Vertex AI (Gemini), Cloud Run (Retrieval API, Ingestion Worker), Qdrant (re-ingest required after Task 3.5).
 
 ### Deliverables
-A working `/query` endpoint returning a grounded, structured, cited answer.
+- A working `/query` endpoint returning a grounded, structured, cited answer.
+- A production-grade sparse retrieval layer with pre-trained IDF, replacing the mmh3/TF emergency fix.
 
 ### Benchmarks & Testing
 - **Test 3-A (Citation Validity):** For 30 sample questions, confirm 100% of returned citations map to a real, retrieved chunk (no hallucinated bbox references).
 - **Test 3-B (Answer Quality):** Manual review of answer quality against the 20-question test set from Phase 2.0; target ≥ 90% judged "accurate and grounded."
 - **Test 3-C (Latency):** End-to-end `/query` response time < 2 seconds (NFR-1), excluding cold start.
+- **Test 3-D (BM25 Alignment):** After Task 3.5, verify that sparse search returns non-zero results for known exact-match queries (section numbers, named entities) — proving mmh3 hashes are no longer used.
+- **Test 3-E (MRR Regression):** Re-run Tier 4 eval after Task 3.5 re-ingest. MRR must improve from Phase 2.0 baseline (0.278). Target ≥ 0.50 with FastEmbed BM25.
 - **Benchmark:** Token cost per query logged; confirm Flash-Lite usage stays within projected cost matrix (see `SRS.md` §Cost).
 
 ### Exit Criteria
-✅ Citation validity = 100% on test set. ✅ Answer quality ≥ 90% on manual review. ✅ Latency benchmark met.
+✅ Citation validity = 100% on test set. ✅ Answer quality ≥ 90% on manual review. ✅ Latency benchmark met. ✅ Sparse retrieval produces non-zero matches for exact-match queries (Task 3.5 verified). ✅ MRR improves over Phase 2.0 baseline after re-ingest.
 
-**Est. Effort:** 1 week
+**Est. Effort:** 1–1.5 weeks
 
 ---
 

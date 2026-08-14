@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -20,6 +20,10 @@ class ScoredChunk(BaseModel):
     element_type: str
     source: str = "docling_text"
     score: float
+    metadata: Dict[str, object] = Field(
+        default_factory=dict,
+        description="Extraction metadata (e.g. extraction_confidence for standard_ocr)",
+    )
 
 
 class SearchRequest(BaseModel):

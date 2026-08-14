@@ -41,6 +41,18 @@ resource "google_project_iam_member" "retrieval_secrets" {
   member  = google_service_account.retrieval_api.member
 }
 
+resource "google_project_iam_member" "retrieval_firestore" {
+  project = var.project_id
+  role    = "roles/datastore.owner"
+  member  = google_service_account.retrieval_api.member
+}
+
+resource "google_project_iam_member" "ingestion_firestore" {
+  project = var.project_id
+  role    = "roles/datastore.owner"
+  member  = google_service_account.ingestion_worker.member
+}
+
 # --- Billing kill-switch function SA.
 resource "google_service_account" "billing_kill_switch" {
   account_id   = "billing-kill-switch-sa"

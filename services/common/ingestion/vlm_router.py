@@ -6,12 +6,16 @@ Per page, per element, decide the cheapest correct processor:
   |-----------------------------------------|-------------------------------|
   | Table, any char count                   | Gemini Vision on table crop   |
   | Picture/Figure, any char count          | Gemini Vision on figure crop  |
+  | Signal 5 — non-Latin script dominant    | Gemini Vision on full page    |
   | Signal 2 — valid word ratio < 0.75      | Gemini Vision on full page    |
   | Signal 3 — coverage < 0.15 & chars < 300| Gemini Vision on full page    |
   | Signal 4 — char count < 150             | Gemini Vision on full page    |
   | All signals green                       | Docling text (zero API cost)  |
 
-All VLM calls go through ModelProvider.extract_table()/ocr_page() (SRS FR-8).
+Signal 5 (FIX-008) must run before Signal 2: Devanagari text scores
+0.82-0.87 on valid_word_ratio (passes Signal 2) even though Docling cannot
+render it. All VLM calls go through ModelProvider.extract_table()/ocr_page()
+(SRS FR-8).
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ import hashlib
 import logging
 import os
 import threading
+import unicodedata
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -131,6 +136,21 @@ def _valid_word_ratio(text: str) -> float:
     return valid / total
 
 
+def _is_non_latin_dominant(text: str, threshold: float = 0.30) -> bool:
+    """Signal 5 (FIX-008): True if >30% of letter chars are outside Latin/Extended-Latin.
+
+    Devanagari (Hindi) text has valid_word_ratio 0.82-0.87 — it passes Signal 2 —
+    yet Docling cannot render it, silently producing garbage text. Characters in
+    Unicode Letter (L*) categories above U+024F (end of Extended Latin) mark a
+    non-Latin script. Symbols/digits/punctuation are ignored; empty input is False.
+    """
+    letters = [c for c in text if unicodedata.category(c).startswith("L")]
+    if not letters:
+        return False
+    non_latin = [c for c in letters if ord(c) > 0x024F]  # U+024F = end of Extended Latin
+    return (len(non_latin) / len(letters)) > threshold
+
+
 def _page_text_stats(elements: List[ParsedElement]) -> tuple[float, int]:
     """Compute text area coverage ratio and total char count for TEXT elements."""
 
@@ -172,6 +192,9 @@ class RouterVlmRouter(VlmRouter):
             page_elements = pages[page_no]
             page_coverage, page_total_chars = _page_text_stats(page_elements)
             page_render = None
+            # FIX-012: routing is strictly per-element — page stats are computed
+            # fresh per page group and never cached at document level, so mixed
+            # language documents classify each page independently.
             for el in page_elements:
                 decision, text = self._route_element(
                     el, pdf_path, page_render,
@@ -234,14 +257,29 @@ class RouterVlmRouter(VlmRouter):
             return RouteDecision.VLM_TABLE, ""
         if el.element_type == ElementType.PICTURE:
             return RouteDecision.VLM_PICTURE, ""
+        # Signal 5 (FIX-008) — non-Latin dominant script (Devanagari/Hindi).
+        # Must run before Signal 2: Devanagari passes the 0.75 word-ratio check
+        # but Docling cannot render it. Gemini Vision handles multilingual OCR.
+        if _is_non_latin_dominant(el.text):
+            return RouteDecision.VLM_FULL_PAGE, ""
         # Signal 2 — valid word ratio (garbage OCR / unmapped font encoding).
         if _valid_word_ratio(el.text) < 0.75:
             return RouteDecision.VLM_FULL_PAGE, ""
         # Signal 3 — text area coverage (image-heavy / infographic pages).
+        # Case A: Nearly blank pages (original behaviour preserved).
         if page_coverage < 0.15 and page_total_chars < 300:
             return RouteDecision.VLM_FULL_PAGE, ""
-        # Signal 4 — char count threshold (scanned / low-text elements).
-        if el.char_count < self._min_text_chars:
+        # Case B (FIX-009/FIX-010): Image-heavy infographics with moderate
+        # coverage (0.15-0.45) and sparse text. The guards prevent false
+        # positives on sparse-but-valid text pages (e.g. bibliographies):
+        #   - el.char_count < 150   (very few chars despite coverage area)
+        #   - valid_word_ratio < 0.97  (excludes clean digital text 0.97-0.99)
+        if page_coverage < 0.45 and el.char_count < 150 and _valid_word_ratio(el.text) < 0.97:
+            return RouteDecision.VLM_FULL_PAGE, ""
+        # Signal 4 — char count threshold (scanned / low-text pages).
+        # Page-level, not element-level: a page with substantial body text plus
+        # short elements (footers, headings) must not escalate to VLM.
+        if page_total_chars < self._min_text_chars:
             return RouteDecision.VLM_FULL_PAGE, ""
         return RouteDecision.DOCLING_TEXT, el.text
 

@@ -7,6 +7,7 @@ source element's bbox.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import List, Optional
 
@@ -16,7 +17,9 @@ from services.common.ingestion.models import (
     ParsedElement,
     RouteDecision,
 )
-from services.common.ingestion.vlm_router import RoutingResult
+from services.common.ingestion.vlm_router import RoutingResult, _valid_word_ratio
+
+logger = logging.getLogger(__name__)
 
 # Rough English token estimate (~4 chars/token). Sentence-boundary split keeps
 # each chunk near this budget without mid-sentence cuts.
@@ -28,6 +31,22 @@ _VLM_SINGLE_CHUNK = (RouteDecision.VLM_TABLE, RouteDecision.VLM_PICTURE,
                      RouteDecision.VLM_FULL_PAGE)
 
 
+def _standard_ocr_metadata(rr: RoutingResult) -> dict:
+    """FIX-011: tag chunks whose extraction quality is mid-tier (standard_ocr).
+
+    Pages with 0.75 <= valid_word_ratio < 0.97 are real but imperfect OCR text.
+    Tag the chunk so synthesis can lower citation confidence without an extra
+    VLM call. High-ratio clean digital text (>= 0.97) stays untagged.
+    """
+    ratio = _valid_word_ratio(rr.text)
+    if 0.75 <= ratio < 0.97:
+        return {
+            "extraction_confidence": "standard_ocr",
+            "ocr_confidence_score": round(ratio, 3),
+        }
+    return {}
+
+
 def chunk_routed(
     routed: List[RoutingResult],
     tenant_id: str,
@@ -37,6 +56,7 @@ def chunk_routed(
 ) -> List[Chunk]:
     """Convert routed elements into embeddable Chunks."""
     chunks: List[Chunk] = []
+    empty_elements = 0
     for rr in routed:
         if rr.decision in _VLM_SINGLE_CHUNK:
             if rr.text.strip():
@@ -49,7 +69,15 @@ def chunk_routed(
                         text=rr.text.strip(),
                         bbox=rr.element.bbox,
                         source=rr.decision,
+                        metadata=_standard_ocr_metadata(rr),
                     )
+                )
+            else:
+                empty_elements += 1
+                logger.warning(
+                    "Empty VLM output dropped: doc=%s page=%s type=%s decision=%s",
+                    doc_id, rr.element.page_number,
+                    rr.element.element_type, rr.decision,
                 )
         else:
             chunks.extend(
@@ -61,6 +89,11 @@ def chunk_routed(
                     page_number_override=page_number_override,
                 )
             )
+    if empty_elements > 0:
+        logger.warning(
+            "doc=%s: %d elements produced no chunks (VLM fallback or empty text)",
+            doc_id, empty_elements,
+        )
     return chunks
 
 
@@ -95,6 +128,7 @@ def _chunk_text(
                     text=joined,
                     bbox=rr.element.bbox,
                     source=rr.decision,
+                    metadata=_standard_ocr_metadata(rr),
                 )
             )
             current = []

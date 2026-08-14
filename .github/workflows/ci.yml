@@ -26,6 +26,7 @@ jobs:
           MODEL_BACKEND: mock
           QDRANT_URL: ""
           RUN_VERTEX_LIVE_TESTS: "0"
+          RUN_QDRANT_LIVE_TESTS: "0"
         run: |
           python -m unittest discover -s tests
           pytest tests/ -q
@@ -61,14 +62,16 @@ jobs:
           gcloud run deploy ingestion-worker \
             --image=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/iris/ingestion-worker:latest \
             --region=${{ vars.GCP_REGION }} --project=${{ vars.GCP_PROJECT_ID }} \
-            --no-allow-unauthenticated --cpu=2 --memory=4Gi --max-instances=10 \
+            --no-allow-unauthenticated --cpu=2 --memory=8Gi --max-instances=10 --min-instances=1 --concurrency=1 --timeout=900 \
             --service-account=ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
-            --vpc-connector=iris-connector --vpc-egress=private-ranges-only
+            --vpc-connector=iris-connector --vpc-egress=private-ranges-only \
+            --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${{ vars.GCP_PROJECT_ID }},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,VERTEX_VISION_LOCATION=us-central1,QDRANT_URL=http://10.0.0.5:6333,RETRIEVAL_COLLECTION=iris_chunks_v2"
       - name: Deploy retrieval-api
         run: |
           gcloud run deploy retrieval-api \
             --image=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/iris/retrieval-api:latest \
             --region=${{ vars.GCP_REGION }} --project=${{ vars.GCP_PROJECT_ID }} \
-            --no-allow-unauthenticated --cpu=2 --memory=2Gi --max-instances=10 \
+            --no-allow-unauthenticated --cpu=2 --memory=2Gi --max-instances=10 --min-instances=0 \
             --service-account=retrieval-api-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
-            --vpc-connector=iris-connector --vpc-egress=private-ranges-only
+            --vpc-connector=iris-connector --vpc-egress=private-ranges-only \
+            --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${{ vars.GCP_PROJECT_ID }},EMBEDDING_MODEL=text-embedding-004,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://10.0.0.5:6333"

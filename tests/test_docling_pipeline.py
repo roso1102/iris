@@ -1,10 +1,16 @@
 """Phase 1.0 Docling Integration Tests - uses DoclingParser + VLM router.
 
 Run via: .venv\Scripts\python -m pytest tests/test_docling_pipeline.py -v -s
+
+Marked `integration` — excluded from the Tier 0 gate (`-m "not live and not
+integration"`) because each test parses a real PDF with Docling and takes
+minutes.
 """
 import os, sys, time, unittest
 from pathlib import Path
 from collections import Counter
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services"))
@@ -67,6 +73,7 @@ def run_pipeline(doc_name, parser):
     }
 
 
+@pytest.mark.integration
 class TestDoclingPipeline(unittest.TestCase):
 
     @classmethod

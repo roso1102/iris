@@ -68,8 +68,11 @@ class ChunkStore(ABC):
         """
 
     @abstractmethod
-    def get_by_ids(self, chunk_ids: List[str]) -> List[Chunk]:
-        """Return chunks by their IDs. Missing IDs are silently skipped."""
+    def get_by_ids(self, chunk_ids: List[str], tenant_id: str) -> List[Chunk]:
+        """Return chunks by their IDs, scoped to the given tenant.
+
+        Missing IDs and cross-tenant IDs are silently skipped.
+        """
 
     @abstractmethod
     def delete_by_doc(self, doc_id: str, tenant_id: str) -> int:
@@ -163,13 +166,13 @@ class MemoryChunkStore(ChunkStore):
                 del self._by_doc[doc_id]
             return deleted
 
-    def get_by_ids(self, chunk_ids: List[str]) -> List[Chunk]:
+    def get_by_ids(self, chunk_ids: List[str], tenant_id: str) -> List[Chunk]:
         id_set = {str(cid) for cid in chunk_ids}
         with self._lock:
             results: List[Chunk] = []
             for chunks in self._by_doc.values():
                 for c in chunks:
-                    if str(c.id) in id_set:
+                    if str(c.id) in id_set and c.tenant_id == tenant_id:
                         results.append(c)
             return results
 
@@ -278,6 +281,7 @@ class QdrantChunkStore(ChunkStore):
                     "bbox": chunk.bbox,
                     "text": chunk.text,
                     "source": chunk.source.value,
+                    "metadata": chunk.metadata,
                 },
             )
             points.append(point)
@@ -326,6 +330,7 @@ class QdrantChunkStore(ChunkStore):
                     text=str(p.get("text", "")),
                     bbox=list(p.get("bbox", [])),
                     source=source,
+                    metadata=dict(p.get("metadata") or {}),
                 )
             )
         return results
@@ -378,7 +383,7 @@ class QdrantChunkStore(ChunkStore):
         )
         return [(str(r.id), r.score) for r in results]
 
-    def get_by_ids(self, chunk_ids: List[str]) -> List[Chunk]:
+    def get_by_ids(self, chunk_ids: List[str], tenant_id: str) -> List[Chunk]:
         from qdrant_client import models
 
         if not chunk_ids:
@@ -392,6 +397,8 @@ class QdrantChunkStore(ChunkStore):
         )
         for h in records:
             p = h.payload or {}
+            if str(p.get("tenant_id", "")) != tenant_id:
+                continue
             element_type_raw = p.get("element_type", "Text")
             try:
                 element_type = ElementType(element_type_raw)
@@ -413,6 +420,7 @@ class QdrantChunkStore(ChunkStore):
                     text=str(p.get("text", "")),
                     bbox=list(p.get("bbox", [])),
                     source=source,
+                    metadata=dict(p.get("metadata") or {}),
                 )
             )
         return results

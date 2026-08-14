@@ -12,3 +12,15 @@ trueassort/
 *.egg-info
 .pytest_cache
 node_modules/
+
+# Graphify output (not needed in container)
+graphify-out/
+
+# Eval artifacts
+eval_report_phase2.json
+
+# User-specific agent state
+.commandcode/
+
+# Tests (not needed at runtime)
+tests/

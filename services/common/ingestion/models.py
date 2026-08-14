@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 from enum import Enum
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -67,3 +67,7 @@ class Chunk(BaseModel):
     )
     source: RouteDecision = RouteDecision.DOCLING_TEXT
     embedding: Optional[List[float]] = None
+    metadata: Dict[str, object] = Field(
+        default_factory=dict,
+        description="Extraction metadata, e.g. extraction_confidence + ocr_confidence_score",
+    )

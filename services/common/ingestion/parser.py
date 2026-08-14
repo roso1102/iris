@@ -84,6 +84,12 @@ class DoclingParser(DocParser):
             from docling.datamodel.accelerator_options import AcceleratorOptions, AcceleratorDevice
 
             pipeline_opts = PdfPipelineOptions()
+            # OCR is handled exclusively by the VLM router (Gemini Vision).
+            # Running Docling's RapidOCR here double-processes every page,
+            # burns CPU/memory, and corrupts the router's signals by
+            # substituting OCR text where it should detect "no embedded text".
+            pipeline_opts.do_ocr = False
+            pipeline_opts.do_table_structure = True
             pipeline_opts.accelerator_options = AcceleratorOptions(
                 num_threads=self._num_threads,
             )

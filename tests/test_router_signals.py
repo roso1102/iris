@@ -62,9 +62,21 @@ class TestRouterSignals(unittest.TestCase):
         )
 
     def test_low_char_routes_vlm_full_page(self):
-        """Signal 4: scanned/low-text element -> full-page OCR."""
+        """Signal 4: low-total-text page -> full-page OCR (page-level check)."""
         el = _el(ElementType.TEXT, "Short scanned header.")
-        self.assertEqual(self._decide(el), RouteDecision.VLM_FULL_PAGE)
+        self.assertEqual(
+            self._decide(el, coverage=1.0, total_chars=14),
+            RouteDecision.VLM_FULL_PAGE,
+        )
+
+    def test_short_element_on_text_rich_page_stays_docling(self):
+        """Signal 4 is page-level: a short footer/heading on a text-rich page
+        must NOT trigger a full-page VLM call."""
+        el = _el(ElementType.TEXT, "Page 1 of 41")
+        self.assertEqual(
+            self._decide(el, coverage=1.0, total_chars=2000),
+            RouteDecision.DOCLING_TEXT,
+        )
 
     def test_garbled_text_routes_vlm_full_page(self):
         """Signal 2: garbled OCR / unmapped encoding -> full-page OCR."""

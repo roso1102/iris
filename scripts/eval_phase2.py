@@ -225,6 +225,66 @@ def compute_source_duplication(results: List[dict], top_k: int = 10) -> float:
     return max(doc_counts.values()) / min(top_k, len(results)) if doc_counts else 0.0
 
 
+def compute_mrr(
+    results: List[dict],
+    relevant_docs: List[str],
+    relevant_pages: Optional[List[int]] = None,
+    k: int = 10,
+) -> float:
+    """Mean Reciprocal Rank: 1/rank of first relevant hit, else 0.
+
+    Page-level when `relevant_pages` is provided, otherwise doc-level.
+    """
+    if not relevant_docs:
+        return 0.0
+
+    if relevant_pages:
+        relevant_pairs = {(d, p) for d in relevant_docs for p in relevant_pages}
+        for rank, r in enumerate(results[:k], start=1):
+            pair = (r.get("doc_id", ""), int(r.get("page_number", 0)))
+            if pair in relevant_pairs:
+                return 1.0 / rank
+    else:
+        relevant = set(relevant_docs)
+        for rank, r in enumerate(results[:k], start=1):
+            if r.get("doc_id", "") in relevant:
+                return 1.0 / rank
+    return 0.0
+
+
+def percentile(values: List[float], p: float) -> float:
+    """Linear-interpolation percentile (p in 0..100)."""
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = (p / 100.0) * (len(ordered) - 1)
+    lower = int(rank)
+    upper = lower + 1
+    if upper >= len(ordered):
+        return ordered[-1]
+    frac = rank - lower
+    return ordered[lower] * (1 - frac) + ordered[upper] * frac
+
+
+def check_tenant_isolation(query: str, wrong_tenant: str = "tier4-wrong-tenant") -> bool:
+    """Cross-tenant search must return zero results."""
+    import requests
+
+    token = _token_retrieval()
+    resp = requests.post(
+        f"{RETRIEVAL_URL}/search",
+        json={"query": query, "mode": "standard", "top_k": 10},
+        headers={"Authorization": f"Bearer {token}", "tenant-id": wrong_tenant},
+        timeout=60,
+    )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"tenant-isolation search returned {resp.status_code}: {resp.text[:200]}")
+    results = resp.json().get("results", [])
+    return len(results) == 0
+
+
 # ── main benchmarks ───────────────────────────────────────────────────────────
 
 def load_golden() -> List[dict]:
@@ -265,6 +325,12 @@ def run_benchmarks(skip_ingestion: bool = False):
             item.get("relevant_page_numbers", []),
             k=5,
         )
+        mrr = compute_mrr(
+            result_docs,
+            item["relevant_doc_ids"],
+            item.get("relevant_page_numbers", []),
+            k=10,
+        )
         dup = compute_source_duplication(result_docs, top_k=10)
 
         results_2a.append({
@@ -272,6 +338,7 @@ def run_benchmarks(skip_ingestion: bool = False):
             "type": item["type"],
             "recall_at_5": round(recall, 3),
             "recall_page_at_5": round(page_recall, 3),
+            "mrr": round(mrr, 3),
             "source_dup_pct": round(dup, 3),
             "latency_ms": latency,
             "num_results": len(result_docs),
@@ -282,10 +349,14 @@ def run_benchmarks(skip_ingestion: bool = False):
 
     avg_recall = sum(r["recall_at_5"] for r in results_2a) / len(results_2a)
     avg_page_recall = sum(r["recall_page_at_5"] for r in results_2a) / len(results_2a)
+    avg_mrr = sum(r["mrr"] for r in results_2a) / len(results_2a)
     avg_lat = sum(r["latency_ms"] for r in results_2a) / len(results_2a)
+    lat_p95 = percentile([r["latency_ms"] for r in results_2a], 95)
     print(f"\n  Avg Recall@5      : {avg_recall:.3f}")
     print(f"  Avg Page Recall@5 : {avg_page_recall:.3f}")
+    print(f"  Avg MRR           : {avg_mrr:.3f}")
     print(f"  Avg Latency       : {avg_lat:.1f}ms")
+    print(f"  Latency P95       : {lat_p95:.1f}ms")
 
     print("\n  Recall by query type:")
     by_type: Dict[str, List[float]] = {}
@@ -326,6 +397,16 @@ def run_benchmarks(skip_ingestion: bool = False):
     print(f"  >50% single-source queries : {over_half}/{len(max_dups)}")
     print(f"  Max duplication            : {max(max_dups):.0%}")
 
+    # ── test 2-B: tenant isolation ──────────────────────────────────────
+    print("\n── Test 2-B: Tenant Isolation ──")
+    isolation_ok = check_tenant_isolation(golden[0]["query"])
+    print(f"  Cross-tenant search empty : {isolation_ok}")
+
+    # ── test 2-F: search latency ────────────────────────────────────────
+    print("\n── Test 2-F: Search Latency ──")
+    print(f"  P95 latency : {lat_p95:.1f}ms  (target < 500ms)")
+    print(f"  Pass        : {lat_p95 < 500.0}")
+
     # ── phase 2.5: threshold sweep ──────────────────────────────────────
     print("\n── Phase 2.5: VLM Router Threshold Sweep ──")
     run_threshold_sweep()
@@ -336,10 +417,15 @@ def run_benchmarks(skip_ingestion: bool = False):
         "test_2a_recall": {
             "avg_recall_at_5": round(avg_recall, 3),
             "avg_page_recall_at_5": round(avg_page_recall, 3),
+            "avg_mrr": round(avg_mrr, 3),
             "avg_latency_ms": round(avg_lat, 1),
+            "latency_p95_ms": round(lat_p95, 1),
             "by_type": {t: round(sum(v)/len(v), 3) for t, v in by_type.items()},
             "by_type_page": {t: round(sum(v)/len(v), 3) for t, v in by_type_page.items()},
             "per_query": results_2a,
+        },
+        "test_2b_tenant_isolation": {
+            "cross_tenant_empty": isolation_ok,
         },
         "test_2e_deep_lift": {
             "deep_win_rate": round(win_rate, 2),
@@ -348,6 +434,10 @@ def run_benchmarks(skip_ingestion: bool = False):
         "test_2d_diversity": {
             "queries_over_half_single_source": over_half,
             "max_dup_pct": round(max(max_dups), 2) if max_dups else 0,
+        },
+        "test_2f_latency": {
+            "p95_ms": round(lat_p95, 1),
+            "pass": lat_p95 < 500.0,
         },
     }
     with open(REPORT_PATH, "w") as f:

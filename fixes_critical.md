@@ -495,15 +495,199 @@ STEP 3 — Phase 2.5 router hardening sprint:
   FIX-011  Add extraction_confidence metadata tagging for standard_ocr pages
 ```
 
-**CHECK THIS**
+**TESTING PLAN**
 
+Here is the exact testing structure for IRIS — when to test where, and what to run at each level.
 
- Step 2 — before the next E2E run:
+---
 
-  - FIX-003: pin qdrant-client==1.13.0.
-  - FIX-005: fix the Flask Pub/Sub envelope parse so page_number survives.
-  - FIX-006: Vertex AI quota/backoff/throttle.
-  - FIX-007: make status polling non-contending.
+## The Core Principle
 
-  I'd start implementing Step 1 code changes now (they're local and safe), but I need you to refresh gcloud
-  credentials before any live verification.
+**Every GCP API call costs money. Test everything possible locally first. Only move to GCP when you have exhausted what you can test locally.**
+
+The rule of thumb: if a bug can be caught locally, catching it on GCP costs 50–100× more in time and money.
+
+---
+
+## Tier 0 — Pure Logic Tests (Local, Zero Cost, <10 Seconds)
+
+**When to run:** Every single code change, before anything else. Run these even before looking at the output of your change.
+
+**What they test:** Mathematical/algorithmic correctness with zero external dependencies. These use only Python stdlib and your own c ode.
+
+| Test File | What It Covers |
+|---|---|
+| `tests/test_rrf.py` | Given two ranked lists with known values, verify fused order is correct |
+| `tests/test_diversity.py` | Given 10 chunks from 2 doc_ids, verify 0.5× penalty applied to repeated doc |
+| `tests/test_bm25.py` | Given legal boilerplate text, verify common words get low TF-IDF scores |
+| `tests/test_vlm_router.py` | Given synthetic element metadata (char_count, ratio, coverage, has_table), verify correct route decision |
+| `tests/test_signal5.py` | Given Hindi Devanagari text, verify non-Latin detection fires; English text does not |
+| `tests/test_table_validator.py` | Valid markdown table → True; merged rows → False |
+| `tests/test_pubsub_parser.py` | Given mock Pub/Sub envelope JSON, verify base64 decode extracts correct doc_id/gcs_uri |
+| `tests/test_chunker.py` | Given synthetic Docling element output, verify session_id, page_number, source fields populated |
+
+Run command: `python -m pytest tests/ -m "not live and not integration" -v`
+
+**If any of these fail, do not proceed to the next tier.**
+
+---
+
+## Tier 1 — Component Integration Tests with Fakes (Local, Zero Cost, <60 Seconds)
+
+**When to run:** After any structural code change — new file, new class, wiring two components together.
+
+**What they test:** That components connect to each other correctly, using `MemoryChunkStore` and `MockModelProvider` (both already in your codebase). No real Qdrant, no real Vertex AI.
+
+| Test File | What It Covers |
+|---|---|
+| `tests/test_ingestion_pipeline.py` | MockPDF → MockDoclingParser → VLM router → chunker → MemoryChunkStore → verify chunk count, page_numbers, tenant isolation |
+| `tests/test_search_orchestrator.py` | Seed MemoryChunkStore → run `standard_search` → verify RRF output → verify diversity applied |
+| `tests/test_delete_cascade.py` | Seed MemoryChunkStore → `delete_by_doc` → verify count drops to 0; verify Firestore mock called |
+| `tests/test_retrieval_api.py` | FastAPI TestClient: POST /search → 200 with results; missing tenant_id header → 422; DELETE /documents → 200 |
+| `tests/test_deep_search.py` | MockProvider.rewrite_query() + MockProvider.generate_hyde() → verify orchestrator uses HyDE embedding |
+
+Run command: `python -m pytest tests/ -m "not live" -v`
+
+**What `MockModelProvider` returns:**
+- `embed(text)` → deterministic fake 768-d vector seeded from hash of text (so same input always returns same vector, meaning search is testable)
+- `generate_text(prompt)` → a pre-written string from a fixture file
+- `call_gemini_vision(image)` → cached text from `trueassort/vlm_cache/{page}.txt`
+
+---
+
+## Tier 2 — Live API Connection Smoke Test (Local Machine, ~₹0.50 Per Run)
+
+**When to run:** After any authentication change, provider config change, or after `gcloud auth application-default login`. Roughly once a week, not every code change.
+
+**What they test:** That your local machine can actually reach the live APIs. Not data quality — just connectivity and auth.
+
+| Test | What It Checks | Cost |
+|---|---|---|
+| `provider.embed("hello world")` → assert `len(vector) == 768` | Vertex AI auth + embedding endpoint alive | ~₹0.01 |
+| `provider.generate_text("say hi", model=LITE_MODEL)` → assert `len(response) > 0` | Flash Lite endpoint alive, thinking mode OFF | ~₹0.05 |
+| `GET http://10.0.0.5:6333/collections/iris_chunks_v2` → assert `status == "green"` | Qdrant VM reachable, collection exists | ₹0 |
+| `store.upsert_batch([one_chunk])` then `store.search_dense(embed, limit=1)` → assert 1 result | Full Qdrant read/write path works | ₹0 |
+
+Qdrant is private (`10.0.0.5:6333`), so open an IAP SSH tunnel before the Qdrant half:
+
+```bash
+gcloud compute ssh qdrant-1 \
+  --zone=asia-south1-b --project=naturepivot-rag \
+  --tunnel-through-iap -- -L 6333:localhost:6333 -N
+```
+
+Run command (bash):
+
+```bash
+RUN_VERTEX_LIVE_TESTS=1 RUN_QDRANT_LIVE_TESTS=1 QDRANT_URL=http://localhost:6333 \
+python -m pytest tests/test_vertex_live.py tests/test_qdrant_live.py -m live -v
+```
+
+PowerShell:
+
+```powershell
+$env:RUN_VERTEX_LIVE_TESTS="1"
+$env:RUN_QDRANT_LIVE_TESTS="1"
+$env:QDRANT_URL="http://localhost:6333"
+python -m pytest tests/test_vertex_live.py tests/test_qdrant_live.py -m live -v
+```
+
+Vertex-only (no tunnel needed):
+
+```powershell
+$env:RUN_VERTEX_LIVE_TESTS="1"
+python -m pytest tests/test_vertex_live.py -m live -v
+```
+
+These tests are fast and cheap. They exist to catch "your gcloud session expired" or "the Qdrant VM rebooted" problems before you waste a full Cloud Run deploy.
+
+---
+
+## Tier 3 — Single Document Cloud Run Smoke Test (~₹10 Per Run)
+
+**When to run:** After any Cloud Run service code change that passed Tiers 0 and 1. Specifically: after changing `app.py`, `store.py`, environment variable configuration, or Dockerfile. NOT after every code change.
+
+**The key rule: use only a clean English text document for this test.**
+
+`pages50eng.pdf` (doc_006, 34 pages, all `fast_text` route) triggers **0 VLM calls**. Zero Gemini Vision API calls. Only embedding calls. Cost is negligible.
+
+**What to verify:**
+1. Worker receives the Pub/Sub message (logs show `Ingested doc_id=doc_006`)
+2. Chunks appear in Qdrant: `GET /doc-status/doc_006` → `chunks > 0`
+3. `page_number` is correct on at least 3 sampled chunks (not 0)
+4. `tenant_id` filter works: search from a different tenant returns 0 results
+5. `retrieval-api /search` with a query returns results from doc_006 chunks
+
+This is your **deployment verification gate.** If this passes, your deployment is correct. If it fails, something in the wiring broke.
+
+**Never use scanned PDFs for Tier 3.** `hindi.pdf`, `mixcolorbgf.pdf`, `scannedenglish.pdf` — all of these trigger VLM calls and cost 20–50× more. They belong only in Tier 4.
+
+---
+
+## Tier 4 — Full E2E Acceptance Test (~₹100–200 Per Run)
+
+**When to run:** ONCE per phase milestone, after ALL of Tiers 0–3 pass cleanly. This is Phase 2.0's final acceptance gate, not a development tool.
+
+**Checklist before running Tier 4:**
+- [ ] Thinking mode explicitly disabled (`thinking_budget=0`) in `vertex.py`
+- [ ] VLM calls use Flash Lite (not Flash)
+- [ ] VLM cache populated from a previous run (so pages already processed don't re-hit the API)
+- [ ] Billing budget alert set at ₹200 specifically for this run
+- [ ] All 8 documents confirmed pre-uploaded to GCS
+- [ ] Pub/Sub subscription confirmed attached
+
+**What it measures:** The Phase 2.0 exit criteria — Recall@5, tenant isolation, RRF vs single-modality, diversity flooding prevention, latency <500ms.
+
+After the first run, populate `trueassort/vlm_cache/` with the extracted text for every page. Every subsequent Tier 4 run then costs only embedding + search API calls, not VLM calls. Cost drops from ₹200 to ~₹20.
+
+---
+
+## The Decision Flowchart
+
+```
+Made a code change
+       │
+       ▼
+Run Tier 0 (pure logic tests)
+  FAIL → fix locally
+  PASS ↓
+       │
+       ▼
+Did you change component wiring?
+  YES → Run Tier 1 (integration with fakes)
+         FAIL → fix locally
+         PASS ↓
+  NO  ↓
+       │
+       ▼
+Did you change auth/provider/env config?
+  YES → Run Tier 2 (live API connection check, ~₹0.50)
+         FAIL → fix auth/config
+         PASS ↓
+  NO  ↓
+       │
+       ▼
+Did you change Cloud Run service code or Dockerfile?
+  YES → Deploy + Run Tier 3 (single clean PDF, ~₹10)
+         FAIL → fix deployment config
+         PASS ↓
+  NO  ↓
+       │
+       ▼
+Are you at a phase milestone (Phase 2.0 complete)?
+  YES → Run Tier 4 (full E2E, ~₹100–200, once)
+  NO  → You are done testing this change
+```
+
+---
+
+## What Caused the ₹7,503 Bill
+
+You ran what is effectively Tier 4 tests repeatedly during what should have been Tier 0/1 development iterations. Specifically:
+
+- Each failed deployment cycle cost ~₹500–800 in Gemini Vision calls
+- Thinking mode was enabled, multiplying each call's cost by 5–8×
+- 8 scanned PDFs were used every time instead of 1 clean PDF
+- No VLM cache existed, so every run re-processed every page
+
+The fixes going forward: disable thinking mode, add VLM cache, use clean PDF for Tier 3, and reserve the full 8-document corpus strictly for Tier 4 milestone gates.

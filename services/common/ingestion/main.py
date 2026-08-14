@@ -98,6 +98,8 @@ class IngestionPipeline:
                 # Reject forever: oversized or corrupt payload never enters pipeline.
                 raise RejectError(str(exc)) from exc
 
+            vlm_calls_before = getattr(self._router, "vlm_calls", 0)
+
             elements = self._parser.parse(local_path)
             routed = self._router.route(elements, pdf_path=str(local_path))
             chunks = chunk_routed(
@@ -115,7 +117,7 @@ class IngestionPipeline:
                 tenant_id=tenant_id,
                 page_count=meta["page_count"],
                 chunk_count=written,
-                vlm_calls=getattr(self._router, "vlm_calls", 0),
+                vlm_calls=getattr(self._router, "vlm_calls", 0) - vlm_calls_before,
             )
 
     def _download(self, gcs_uri: str, tmpdir: str, doc_id: str) -> Path:

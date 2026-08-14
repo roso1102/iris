@@ -24,3 +24,11 @@ resource "google_storage_bucket_iam_member" "ingestion_object_admin" {
   role   = "roles/storage.objectAdmin"
   member = google_service_account.ingestion_worker.member
 }
+
+# Retrieval API needs objectAdmin so its cascading delete can remove the raw
+# PDF blob (Phase 2.0 DELETE /documents/{doc_id}).
+resource "google_storage_bucket_iam_member" "retrieval_object_admin" {
+  bucket = google_storage_bucket.raw_pdfs.name
+  role   = "roles/storage.objectAdmin"
+  member = google_service_account.retrieval_api.member
+}

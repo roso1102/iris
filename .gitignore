@@ -20,6 +20,15 @@ env/
 # Graphify generated analysis cache (not source)
 graphify-out/cache/
 
+# Graphify dated snapshot backups (regenerated on each update)
+graphify-out/20*/
+
+# Generated evaluation report (not source)
+eval_report_phase2.json
+
+# User-specific agent state (taste, sessions, plans)
+.commandcode/
+
 # Python packaging / test artifacts
 *.egg-info/
 .pytest_cache/

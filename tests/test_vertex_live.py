@@ -1,6 +1,9 @@
 import unittest
 import os
+import pytest
 from services.common.models.vertex import VertexAIProvider
+
+pytestmark = pytest.mark.live
 
 
 @unittest.skipUnless(

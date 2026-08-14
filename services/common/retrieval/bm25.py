@@ -9,6 +9,13 @@ from __future__ import annotations
 import re
 from typing import Dict, List
 
+try:
+    import mmh3  # pip install mmh3 — MurmurHash3, stable cross-process
+    _USE_MMH3 = True
+except ImportError:  # pragma: no cover — fallback for local envs lacking mmh3
+    import hashlib
+    _USE_MMH3 = False
+
 _STOPWORDS = frozenset(
     {
         "the", "and", "for", "that", "this", "with", "from", "are", "was",
@@ -30,7 +37,20 @@ _TOKEN_RE = re.compile(r"\w{3,}", re.UNICODE)
 
 
 def _hash_term(term: str) -> int:
-    return hash(term) & _MAX_TERM_HASH
+    """Deterministic, cross-process stable hash for a BM25 term index.
+
+    Python's built-in hash() is randomized per process (hash randomization,
+    PEP 456 / PYTHONHASHSEED). Using it means ingestion-worker and retrieval-
+    api produce completely different sparse indices for the same word, so
+    every sparse search silently returns zero matches.
+
+    mmh3 (MurmurHash3) is fast, deterministic, and the industry standard for
+    this use case. Falls back to md5 if mmh3 is not installed.
+    """
+    if _USE_MMH3:
+        return mmh3.hash(term, signed=False) & _MAX_TERM_HASH
+    hex_digest = __import__("hashlib").md5(term.encode("utf-8")).hexdigest()
+    return int(hex_digest[:8], 16) & _MAX_TERM_HASH
 
 
 def tokenize(text: str) -> List[str]:
