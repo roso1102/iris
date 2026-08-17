@@ -313,9 +313,8 @@ def run_benchmarks(skip_ingestion: bool = False, skip_deep: bool = False):
     print("\n── Test 2-A: Standard Mode Recall@5 ──")
     results_2a = []
     for item in golden:
-        t0 = time.time()
         resp = run_search(item["query"], mode="standard", top_k=10)
-        latency = round((time.time() - t0) * 1000, 1)
+        latency = resp.get("latency_ms", 0)
 
         result_docs = resp.get("results", [])
         recall = compute_recall_at_k(result_docs, item["relevant_doc_ids"], k=5)
