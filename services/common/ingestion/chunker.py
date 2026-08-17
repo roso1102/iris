@@ -54,41 +54,55 @@ def chunk_routed(
     target_tokens: int = TARGET_TOKENS,
     page_number_override: Optional[int] = None,
 ) -> List[Chunk]:
-    """Convert routed elements into embeddable Chunks."""
+    """Convert routed elements into embeddable Chunks.
+
+    Phase 3.5 page-boundary strict chunking: elements are grouped by page and
+    a chunk is flushed at every page transition, so no chunk ever carries text
+    from two pages. Tables/figures stay single chunks with the element bbox.
+    """
     chunks: List[Chunk] = []
     empty_elements = 0
+    # Group routed elements by their (possibly overridden) page number, in
+    # original reading order.
+    by_page: dict[int, List[RoutingResult]] = {}
     for rr in routed:
-        if rr.decision in _VLM_SINGLE_CHUNK:
-            if rr.text.strip():
-                chunks.append(
-                    Chunk(
-                        tenant_id=tenant_id,
-                        doc_id=doc_id,
-                        page_number=page_number_override or rr.element.page_number,
-                        element_type=rr.element.element_type,
-                        text=rr.text.strip(),
-                        bbox=rr.element.bbox,
-                        source=rr.decision,
-                        metadata=_standard_ocr_metadata(rr),
+        page = page_number_override or rr.element.page_number
+        by_page.setdefault(page, []).append(rr)
+
+    for page in sorted(by_page):
+        page_elements = by_page[page]
+        for rr in page_elements:
+            if rr.decision in _VLM_SINGLE_CHUNK:
+                if rr.text.strip():
+                    chunks.append(
+                        Chunk(
+                            tenant_id=tenant_id,
+                            doc_id=doc_id,
+                            page_number=page_number_override or rr.element.page_number,
+                            element_type=rr.element.element_type,
+                            text=rr.text.strip(),
+                            bbox=rr.element.bbox,
+                            source=rr.decision,
+                            metadata=_standard_ocr_metadata(rr),
+                        )
+                    )
+                else:
+                    empty_elements += 1
+                    logger.warning(
+                        "Empty VLM output dropped: doc=%s page=%s type=%s decision=%s",
+                        doc_id, rr.element.page_number,
+                        rr.element.element_type, rr.decision,
+                    )
+            else:
+                chunks.extend(
+                    _chunk_text(
+                        rr,
+                        tenant_id,
+                        doc_id,
+                        target_tokens=target_tokens,
+                        page_number_override=page_number_override,
                     )
                 )
-            else:
-                empty_elements += 1
-                logger.warning(
-                    "Empty VLM output dropped: doc=%s page=%s type=%s decision=%s",
-                    doc_id, rr.element.page_number,
-                    rr.element.element_type, rr.decision,
-                )
-        else:
-            chunks.extend(
-                _chunk_text(
-                    rr,
-                    tenant_id,
-                    doc_id,
-                    target_tokens=target_tokens,
-                    page_number_override=page_number_override,
-                )
-            )
     if empty_elements > 0:
         logger.warning(
             "doc=%s: %d elements produced no chunks (VLM fallback or empty text)",

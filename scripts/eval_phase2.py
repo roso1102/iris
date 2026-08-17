@@ -46,8 +46,20 @@ DOC_IDS = [f"doc_{i:03d}" for i in range(1, 9)]
 
 # ── auth via SA impersonation ─────────────────────────────────────────────────
 
+_token_cache: Dict[str, str] = {}
+
+
 def _id_token(service_account: str, audience: str) -> str:
-    """Get ID token via SA impersonation with correct audience."""
+    """Get ID token via SA impersonation, cached per (SA, audience).
+
+    Caching avoids spawning a `gcloud auth print-identity-token` subprocess
+    (~1.5-4s on Windows) on every query, which previously polluted the eval's
+    client-side latency numbers.
+    """
+    key = f"{service_account}|{audience}"
+    if key in _token_cache:
+        return _token_cache[key]
+
     cmd = (
         f'gcloud auth print-identity-token '
         f'--impersonate-service-account={service_account} '
@@ -60,6 +72,7 @@ def _id_token(service_account: str, audience: str) -> str:
     token = lines[-1].strip()
     if not token or len(token) < 100:
         raise RuntimeError(f"Failed to get ID token: {result.stdout[:200]}")
+    _token_cache[key] = token
     return token
 
 

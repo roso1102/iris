@@ -143,7 +143,35 @@ class DoclingParser(DocParser):
 
         text = (getattr(element, "text", "") or "").strip()
 
-        # Bbox is always in absolute page coordinates; must normalize.
+        # A single logical element may span multiple pages (a paragraph that
+        # starts near the bottom of page P and continues on page P+1). Each
+        # Docling prov entry carries (page_no, bbox, charspan) so we can split
+        # the text deterministically per page. This guarantees every chunk has
+        # single-page provenance (Phase 3.5 page-boundary strict chunking).
+        prov = getattr(element, "prov", None)
+        if not prov or not isinstance(prov, list) or not prov:
+            return
+
+        pages = sorted({int(getattr(p, "page_no", 0)) for p in prov})
+        if len(pages) > 1 and element_type in (ElementType.TEXT, ElementType.OTHER):
+            for pno in pages:
+                page_items = [p for p in prov if int(getattr(p, "page_no", 0)) == pno]
+                if not page_items:
+                    continue
+                page_text = _text_for_page(element, text, page_items)
+                bbox = _bbox_of_items(page_items, page_dims.get(pno))
+                if bbox is None:
+                    continue
+                elements.append(
+                    ParsedElement(
+                        page_number=pno,
+                        element_type=element_type,
+                        text=page_text,
+                        bbox=bbox,
+                    )
+                )
+            return
+
         page_no = _page_of(element)
         bbox = _bbox_of(element, page_dims.get(page_no))
         if bbox is None:
@@ -190,12 +218,28 @@ def _bbox_of(element, page_dims: tuple[float, float] | None) -> list[float] | No
     prov = getattr(element, "prov", None)
     if not prov or not isinstance(prov, list) or not prov:
         return None
+    return _bbox_of_items([prov[0]], page_dims)
 
-    bbox = getattr(prov[0], "bbox", None)
-    if bbox is None:
+
+def _bbox_of_items(
+    items: list, page_dims: tuple[float, float] | None
+) -> list[float] | None:
+    """Union of bboxes across prov items, normalized to 0-1 page coords."""
+    boxes: list[tuple[float, float, float, float]] = []
+    for item in items:
+        bbox = getattr(item, "bbox", None)
+        if bbox is None:
+            continue
+        boxes.append(
+            (float(bbox.l), float(bbox.t), float(bbox.r), float(bbox.b))
+        )
+    if not boxes:
         return None
 
-    l, t, r, b = float(bbox.l), float(bbox.t), float(bbox.r), float(bbox.b)
+    l = min(b[0] for b in boxes)
+    t = min(b[1] for b in boxes)
+    r = max(b[2] for b in boxes)
+    b = max(b[3] for b in boxes)
 
     if page_dims:
         pw, ph = page_dims
@@ -208,3 +252,28 @@ def _bbox_of(element, page_dims: tuple[float, float] | None) -> list[float] | No
             ]
 
     return [l, t, r, b]
+
+
+def _text_for_page(element, full_text: str, page_items: list) -> str:
+    """Slice `full_text` to the charspan of the prov items on one page.
+
+    Falls back to the full text when charspans are absent (defensive), so
+    page splitting never drops content silently.
+    """
+    spans = []
+    for item in page_items:
+        cs = getattr(item, "charspan", None)
+        if cs is not None and len(cs) == 2:
+            spans.append((int(cs[0]), int(cs[1])))
+    if not spans:
+        return full_text
+    spans.sort()
+    # Merge overlapping/adjacent spans, then join the covered slices.
+    merged: list[tuple[int, int]] = []
+    for start, end in spans:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    parts = [full_text[s:e].strip() for s, e in merged if e > s]
+    return " ".join(parts).strip()
