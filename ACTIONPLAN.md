@@ -265,12 +265,12 @@ Turn retrieved chunks into a final, cited, structured answer. **Also includes th
 - 3.2: ✅ **[DONE]** Define a Pydantic schema for structured output: `QueryRequest`/`QueryResponse` (answer + citations mapped to `doc_id`, `page_number`, `bbox`, plus `chunks_used`).
 - 3.3: ✅ **[DONE]** Wire the `/query` endpoint: retrieve → synthesize → return structured response. Uses `_build_synthesis_context`, `asyncio.to_thread` for the provider call, real `latency_ms` + `chunks_used`. Mock-path test in `test_retrieval_api.py`.
 - 3.4: ✅ **[DONE]** Add server-side citation validation (hallucination guard). `validate_citations()` in `services/common/retrieval/synthesis.py` drops citations whose `chunk_id` is not in the retrieved set and overwrites spatial fields (doc_id/page/bbox/snippet) from the trusted chunk. Wired into `/query`. Unit tests in `tests/test_synthesis.py` (4 passed).
-- 3.5: **FastEmbed BM25 Sparse Retrieval Upgrade** (replaces Phase 2.5.7 emergency fix):
+- 3.5: ✅ **[DONE]** **FastEmbed BM25 Sparse Retrieval Upgrade** (replaces Phase 2.5.7 emergency fix):
   - Install `fastembed` in both service `requirements.txt`.
   - Replace `services/common/retrieval/bm25.py` entirely with Qdrant's native `fastembed.sparse.BM25` model.
   - Use the **same pinned model version** in both `ingestion-worker` (encoding chunks at write time) and `retrieval-api` (encoding queries at search time). This is the guarantee of index/query alignment — not a hash function.
   - The FastEmbed BM25 model ships with pre-trained IDF values from a large real-world corpus (MSMARCO/BEIR). This penalizes common words (including legal boilerplate like "section", "act", "notification") without requiring any corpus state at runtime.
-  - **Important:** After deploying the new model, the existing Qdrant `iris_chunks_v2` sparse vectors are stale (encoded with the old `mmh3+TF` approach). All documents must be **re-ingested** after this upgrade to rebuild sparse vectors under the new model. Plan for a re-ingest window.
+  - **Important:** After deploying the new model, the existing Qdrant `iris_chunks_v2` sparse vectors are stale (encoded with the old `mmh3+TF` approach). All documents must be **re-ingested** after this upgrade to rebuild sparse vectors under the new model. Plan for a re-ingest window. ✅ **Done** — wiped Qdrant, re-uploaded + re-ingested all 8 docs (doc_007: 882 chunks/84 pages).
   - **Latency cost:** ~3ms per query for BM25 encoding. Negligible vs. the 500ms budget.
   - **Memory cost:** FastEmbed BM25 IDF table is ~50–100MB loaded at startup. Acceptable within the `retrieval-api` 2GiB limit.
   - **Quality gain expected:** MRR improvement on exact-match queries (section numbers, dates, proper nouns) and reduction in boilerplate-driven false matches.
