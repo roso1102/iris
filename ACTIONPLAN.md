@@ -255,7 +255,7 @@ RAGAS Framework, Vertex AI, Python Test Suite.
 
 ---
 
-## Phase 3.0 — LLM Synthesis Layer
+## Phase 3.0 — LLM Synthesis Layer ✅ (complete)
 
 ### Scope
 Turn retrieved chunks into a final, cited, structured answer. **Also includes the production BM25 sparse retrieval upgrade (Task 3.5), which replaces the emergency mmh3/TF fix from Phase 2.5 with a proper pre-trained sparse model.**
@@ -297,15 +297,15 @@ Vertex AI (Gemini), Cloud Run (Retrieval API, Ingestion Worker), Qdrant (re-inge
 
 ---
 
-## Phase 3.5 — Retrieval Precision & Citation Quality Hardening (Lite)
+## Phase 3.5 — Retrieval Precision & Citation Quality Hardening (Lite) ✅ (complete)
 
 ### Scope
 Execute high-leverage software fixes on chunking and evaluation instrumentation before entering Auth/Frontend. Strictly defers open-ended ML research (Cross-Encoders, Canonical Duplicate graphs) to Phase 12.0.
 
 ### Tasks
-- 3.5.1: **Page-Boundary Strict Chunking:** Update `ingestion-worker` chunking logic to strictly prevent chunks from crossing page boundaries. If text spans across pages, split the chunk at the boundary so every chunk has an unambiguous single `page_number`. Eliminates off-by-one citation jumping in the PDF viewer.
-- 3.5.2: **Evaluation Harness Latency Disambiguation:** Update `scripts/eval_phase2.py` to record server-reported `latency_ms` from the API response payload instead of client-side wall clock (which was inflated by 2-4s due to per-query `gcloud auth print-identity-token` subprocess execution).
-- 3.5.3: **Cloud Run Scaling Tuning:** Configure `ingestion-worker` `--min-instances=0` (saves ~₹6,000/mo, background cold starts do not affect user) and `retrieval-api` `--min-instances=1` (costs ~₹2,500/mo, eliminates 14.5s cold start on search/query path).
+- 3.5.1: ✅ **[DONE]** **Page-Boundary Strict Chunking:** Update `ingestion-worker` chunking logic to strictly prevent chunks from crossing page boundaries. If text spans across pages, split the chunk at the boundary so every chunk has an unambiguous single `page_number`. Eliminates off-by-one citation jumping in the PDF viewer. Implemented via parser multi-page `prov` charspan split + page-first chunker (commit 6ce0693).
+- 3.5.2: ✅ **[DONE]** **Evaluation Harness Latency Disambiguation:** Update `scripts/eval_phase2.py` to record server-reported `latency_ms` from the API response payload instead of client-side wall clock (which was inflated by 2-4s due to per-query `gcloud auth print-identity-token` subprocess execution). Implemented (server latency_ms + cached token, commits 4ca30bd/6ce0693).
+- 3.5.3: ✅ **[DONE]** **Cloud Run Scaling Tuning:** Configure `ingestion-worker` `--min-instances=0` (saves ~₹6,000/mo, background cold starts do not affect user) and `retrieval-api` `--min-instances=1` (costs ~₹2,500/mo, eliminates 14.5s cold start on search/query path). Deployed live (retrieval-api minScale=1, ingestion-worker scale-to-zero).
 
 ### Services Touched
 Cloud Run (Ingestion Worker, Retrieval API), Docling chunk parser, Eval harness.
