@@ -1,1 +1,6 @@
-graphify-out/graph.json merge=graphify
+graphify-out/graph.json merge=graphify linguist-generated=true
+graphify-out/graph.html linguist-generated=true
+graphify-out/manifest.json linguist-generated=true
+graphify-out/GRAPH_REPORT.md linguist-generated=true
+graphify-out/.graphify_labels.json linguist-generated=true
+graphify-out/.graphify_labels.json.sig linguist-generated=true
