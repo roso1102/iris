@@ -6,6 +6,8 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from services.common.models.base import Citation
+
 
 class ScoredChunk(BaseModel):
     """A retrieved chunk with its fusion score."""
@@ -38,6 +40,23 @@ class SearchResponse(BaseModel):
     results: List[ScoredChunk]
     mode: str
     latency_ms: float
+
+
+class QueryRequest(BaseModel):
+    query: str
+    mode: str = Field(default="standard", pattern="^(standard|deep)$")
+    session_id: Optional[str] = None
+    history: Optional[List[dict]] = None
+    doc_ids: Optional[List[str]] = None
+    top_k: int = Field(default=10, ge=1, le=100)
+
+
+class QueryResponse(BaseModel):
+    answer: str
+    citations: List[Citation]
+    mode: str
+    latency_ms: float
+    chunks_used: int
 
 
 class DeleteResponse(BaseModel):

@@ -261,10 +261,10 @@ RAGAS Framework, Vertex AI, Python Test Suite.
 Turn retrieved chunks into a final, cited, structured answer. **Also includes the production BM25 sparse retrieval upgrade (Task 3.5), which replaces the emergency mmh3/TF fix from Phase 2.5 with a proper pre-trained sparse model.**
 
 ### Tasks
-- 3.1: Implement `ModelProvider.synthesize()` using Gemini Flash/Flash-Lite via Vertex AI.
-- 3.2: Define a Pydantic schema for structured output: answer text + list of citations (each mapped to `doc_id`, `page_number`, `bbox`).
-- 3.3: Wire the `/query` endpoint: retrieve → rerank → synthesize → return structured response.
-- 3.4: Add basic prompt-engineering safeguards against hallucinated citations (e.g., reject/re-ask if a citation doesn't map to a real retrieved chunk).
+- 3.1: ✅ **[DONE]** Implement `ModelProvider.synthesize()` using Gemini Flash/Flash-Lite via Vertex AI. Structured output (`response_mime_type="application/json"` + `response_schema`), real chunk-grounded citations, thinking mode off. Verified via live `test_vertex_live.py::test_vertex_synthesis_2_5_flash` (PASSED).
+- 3.2: ✅ **[DONE]** Define a Pydantic schema for structured output: `QueryRequest`/`QueryResponse` (answer + citations mapped to `doc_id`, `page_number`, `bbox`, plus `chunks_used`).
+- 3.3: ✅ **[DONE]** Wire the `/query` endpoint: retrieve → synthesize → return structured response. Uses `_build_synthesis_context`, `asyncio.to_thread` for the provider call, real `latency_ms` + `chunks_used`. Mock-path test in `test_retrieval_api.py`.
+- 3.4: ✅ **[DONE]** Add server-side citation validation (hallucination guard). `validate_citations()` in `services/common/retrieval/synthesis.py` drops citations whose `chunk_id` is not in the retrieved set and overwrites spatial fields (doc_id/page/bbox/snippet) from the trusted chunk. Wired into `/query`. Unit tests in `tests/test_synthesis.py` (4 passed).
 - 3.5: **FastEmbed BM25 Sparse Retrieval Upgrade** (replaces Phase 2.5.7 emergency fix):
   - Install `fastembed` in both service `requirements.txt`.
   - Replace `services/common/retrieval/bm25.py` entirely with Qdrant's native `fastembed.sparse.BM25` model.
@@ -388,6 +388,8 @@ Allow multi-turn conversations that retain context, using a dedicated **Small La
 - 6.2: Add a `rewrite_query()` method to the `ModelProvider` interface, backed by the smallest/cheapest available model (e.g., Gemini Flash-Lite at minimum `thinking`/token budget, or a self-hosted SLM such as Gemma once GPU is available in Phase 15.0 — selected via the same `MODEL_BACKEND` config pattern as every other provider call).
 - 6.3: On each turn, prior conversation turns + the new question are passed to `rewrite_query()`, which resolves pronouns/ambiguous references ("what about that clause?") into a fully self-contained query before retrieval.
 - 6.4: Cap rewrite latency and token budget tightly (this runs on every turn) — target sub-300ms, a few hundred tokens max.
+- 6.5: **Pronoun/Dependency Heuristic Gate (Latency & Cost Optimization):** Run a fast zero-cost code check for ambiguous pronouns (`it`, `this`, `that`, `former`, `latter`, `above`, `the previous`). If no pronouns/dependencies are present (e.g. *"What is Section 5?"*), skip the LLM rewriter completely to save ~150ms and 100% of rewriter API cost.
+- 6.6: **Hybrid Topic Summary Memory (Long-Chat Optimization):** When session history exceeds 15 turns, compress older messages into a 2-sentence running topic summary and append only the last $N=2$ raw messages. This keeps rewrite context under 200 tokens regardless of conversation length.
 
 ### Services Touched
 Firestore, Vertex AI (SLM query rewriting via `ModelProvider`).
@@ -396,9 +398,10 @@ Firestore, Vertex AI (SLM query rewriting via `ModelProvider`).
 - **Test 6-A:** A 5-turn conversation with pronoun references ("what about that clause?") correctly resolves to the right document context in ≥ 90% of test cases.
 - **Test 6-B:** Chat history persists correctly across a session reload.
 - **Test 6-C (SLM Cost/Latency):** Rewrite step adds < 300ms and < $0.001/call on average — confirm it doesn't become the bottleneck or the dominant cost line of a query.
+- **Test 6-D (Heuristic Bypass Rate):** Verify that standalone queries without pronouns bypass `rewrite_query()` with 100% precision, achieving 0ms rewriter overhead.
 
 ### Exit Criteria
-✅ Multi-turn accuracy ≥ 90% on test conversation set. ✅ History persists reliably. ✅ Rewrite step meets its own latency/cost budget independent of the main synthesis call.
+✅ Multi-turn accuracy ≥ 90% on test conversation set. ✅ History persists reliably. ✅ Rewrite step meets its own latency/cost budget independent of the main synthesis call. ✅ Heuristic gate successfully skips rewriter on direct queries.
 
 **Est. Effort:** 1 week
 

@@ -36,7 +36,12 @@ class SelfHostedGPUProvider(ModelProvider):
             "Self-hosted GPU OCR not implemented. See Phase 10.0."
         )
 
-    def synthesize(self, context: str, query: str) -> StructuredAnswer:
+    def synthesize(
+        self,
+        context: str,
+        query: str,
+        source_chunks: List[dict],
+    ) -> StructuredAnswer:
         raise NotImplementedError(
             "Self-hosted GPU synthesis not implemented. See Phase 10.0."
         )

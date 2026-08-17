@@ -46,7 +46,9 @@ def _firestore() -> firestore.Client:
 
 
 def _progress_doc_path(tenant_id: str, doc_id: str) -> str:
-    return f"ingestion_progress/{tenant_id}/{doc_id}"
+    # Firestore paths must alternate collection/document (even number of
+    # elements): ingestion_progress/{tenant_id}/documents/{doc_id}.
+    return f"ingestion_progress/{tenant_id}/documents/{doc_id}"
 
 
 def _get_pipeline() -> IngestionPipeline:
@@ -296,16 +298,16 @@ def _init_progress(tenant_id: str, doc_id: str, total_pages: int):
 
 
 def _mark_page_done(tenant_id: str, doc_id: str, page_number: int):
-    _firestore().document(_progress_doc_path(tenant_id, doc_id)).update({
+    _firestore().document(_progress_doc_path(tenant_id, doc_id)).set({
         "updated_at": firestore.SERVER_TIMESTAMP,
-    })
+    }, merge=True)
 
 
 def _mark_page_failed(tenant_id: str, doc_id: str, page_number: int):
-    _firestore().document(_progress_doc_path(tenant_id, doc_id)).update({
+    _firestore().document(_progress_doc_path(tenant_id, doc_id)).set({
         "failed_pages": firestore.ArrayUnion([page_number]),
         "updated_at": firestore.SERVER_TIMESTAMP,
-    })
+    }, merge=True)
 
 
 if __name__ == "__main__":

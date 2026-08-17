@@ -288,11 +288,11 @@ def check_tenant_isolation(query: str, wrong_tenant: str = "tier4-wrong-tenant")
 # ── main benchmarks ───────────────────────────────────────────────────────────
 
 def load_golden() -> List[dict]:
-    with open(GOLDEN_PATH) as f:
+    with open(GOLDEN_PATH, encoding="utf-8") as f:
         return json.load(f)
 
 
-def run_benchmarks(skip_ingestion: bool = False):
+def run_benchmarks(skip_ingestion: bool = False, skip_deep: bool = False):
     print("\n" + "=" * 60)
     print("  IRIS Phase 2.0/2.5 - Evaluation Harness")
     print("=" * 60)
@@ -375,20 +375,25 @@ def run_benchmarks(skip_ingestion: bool = False):
         print(f"    {t:25s}: {sum(vals)/len(vals):.3f}  (n={len(vals)})")
 
     # ── test 2-E: deep search lift ──────────────────────────────────────
-    print("\n── Test 2-E: Deep Search Lift on Ambiguous Queries ──")
     ambiguous = [q for q in golden if q["type"] == "short_ambiguous"]
-    deep_better = 0
-    for item in ambiguous:
-        std = run_search(item["query"], mode="standard", top_k=5)
-        deep = run_search(item["query"], mode="deep", top_k=5)
-        s_r = compute_recall_at_k(std.get("results", []), item["relevant_doc_ids"], k=5)
-        d_r = compute_recall_at_k(deep.get("results", []), item["relevant_doc_ids"], k=5)
-        if d_r > s_r:
-            deep_better += 1
-        elif d_r == s_r:
-            deep_better += 0.5
-    win_rate = deep_better / len(ambiguous) if ambiguous else 0
-    print(f"  Deep beats Standard on {win_rate:.0%} of {len(ambiguous)} ambiguous queries")
+    win_rate = 0.0
+    if skip_deep:
+        print("\n── Test 2-E: Deep Search Lift on Ambiguous Queries ──")
+        print("  SKIPPED (--skip-deep)")
+    else:
+        print("\n── Test 2-E: Deep Search Lift on Ambiguous Queries ──")
+        deep_better = 0
+        for item in ambiguous:
+            std = run_search(item["query"], mode="standard", top_k=5)
+            deep = run_search(item["query"], mode="deep", top_k=5)
+            s_r = compute_recall_at_k(std.get("results", []), item["relevant_doc_ids"], k=5)
+            d_r = compute_recall_at_k(deep.get("results", []), item["relevant_doc_ids"], k=5)
+            if d_r > s_r:
+                deep_better += 1
+            elif d_r == s_r:
+                deep_better += 0.5
+        win_rate = deep_better / len(ambiguous) if ambiguous else 0
+        print(f"  Deep beats Standard on {win_rate:.0%} of {len(ambiguous)} ambiguous queries")
 
     # ── test 2-D: diversity ─────────────────────────────────────────────
     print("\n── Test 2-D: Diversity / Source Deduplication ──")
@@ -430,6 +435,7 @@ def run_benchmarks(skip_ingestion: bool = False):
         "test_2e_deep_lift": {
             "deep_win_rate": round(win_rate, 2),
             "n_ambiguous": len(ambiguous),
+            "skipped": skip_deep,
         },
         "test_2d_diversity": {
             "queries_over_half_single_source": over_half,
@@ -452,7 +458,7 @@ def run_threshold_sweep():
         _log(f"Missing: {LABELED_PATH}")
         return
 
-    with open(LABELED_PATH) as f:
+    with open(LABELED_PATH, encoding="utf-8") as f:
         pages = list(csv.DictReader(f))
     print(f"  Labeled pages: {len(pages)}")
 
@@ -510,7 +516,8 @@ def run_threshold_sweep():
 
 def main():
     skip_ingestion = "--skip-ingestion" in sys.argv
-    run_benchmarks(skip_ingestion=skip_ingestion)
+    skip_deep = "--skip-deep" in sys.argv
+    run_benchmarks(skip_ingestion=skip_ingestion, skip_deep=skip_deep)
 
 
 if __name__ == "__main__":

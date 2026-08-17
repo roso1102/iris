@@ -126,9 +126,9 @@ class IngestionPipeline:
             if not path.is_absolute():
                 raise RejectError(f"Local dev: path must be absolute: {gcs_uri}")
             resolved = path.resolve()
-            allowed_root = Path(__file__).resolve().parents[3] / "test-docs"
+            allowed_root = Path(__file__).resolve().parents[3] / "trueassort"
             if not str(resolved).startswith(str(allowed_root)):
-                raise RejectError(f"Local dev: path outside test-docs: {gcs_uri}")
+                raise RejectError(f"Local dev: path outside trueassort: {gcs_uri}")
             if not resolved.exists():
                 raise RetryError(f"Local file not found: {resolved}")
             return resolved

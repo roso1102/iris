@@ -35,7 +35,7 @@ echo "==> Deploying Cloud Run services"
 gcloud run deploy ingestion-worker \
   --image="${REPO}/ingestion-worker:latest" \
   --region="${REGION}" --project="${PROJECT_ID}" \
-  --no-allow-unauthenticated \
+  --no-allow-unauthenticated --ingress=all \
   --cpu=2 --memory=8Gi --max-instances=10 --min-instances=1 --concurrency=1 \
   --timeout=900 \
   --service-account="ingestion-worker-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
@@ -45,11 +45,11 @@ gcloud run deploy ingestion-worker \
 gcloud run deploy retrieval-api \
   --image="${REPO}/retrieval-api:latest" \
   --region="${REGION}" --project="${PROJECT_ID}" \
-  --no-allow-unauthenticated \
+  --no-allow-unauthenticated --ingress=all \
   --cpu=2 --memory=2Gi --max-instances=10 --min-instances=0 \
   --service-account="retrieval-api-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
   --vpc-connector=iris-connector --vpc-egress=private-ranges-only \
-  --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://10.0.0.5:6333"
+  --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://10.0.0.5:6333"
 
 echo "==> Granting Cloud Run IAM (kill-switch run.admin, trigger run.invoker)"
 gcloud run services add-iam-policy-binding ingestion-worker \

@@ -22,7 +22,20 @@ class TestVertexAIIntegration(unittest.TestCase):
     def test_vertex_synthesis_2_5_flash(self):
         """Test live Gemini 2.5 Flash synthesis call."""
         provider = VertexAIProvider(project_id=os.getenv("GCP_PROJECT", "naturepivot-rag"))
-        res = provider.synthesize("IRIS is a multi-tenant document RAG platform on GCP.", "What is IRIS?")
+        source_chunks = [
+            {
+                "chunk_id": "live-c1",
+                "doc_id": "live-doc",
+                "page_number": 1,
+                "bbox": [0.1, 0.1, 0.9, 0.9],
+                "text": "IRIS is a multi-tenant document RAG platform on GCP.",
+            }
+        ]
+        res = provider.synthesize(
+            "IRIS is a multi-tenant document RAG platform on GCP.",
+            "What is IRIS?",
+            source_chunks=source_chunks,
+        )
         self.assertIsNotNone(res.answer)
         self.assertIn("IRIS", res.answer)
         print(f"\nSUCCESS: Gemini 2.5 Flash answered: {res.answer[:80]}...")

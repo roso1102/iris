@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 
 class Citation(BaseModel):
+    chunk_id: str = ""
     doc_id: str
     page_number: int
     bbox: List[float] = Field(description="[left, top, right, bottom] normalized coordinates")
@@ -50,9 +51,19 @@ class ModelProvider(ABC):
         pass
 
     @abstractmethod
-    def synthesize(self, context: str, query: str) -> StructuredAnswer:
+    def synthesize(
+        self,
+        context: str,
+        query: str,
+        source_chunks: List[dict],
+    ) -> StructuredAnswer:
         """
         Generates a grounded natural language answer with structured citations.
+
+        `source_chunks` is a list of dicts, each describing one retrieved chunk:
+        {"chunk_id": str, "doc_id": str, "page_number": int, "bbox": [l,t,r,b],
+         "text": str}. Citations emitted by the provider must reference one of
+        these chunk_ids so the caller can validate grounding.
         """
         pass
 

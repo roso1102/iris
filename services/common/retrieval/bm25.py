@@ -1,83 +1,71 @@
-"""BM25 TF-IDF sparse vector tokenizer for hybrid search.
+"""BM25 sparse vector tokenizer backed by FastEmbed's Qdrant/bm25 model.
 
-Uses rank_bm25 (pure Python, MIT licensed) for proper TF-IDF weighting
-to penalize statutory boilerplate words across legal/gazette documents.
+Replaces the old mmh3/TF emergency implementation (Phase 2.5.7) with a
+production pre-trained sparse model. The model ships pre-trained IDF values
+from a large real-world corpus, so common words (including legal boilerplate)
+are penalized without requiring corpus state at runtime.
+
+The Qdrant collection MUST use `modifier="idf"` on its sparse vector config
+(FastEmbed's Qdrant/bm25 model emits raw term counts; Qdrant applies the
+pre-trained IDF on its side).
 """
 
 from __future__ import annotations
 
-import re
-from typing import Dict, List
+import os
+import threading
+from typing import Dict, List, Optional
 
-try:
-    import mmh3  # pip install mmh3 — MurmurHash3, stable cross-process
-    _USE_MMH3 = True
-except ImportError:  # pragma: no cover — fallback for local envs lacking mmh3
-    import hashlib
-    _USE_MMH3 = False
+_MODEL_NAME = "Qdrant/bm25"
+_LANGUAGE = "english"
+_TOKEN_MAX_LENGTH = 40
 
-_STOPWORDS = frozenset(
-    {
-        "the", "and", "for", "that", "this", "with", "from", "are", "was",
-        "has", "not", "but", "all", "can", "had", "her", "his", "its",
-        "may", "one", "out", "she", "some", "such", "than", "they", "this",
-        "will", "about", "after", "also", "been", "being", "could", "each",
-        "into", "more", "most", "only", "other", "over", "said", "same",
-        "should", "their", "them", "then", "there", "these", "those", "under",
-        "upon", "very", "were", "what", "when", "which", "while", "whom",
-        "would", "section", "clause", "act", "rule", "order", "notification",
-        "gazette", "government", "india", "state", "central", "shall",
-        "provided", "hereby", "pursuant", "dated", "hereinafter", "aforesaid",
-        "whereas", "hereof", "thereof",
-    }
-)
+# Model weights are baked into the image at build time (see the Dockerfiles):
+#   /app/models/<HF cache layout: models--Qdrant--bm25/{refs, snapshots/<hash>}>
+# The path is overridable via FASTEMBED_CACHE_PATH (e.g. tests), and defaults
+# to the baked dir. Read lazily so env overrides (tests) take effect.
+_DEFAULT_CACHE_DIR = "/app/models"
 
-_MAX_TERM_HASH = 2 ** 24 - 1
-_TOKEN_RE = re.compile(r"\w{3,}", re.UNICODE)
+_lock = threading.Lock()
+_model: Optional[object] = None
 
 
-def _hash_term(term: str) -> int:
-    """Deterministic, cross-process stable hash for a BM25 term index.
+def _get_model():
+    """Lazily initialize the singleton FastEmbed Bm25 model (thread-safe).
 
-    Python's built-in hash() is randomized per process (hash randomization,
-    PEP 456 / PYTHONHASHSEED). Using it means ingestion-worker and retrieval-
-    api produce completely different sparse indices for the same word, so
-    every sparse search silently returns zero matches.
-
-    mmh3 (MurmurHash3) is fast, deterministic, and the industry standard for
-    this use case. Falls back to md5 if mmh3 is not installed.
+    Loads strictly from the baked local cache (local_files_only=True) so cold
+    starts never reach out to Hugging Face; if the bake step is missing this
+    raises a clear error instead of silently downloading.
     """
-    if _USE_MMH3:
-        return mmh3.hash(term, signed=False) & _MAX_TERM_HASH
-    hex_digest = __import__("hashlib").md5(term.encode("utf-8")).hexdigest()
-    return int(hex_digest[:8], 16) & _MAX_TERM_HASH
+    global _model
+    if _model is None:
+        with _lock:
+            if _model is None:
+                from fastembed.sparse.bm25 import Bm25
 
-
-def tokenize(text: str) -> List[str]:
-    """Lowercase + split on word boundaries, filter short words and stopwords."""
-    tokens = _TOKEN_RE.findall(text.lower())
-    return [t for t in tokens if t not in _STOPWORDS]
+                cache_dir = os.environ.get("FASTEMBED_CACHE_PATH", _DEFAULT_CACHE_DIR)
+                _model = Bm25(
+                    model_name=_MODEL_NAME,
+                    language=_LANGUAGE,
+                    token_max_length=_TOKEN_MAX_LENGTH,
+                    cache_dir=cache_dir,
+                    local_files_only=True,
+                )
+    return _model
 
 
 def text_to_sparse(text: str) -> Dict[int, float]:
-    """Tokenize text into {term_hash: tf_idf_score} dict via rank_bm25.
+    """Encode text into {term_index: raw_term_count} via Qdrant/bm25.
 
-    Uses a single-document BM25Okapi fit over the tokenized text
-    to get TF-IDF scores that penalize terms occurring too frequently
-    within the document (e.g., statutory boilerplate).
+    Returns an empty dict for empty/whitespace text. The values are raw term
+    counts (not IDF-weighted); Qdrant applies IDF via `modifier="idf"`.
     """
-    tokens = tokenize(text)
-    if not tokens:
+    if not text or not text.strip():
         return {}
 
-    from rank_bm25 import BM25Okapi
-
-    bm25 = BM25Okapi([tokens])
-    doc_scores = bm25.get_scores(tokens)
-    unique_terms: Dict[str, float] = {}
-    for token, score in zip(tokens, doc_scores):
-        unique_terms[token] = score
-    return {_hash_term(t): float(score) for t, score in unique_terms.items()}
+    model = _get_model()
+    result = next(iter(model.query_embed(text)))
+    return result.as_dict()
 
 
 def sparse_to_qdrant_indices_values(sparse_dict: Dict[int, float]):
@@ -87,3 +75,12 @@ def sparse_to_qdrant_indices_values(sparse_dict: Dict[int, float]):
     indices = sorted(sparse_dict.keys())
     values = [sparse_dict[i] for i in indices]
     return indices, values
+
+
+def tokenize(text: str) -> List[str]:
+    """Return the term indices encoded for `text` (for tests/debugging).
+
+    FastEmbed's Bm25 does tokenization + stemming + stopword filtering
+    internally, so the observable "tokens" are the sparse term indices.
+    """
+    return [str(i) for i in sorted(text_to_sparse(text).keys())]

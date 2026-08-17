@@ -10,6 +10,7 @@ stores have their own lifecycle policies as a safety net.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
@@ -20,10 +21,14 @@ from services.common.ingestion.store import get_chunk_store
 from services.common.models.factory import get_model_provider
 from services.common.retrieval.models import (
     DeleteResponse,
+    QueryRequest,
+    QueryResponse,
+    ScoredChunk,
     SearchRequest,
     SearchResponse,
 )
 from services.common.retrieval.search import SearchOrchestrator
+from services.common.retrieval.synthesis import validate_citations
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("retrieval-api")
@@ -147,6 +152,68 @@ async def search(request: SearchRequest, tenant_id: str = Header(...)):
     except Exception as exc:
         logger.exception("Search failed for tenant %s", tenant_id)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/query")
+async def query(request: QueryRequest, tenant_id: str = Header(...)):
+    """Retrieve -> synthesize -> grounded structured answer."""
+    if not tenant_id.strip():
+        raise HTTPException(status_code=400, detail="Missing tenant_id header")
+    try:
+        t0 = time.perf_counter()
+        if request.mode == "deep":
+            retrieved = await orchestrator.deep_search(
+                query=request.query,
+                tenant_id=tenant_id,
+                history=request.history,
+                doc_ids=request.doc_ids,
+                top_k=request.top_k,
+            )
+        else:
+            retrieved = await orchestrator.standard_search(
+                query=request.query,
+                tenant_id=tenant_id,
+                doc_ids=request.doc_ids,
+                top_k=request.top_k,
+            )
+
+        context, source_chunks = _build_synthesis_context(retrieved)
+        answer = await asyncio.to_thread(
+            provider.synthesize, context, request.query, source_chunks
+        )
+        answer = validate_citations(answer, retrieved)
+        latency = round((time.perf_counter() - t0) * 1000, 2)
+        return QueryResponse(
+            answer=answer.answer,
+            citations=answer.citations,
+            mode=request.mode,
+            latency_ms=latency,
+            chunks_used=len(retrieved),
+        )
+    except Exception as exc:
+        logger.exception("Query failed for tenant %s", tenant_id)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+def _build_synthesis_context(
+    retrieved: list[ScoredChunk],
+) -> tuple[str, list[dict]]:
+    """Build the [CHUNK i] context and the source_chunks list for grounding."""
+    source_chunks: list[dict] = []
+    parts: list[str] = []
+    for i, chunk in enumerate(retrieved):
+        parts.append(
+            f"[CHUNK {i}] doc_id={chunk.doc_id} page={chunk.page_number}\n"
+            f"{chunk.text}"
+        )
+        source_chunks.append({
+            "chunk_id": chunk.chunk_id,
+            "doc_id": chunk.doc_id,
+            "page_number": chunk.page_number,
+            "bbox": list(chunk.bbox),
+            "text": chunk.text,
+        })
+    return "\n\n".join(parts), source_chunks
 
 
 @app.delete("/documents/{doc_id}")

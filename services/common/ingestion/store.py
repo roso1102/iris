@@ -224,7 +224,8 @@ class QdrantChunkStore(ChunkStore):
                 },
                 sparse_vectors_config={
                     "bm25_sparse": models.SparseVectorParams(
-                        index=models.SparseIndexParams(on_disk=False)
+                        index=models.SparseIndexParams(on_disk=False),
+                        modifier=models.Modifier.IDF,
                     ),
                 },
             )
@@ -291,23 +292,35 @@ class QdrantChunkStore(ChunkStore):
     def get_by_doc(self, doc_id: str, tenant_id: str) -> List[Chunk]:
         from qdrant_client import models
 
-        hits, _ = self._client.scroll(
-            collection_name=self._collection,
-            scroll_filter=models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="doc_id", match=models.MatchValue(value=doc_id)
-                    ),
-                    models.FieldCondition(
-                        key="tenant_id", match=models.MatchValue(value=tenant_id)
-                    ),
-                ]
-            ),
-            with_payload=True,
-            with_vectors=False,
+        doc_filter = models.Filter(
+            must=[
+                models.FieldCondition(
+                    key="doc_id", match=models.MatchValue(value=doc_id)
+                ),
+                models.FieldCondition(
+                    key="tenant_id", match=models.MatchValue(value=tenant_id)
+                ),
+            ]
         )
+
+        all_hits = []
+        offset = None
+        while True:
+            hits, next_offset = self._client.scroll(
+                collection_name=self._collection,
+                scroll_filter=doc_filter,
+                offset=offset,
+                limit=100,
+                with_payload=True,
+                with_vectors=False,
+            )
+            all_hits.extend(hits)
+            if next_offset is None:
+                break
+            offset = next_offset
+
         results: List[Chunk] = []
-        for h in hits:
+        for h in all_hits:
             p = h.payload or {}
             element_type_raw = p.get("element_type", "Text")
             try:
@@ -443,8 +456,9 @@ class QdrantChunkStore(ChunkStore):
                         ]
                     )
                 ),
+                wait=True,
             )
-            return getattr(result, "points_count", 0) or result.operation_id or 0
+            return getattr(result, "points_count", 0) or 0
         except Exception:
             return 0
 
@@ -469,8 +483,9 @@ class QdrantChunkStore(ChunkStore):
                         ]
                     )
                 ),
+                wait=True,
             )
-            return getattr(result, "points_count", 0) or result.operation_id or 0
+            return getattr(result, "points_count", 0) or 0
         except Exception:
             return 0
 

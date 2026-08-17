@@ -14,8 +14,8 @@ pymupdf==1.*
 # Chunk store write path (ACTIONPLAN 1.9) — gated behind QDRANT_URL (Phase 2.0).
 qdrant-client==1.13.0
 # BM25 sparse-vector generation during ingestion (Phase 2.0 upsert_batch).
+fastembed==0.8.0
 rank-bm25==0.2.*
-mmh3==4.*
 
 # Preflight payload scanner (ACTIONPLAN 1.2)
 pypdf==5.*

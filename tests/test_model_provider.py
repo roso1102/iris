@@ -19,9 +19,13 @@ class TestModelProviderScaffold(unittest.TestCase):
 
     def test_mock_synthesize(self):
         provider = MockModelProvider()
-        res = provider.synthesize(context="Some doc content", query="What is this?")
+        source_chunks = [
+            {"chunk_id": "c1", "doc_id": "d1", "page_number": 1, "bbox": [0, 0, 1, 1], "text": "x"},
+        ]
+        res = provider.synthesize(context="Some doc content", query="What is this?", source_chunks=source_chunks)
         self.assertIsInstance(res, StructuredAnswer)
         self.assertIn("Mock synthesis answer", res.answer)
+        self.assertEqual(res.citations[0].chunk_id, "c1")
 
     def test_mock_vlm_extract_table(self):
         provider = MockModelProvider()
