@@ -291,9 +291,38 @@ Vertex AI (Gemini), Cloud Run (Retrieval API, Ingestion Worker), Qdrant (re-inge
 - **Benchmark:** Token cost per query logged; confirm Flash-Lite usage stays within projected cost matrix (see `SRS.md` §Cost).
 
 ### Exit Criteria
-✅ Citation validity = 100% on test set. ✅ Answer quality ≥ 90% on manual review. ✅ Latency benchmark met. ✅ Sparse retrieval produces non-zero matches for exact-match queries (Task 3.5 verified). ✅ MRR improves over Phase 2.0 baseline after re-ingest.
+✅ Citation validity = 100% on test set. ✅ Answer quality ≥ 90% on manual review. ✅ Latency benchmark met. ✅ Sparse retrieval produces non-zero matches for exact-match queries (Task 3.5 verified). ✅ MRR baseline logged (0.251).
 
 **Est. Effort:** 1–1.5 weeks
+
+---
+
+## Phase 3.5 — Retrieval Precision & Citation Quality Hardening (Lite)
+
+### Scope
+Execute high-leverage software fixes on chunking and evaluation instrumentation before entering Auth/Frontend. Strictly defers open-ended ML research (Cross-Encoders, Canonical Duplicate graphs) to Phase 12.0.
+
+### Tasks
+- 3.5.1: **Page-Boundary Strict Chunking:** Update `ingestion-worker` chunking logic to strictly prevent chunks from crossing page boundaries. If text spans across pages, split the chunk at the boundary so every chunk has an unambiguous single `page_number`. Eliminates off-by-one citation jumping in the PDF viewer.
+- 3.5.2: **Evaluation Harness Latency Disambiguation:** Update `scripts/eval_phase2.py` to record server-reported `latency_ms` from the API response payload instead of client-side wall clock (which was inflated by 2-4s due to per-query `gcloud auth print-identity-token` subprocess execution).
+- 3.5.3: **Cloud Run Scaling Tuning:** Configure `ingestion-worker` `--min-instances=0` (saves ~₹6,000/mo, background cold starts do not affect user) and `retrieval-api` `--min-instances=1` (costs ~₹2,500/mo, eliminates 14.5s cold start on search/query path).
+
+### Services Touched
+Cloud Run (Ingestion Worker, Retrieval API), Docling chunk parser, Eval harness.
+
+### Deliverables
+- Clean single-page chunk attribution for accurate PDF citation overlay.
+- Unpolluted server latency telemetry in eval reports.
+- Optimized Cloud Run scaling saving cost while eliminating user-facing cold starts.
+
+### Benchmarks & Testing
+- **Test 3.5-A (Page Attribution Purity):** 100% of generated chunks in test ingestion contain text belonging strictly to their assigned `page_number`.
+- **Test 3.5-B (Server Latency Telemetry):** Eval harness logs server-side `latency_ms` directly without `gcloud` subprocess noise.
+
+### Exit Criteria
+✅ Zero cross-page chunk leakage. ✅ Clean eval metrics logged. ✅ Scaling configs deployed.
+
+**Est. Effort:** 1 day
 
 ---
 
@@ -538,24 +567,28 @@ Retrieval API, Graph store (Phase 10.0), `ModelProvider.synthesize()`.
 
 ---
 
-## Phase 12.0 — Neural Reranking Upgrade
+## Phase 12.0 — Neural Reranking Upgrade & Precision Engineering
 
 ### Scope
-Improve retrieval relevance with a dedicated reranking model.
+Elevate retrieval precision (targeting MRR ≥ 0.65+ and Page-Recall@5 ≥ 0.80+) using cross-encoders, canonical document resolution, and domain-adapted retrieval strategies.
 
 ### Tasks
-- 12.1: Integrate the Vertex AI Ranking API (or Cohere `rerank-4-fast` — **not** the deprecating v3.5) on top-40 retrieved candidates (now including graph-expanded candidates from Phase 11.0).
+- 12.1: **Neural Cross-Encoder Reranker:** Integrate Vertex AI Ranking API (or Cohere `rerank-4-fast`) on top-40 RRF candidates before final synthesis context assembly.
+- 12.2: **Canonical & Duplicate Document Resolution:** Add metadata weighting (`canonical_doc_id`, `version_type`, `publication_date`) to prefer primary/published statutory versions over draft manuscripts when identical facts appear across multiple documents.
+- 12.3: **Dynamic Query-Type Retrieval Routing:** Implement lightweight query classification (e.g. section/clause lookup → BM25 boost; semantic conceptual inquiry → Dense vector boost; tabular lookup → table chunk metadata filter).
 
 ### Services Touched
-Vertex AI Ranking API (or Cohere Rerank v4).
+Vertex AI Ranking API (or Cohere Rerank v4), Search Orchestrator, Qdrant payload filters.
 
 ### Benchmarks & Testing
-- **Test 12-A:** A/B comparison of pre- and post-rerank relevance on the Phase 2.0 test question set; require a measurable precision improvement.
+- **Test 12-A (MRR Lift):** Re-run golden evaluation suite; assert MRR improves from MVP baseline (0.251) to ≥ 0.65.
+- **Test 12-B (Canonical Preference):** For queries whose answer text exists across multiple documents (e.g. doc_006 and doc_007), verify the canonical source is ranked #1.
+- **Test 12-C (Latency Overhead):** Cross-encoder rerank adds < 400ms to the warm retrieval pipeline.
 
 ### Exit Criteria
-✅ Reranking shows measurable relevance improvement over baseline.
+✅ MRR ≥ 0.65 on golden test set. ✅ Canonical documents prioritized in multi-source answers. ✅ Latency budget met.
 
-**Est. Effort:** 3–5 days
+**Est. Effort:** 1–1.5 weeks
 
 ---
 
@@ -659,6 +692,7 @@ Prepare the system for 20+ clients and production SLA guarantees.
 | 1.0 Ingestion Pipeline | Week 1.5–3.5 | Required |
 | 2.0 Vector Store & Retrieval | Week 3.5–5 | Required |
 | 3.0 LLM Synthesis | Week 5–6 | Required |
+| 3.5 Retrieval Hardening (Lite) | Week 6 | Required |
 | 4.0 Auth & Security | Week 6–7.5 | Required |
 | 5.0 Frontend Integration | Week 7.5–8.5 | Required — **MVP Launch** |
 | 6.0 Conversational Memory + SLM Query Rewrite | Post-MVP | Optional for v1 |
@@ -667,7 +701,7 @@ Prepare the system for 20+ clients and production SLA guarantees.
 | 9.0 Citation & Bbox Management Layer | Post-MVP | Optional for v1 — **prerequisite for 10.0/11.0** |
 | 10.0 Citation Map & Graph Node Network | Post-MVP | Optional for v1 — depends on 9.0 |
 | 11.0 Graph-Aware Retrieval | Post-MVP | Optional for v1 — depends on 10.0 |
-| 12.0 Reranking Upgrade | Post-MVP | Optional for v1 |
+| 12.0 Reranking Upgrade & Precision Engineering | Post-MVP | Optional for v1 |
 | 13.0 Context Compression | Post-MVP | Optional for v1 |
 | 14.0 Mixture of Agents (opt-in mode) | Post-MVP | Optional for v1 |
 | 15.0 GPU Swap-In | Blocked on quota | Optional for v1 |
@@ -676,4 +710,4 @@ Prepare the system for 20+ clients and production SLA guarantees.
 **Dependency note:** Phases 9.0 → 10.0 → 11.0 form a strict chain (bbox trust layer → graph build → graph query) and must be built in that order. Phases 6.0, 7.0, 8.0, 12.0, 13.0, and 14.0 are independent of each other and of the graph chain, and can be resequenced or parallelized across team members if capacity allows.
 
 **End-to-end flow recap (start to finish):**
-`0.0 Foundations` (safety nets) → `0.1 Model abstraction` → `1.0 Ingest` → `2.0 Store & Search` → `3.0 Synthesize` → `4.0 Secure` → `5.0 Ship Frontend` → **MVP live** → `6.0 Memory/Rewrite` → `7.0 Trial` → `8.0 HyDE` → `9.0 Citation Trust Layer` → `10.0 Build Graph` → `11.0 Query Graph` → `12.0 Rerank` → `13.0 Compress` → `14.0 Mixture of Agents (opt-in)` → `15.0 GPU when ready` → `16.0 Scale to enterprise`.
+`0.0 Foundations` (safety nets) → `0.1 Model abstraction` → `1.0 Ingest` → `2.0 Store & Search` → `3.0 Synthesize` → `3.5 Retrieval Hardening` → `4.0 Secure` → `5.0 Ship Frontend` → **MVP live** → `6.0 Memory/Rewrite` → `7.0 Trial` → `8.0 HyDE` → `9.0 Citation Trust Layer` → `10.0 Build Graph` → `11.0 Query Graph` → `12.0 Rerank & Precision` → `13.0 Compress` → `14.0 Mixture of Agents (opt-in)` → `15.0 GPU when ready` → `16.0 Scale to enterprise`.
