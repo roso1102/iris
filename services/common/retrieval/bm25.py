@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import threading
+from pathlib import Path
 from typing import Dict, List, Optional
 
 _MODEL_NAME = "Qdrant/bm25"
@@ -30,11 +31,29 @@ _lock = threading.Lock()
 _model: Optional[object] = None
 
 
+def _resolve_cache_dir() -> str:
+    """Return the model cache dir, preferring the explicitly-set path.
+
+    Resolution order (first that yields a usable cache):
+      1. FASTEMBED_CACHE_PATH (explicit; tests + CI set this).
+      2. The baked /app/models dir (production images).
+      3. The user-level Hugging Face cache (~/.cache/huggingface) so local
+         `unittest` runs work offline without the Docker bake.
+    """
+    explicit = os.environ.get("FASTEMBED_CACHE_PATH", "").strip()
+    if explicit:
+        return explicit
+    for candidate in (_DEFAULT_CACHE_DIR, str(Path.home() / ".cache" / "huggingface")):
+        if Path(candidate, "models--Qdrant--bm25").exists():
+            return candidate
+    return _DEFAULT_CACHE_DIR
+
+
 def _get_model():
     """Lazily initialize the singleton FastEmbed Bm25 model (thread-safe).
 
-    Loads strictly from the baked local cache (local_files_only=True) so cold
-    starts never reach out to Hugging Face; if the bake step is missing this
+    Loads strictly from the local cache (local_files_only=True) so cold
+    starts never reach out to Hugging Face; if the cache is missing this
     raises a clear error instead of silently downloading.
     """
     global _model
@@ -43,7 +62,7 @@ def _get_model():
             if _model is None:
                 from fastembed.sparse.bm25 import Bm25
 
-                cache_dir = os.environ.get("FASTEMBED_CACHE_PATH", _DEFAULT_CACHE_DIR)
+                cache_dir = _resolve_cache_dir()
                 _model = Bm25(
                     model_name=_MODEL_NAME,
                     language=_LANGUAGE,

@@ -11,6 +11,7 @@ trueassort/
 *.egg-info
 .pytest_cache
 node_modules/
+firestore-rules-test/node_modules/
 
 # Graphify output (not needed in container)
 graphify-out/
@@ -23,3 +24,9 @@ eval_report_phase2.json
 
 # Tests (not needed at runtime)
 tests/
+
+# Service-account keys / emulator credentials (never in images)
+firebase-service-account.json
+*.service-account.json
+.firebase/
+firestore-debug.log

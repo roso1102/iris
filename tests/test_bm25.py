@@ -53,8 +53,18 @@ class TestFastEmbedBM25(unittest.TestCase):
 
 
 class TestBakedCacheLayout(unittest.TestCase):
-    """Verify the Docker-baked cache is in the HF layout fastembed expects."""
+    """Verify the Docker-baked cache is in the HF layout fastembed expects.
 
+    This is only meaningful under pytest, where conftest.py sets
+    FASTEMBED_CACHE_PATH. Under plain unittest (no conftest), the resolver
+    falls back to the user HF cache or the baked /app/models dir, so the
+    layout assertion is skipped there.
+    """
+
+    @unittest.skipUnless(
+        os.environ.get("FASTEMBED_CACHE_PATH"),
+        "FASTEMBED_CACHE_PATH only set by pytest conftest",
+    )
     def test_baked_cache_has_snapshot_layout(self):
         cache_dir = os.environ.get("FASTEMBED_CACHE_PATH")
         self.assertTrue(cache_dir, "FASTEMBED_CACHE_PATH should be set by conftest")

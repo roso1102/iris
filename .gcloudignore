@@ -8,5 +8,12 @@ __pycache__/
 graphify-out/
 trueassort/
 node_modules/
+firestore-rules-test/node_modules/
 .env
 *.log
+
+# Service-account keys / emulator credentials (never uploaded)
+firebase-service-account.json
+*.service-account.json
+.firebase/
+firestore-debug.log

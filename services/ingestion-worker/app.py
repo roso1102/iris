@@ -266,8 +266,8 @@ def ingestion_status(doc_id: str):
 # ── Health / QA ────────────────────────────────────────────────────────────
 
 
-@app.get("/healthz")
-def healthz():
+@app.get("/livez")
+def livez():
     return jsonify({"status": "ok", "service": "ingestion-worker", "phase": "1.0"}), 200
 
 

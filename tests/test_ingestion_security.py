@@ -114,7 +114,7 @@ class TestIngestionPipelineConstructor(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Risk 1: QA view auth gate
+# Risk 1: QA view auth gate (Phase 4.0 — Firebase JWT + role=admin)
 # ---------------------------------------------------------------------------
 
 from services.common.ingestion.qa_view import build_qa_response
@@ -137,9 +137,8 @@ class TestQAViewAuthGate(unittest.TestCase):
         )
         self.assertEqual(status, 200)
 
-    def test_auth_blocked_when_enforce_on_and_no_secret(self):
+    def test_auth_blocked_when_enforce_on_and_no_token(self):
         os.environ["QA_VIEW_ENFORCE_AUTH"] = "1"
-        os.environ.pop("QA_VIEW_SECRET", None)
         store = MemoryChunkStore()
         result, status = build_qa_response(
             doc_id="d1", page_number=1, tenant_id="t1",
@@ -147,35 +146,71 @@ class TestQAViewAuthGate(unittest.TestCase):
         )
         self.assertEqual(status, 403)
 
-    def test_auth_blocked_with_wrong_secret(self):
+    def test_auth_blocked_with_non_admin_token(self):
         os.environ["QA_VIEW_ENFORCE_AUTH"] = "1"
-        os.environ["QA_VIEW_SECRET"] = "correct-secret"
         store = MemoryChunkStore()
-        result, status = build_qa_response(
-            doc_id="d1", page_number=1, tenant_id="t1",
-            auth_header="Bearer wrong-secret",
-            store=store,
-        )
+        with patch(
+            "services.common.ingestion.qa_view.verify_firebase_token",
+            return_value={"uid": "u1", "tenant_id": "t1", "role": "member"},
+        ):
+            result, status = build_qa_response(
+                doc_id="d1", page_number=1, tenant_id="t1",
+                auth_header="Bearer any-token",
+                store=store,
+            )
         self.assertEqual(status, 403)
 
-    def test_auth_passes_with_correct_secret(self):
+    def test_auth_blocked_token_missing_tenant_claim(self):
         os.environ["QA_VIEW_ENFORCE_AUTH"] = "1"
-        os.environ["QA_VIEW_SECRET"] = "correct-secret"
         store = MemoryChunkStore()
-        result, status = build_qa_response(
-            doc_id="d1", page_number=1, tenant_id="t1",
-            auth_header="Bearer correct-secret",
-            store=store,
-        )
+        with patch(
+            "services.common.ingestion.qa_view.verify_firebase_token",
+            return_value={"uid": "u1", "role": "admin"},
+        ):
+            result, status = build_qa_response(
+                doc_id="d1", page_number=1, tenant_id="t1",
+                auth_header="Bearer any-token",
+                store=store,
+            )
+        self.assertEqual(status, 403)
+
+    def test_auth_passes_with_admin_token(self):
+        os.environ["QA_VIEW_ENFORCE_AUTH"] = "1"
+        store = MemoryChunkStore()
+        with patch(
+            "services.common.ingestion.qa_view.verify_firebase_token",
+            return_value={"uid": "u1", "tenant_id": "t1", "role": "admin"},
+        ):
+            result, status = build_qa_response(
+                doc_id="d1", page_number=1, tenant_id="t1",
+                auth_header="Bearer any-token",
+                store=store,
+            )
         self.assertEqual(status, 200)
 
-    def test_returns_400_without_tenant_id(self):
+    def test_verified_tenant_overrides_caller_tenant(self):
+        """JWT tenant is authoritative — caller-supplied tenant is ignored."""
         os.environ["QA_VIEW_ENFORCE_AUTH"] = "1"
-        os.environ["QA_VIEW_SECRET"] = "s"
+        store = MemoryChunkStore()
+        # The caller passes tenant_b but the token claims tenant_a; the query
+        # must be scoped to tenant_a (no data for tenant_b -> empty chunk list).
+        with patch(
+            "services.common.ingestion.qa_view.verify_firebase_token",
+            return_value={"uid": "u1", "tenant_id": "tenant-a", "role": "admin"},
+        ):
+            result, status = build_qa_response(
+                doc_id="d1", page_number=1, tenant_id="tenant-b",
+                auth_header="Bearer any-token",
+                store=store,
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(result["chunk_count"], 0)
+
+    def test_returns_400_without_tenant_id_when_enforce_off(self):
+        os.environ.pop("QA_VIEW_ENFORCE_AUTH", None)
         store = MemoryChunkStore()
         result, status = build_qa_response(
             doc_id="", page_number=1, tenant_id="",
-            auth_header="Bearer s",
             store=store,
         )
         self.assertEqual(status, 400)

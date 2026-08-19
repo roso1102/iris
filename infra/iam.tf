@@ -53,6 +53,30 @@ resource "google_project_iam_member" "ingestion_firestore" {
   member  = google_service_account.ingestion_worker.member
 }
 
+# --- Phase 4.0: Firebase JWT verification (retrieval_api + ingestion-worker
+# --- verify Firebase ID tokens with firebase-admin via ADC).
+resource "google_project_iam_member" "retrieval_firebaseauth" {
+  project = var.project_id
+  role    = "roles/firebaseauth.viewer"
+  member  = google_service_account.retrieval_api.member
+}
+
+resource "google_project_iam_member" "ingestion_firebaseauth" {
+  project = var.project_id
+  role    = "roles/firebaseauth.viewer"
+  member  = google_service_account.ingestion_worker.member
+}
+
+# --- Phase 4.0: retrieval_api signs V4 GCS URLs with its own ADC identity.
+# --- `roles/iam.serviceAccountTokenCreator` on itself lets it mint the
+# --- signing key (serviceAccount.signJwt). storage.objects.get on the raw-PDF
+# --- bucket is covered by the existing objectAdmin binding in gcs.tf.
+resource "google_service_account_iam_member" "retrieval_api_self_signer" {
+  service_account_id = google_service_account.retrieval_api.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.retrieval_api.email}"
+}
+
 # --- Billing kill-switch function SA.
 resource "google_service_account" "billing_kill_switch" {
   account_id   = "billing-kill-switch-sa"

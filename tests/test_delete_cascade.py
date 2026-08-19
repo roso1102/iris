@@ -6,6 +6,9 @@ other tenants/docs untouched.
 API level: FastAPI TestClient on retrieval_api/app with `_get_firestore_client`
 patched to a mock, verifying the Firestore doc delete is invoked as part of the
 cascade. Zero GCP, zero network.
+
+Phase 4.0: endpoints require Firebase JWT auth (patched verifier); no
+`tenant-id` header is accepted.
 """
 
 import os
@@ -20,6 +23,7 @@ from fastapi.testclient import TestClient
 from services.common.ingestion.models import Chunk, ElementType, RouteDecision
 from services.common.ingestion.store import MemoryChunkStore
 from services.retrieval_api.app import app, store
+from tests.auth_testing import auth_headers, mock_auth
 
 
 def _chunk(
@@ -91,9 +95,9 @@ class TestApiDeleteCascade(unittest.TestCase):
         store.upsert_batch([_chunk("d1", "tenant-a"), _chunk("d1", "tenant-a")])
         fake = self._fake_firestore()
 
-        with patch("services.retrieval_api.app._get_firestore_client", return_value=fake):
+        with patch("services.retrieval_api.app._get_firestore_client", return_value=fake), mock_auth(tenant_id="tenant-a"):
             resp = self.client.delete(
-                "/documents/d1", headers={"tenant-id": "tenant-a"}
+                "/documents/d1", headers=auth_headers()
             )
 
         self.assertEqual(resp.status_code, 200)
@@ -109,9 +113,9 @@ class TestApiDeleteCascade(unittest.TestCase):
         store.upsert_batch([_chunk("d1", "tenant-a", session_id="s1")])
         fake = self._fake_firestore()
 
-        with patch("services.retrieval_api.app._get_firestore_client", return_value=fake):
+        with patch("services.retrieval_api.app._get_firestore_client", return_value=fake), mock_auth(tenant_id="tenant-a"):
             resp = self.client.delete(
-                "/sessions/s1", headers={"tenant-id": "tenant-a"}
+                "/sessions/s1", headers=auth_headers()
             )
 
         self.assertEqual(resp.status_code, 200)
@@ -121,13 +125,13 @@ class TestApiDeleteCascade(unittest.TestCase):
         fake.document.assert_called_with("tenants/tenant-a/sessions/s1")
         fake.document("tenants/tenant-a/sessions/s1").delete.assert_called_once()
 
-    def test_delete_document_missing_tenant_header(self):
+    def test_delete_document_missing_token(self):
         resp = self.client.delete("/documents/d1")
-        self.assertIn(resp.status_code, [400, 422])
+        self.assertEqual(resp.status_code, 401)
 
-    def test_delete_session_missing_tenant_header(self):
+    def test_delete_session_missing_token(self):
         resp = self.client.delete("/sessions/s1")
-        self.assertIn(resp.status_code, [400, 422])
+        self.assertEqual(resp.status_code, 401)
 
 
 if __name__ == "__main__":

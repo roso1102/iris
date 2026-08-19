@@ -39,5 +39,30 @@ echo "==> Writing config to Secret Manager secret '${SECRET_ID}'"
 printf '%s' "${CONFIG_JSON}" | gcloud secrets versions add "${SECRET_ID}" \
   --data-file=- --project "${PROJECT_ID}"
 
+echo "==> Provisioning eval user for the evaluation harness"
+# The eval harness (scripts/eval_phase2.py) mints a Firebase ID token for a
+# dedicated user. Create it (if missing) and set tenant_id/role claims.
+# Requires firebaseauth.admin; key creation is disabled in this project, so
+# the script is invoked with an impersonated admin-SA access token.
+EVAL_EMAIL="${EVAL_USER_EMAIL:-eval@iris.local}"
+EVAL_PASSWORD="${EVAL_USER_PASSWORD:-EvalPass!2026x}"
+EVAL_TENANT="${EVAL_TENANT_ID:-test-tenant}"
+ADMIN_SA="firebase-adminsdk-fbsvc@${PROJECT_ID}.iam.gserviceaccount.com"
+# Impersonate the admin SA for a short-lived access token (needs the caller
+# to hold roles/iam.serviceAccountTokenCreator + serviceAccountUser on it).
+ADMIN_TOKEN="$(gcloud auth print-access-token \
+  --impersonate-service-account="${ADMIN_SA}" --project="${PROJECT_ID}" 2>/dev/null || true)"
+if [[ -n "${ADMIN_TOKEN}" ]]; then
+  ADMIN_SA_TOKEN="${ADMIN_TOKEN}" EVAL_USER_EMAIL="${EVAL_EMAIL}" \
+  EVAL_USER_PASSWORD="${EVAL_PASSWORD}" EVAL_TENANT_ID="${EVAL_TENANT}" \
+  python scripts/provision_eval_user.py --admin-token "${ADMIN_TOKEN}" || {
+    echo "WARN: eval user provisioning failed (you can rerun later with" >&2
+    echo "      scripts/provision_eval_user.py)." >&2
+  }
+else
+  echo "WARN: could not impersonate admin SA — eval user provisioning skipped." >&2
+  echo "      Rerun with: python scripts/provision_eval_user.py --password <pw>" >&2
+fi
+
 echo "==> Done. Firebase config stored in secret '${SECRET_ID}'."
 echo "    Phase 4.0 will consume it for client-side auth."

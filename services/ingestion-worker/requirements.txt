@@ -20,5 +20,8 @@ rank-bm25==0.2.*
 # Preflight payload scanner (ACTIONPLAN 1.2)
 pypdf==5.*
 
+# Firebase JWT verification for the QA view (Phase 4.0)
+firebase-admin==6.*
+
 # Vertex AI SDK for Gemini Vision + text embeddings (ACTIONPLAN 1.6-1.7).
 google-cloud-aiplatform[vertexai]==1.*

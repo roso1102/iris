@@ -51,3 +51,10 @@ terraform.tfvars
 *.tfstate.*
 .terraform/
 crash.log
+
+# Firebase emulator + rules-test harness
+firestore-rules-test/node_modules/
+.firebase/
+firestore-debug.log
+firebase-service-account.json
+*.service-account.json
