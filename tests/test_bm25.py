@@ -8,7 +8,9 @@ behavior (non-empty, deterministic, sorted), not exact hash values.
 
 import os
 import unittest
+from unittest.mock import patch
 
+from services.common.retrieval import bm25 as bm25_module
 from services.common.retrieval.bm25 import (
     text_to_sparse,
     tokenize,
@@ -81,6 +83,15 @@ class TestBakedCacheLayout(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(hash_dir, "english.txt")))
         # fastembed 0.8.0 writes files_metadata.json at the repo-storage root.
         self.assertTrue(os.path.isfile(os.path.join(storage, "files_metadata.json")))
+
+
+class TestCacheResolution(unittest.TestCase):
+
+    def test_resolve_cache_dir_falls_back_to_home_cache_when_missing(self):
+        with patch.dict(os.environ, {"FASTEMBED_CACHE_PATH": ""}, clear=False):
+            with patch("services.common.retrieval.bm25.Path.exists", return_value=False):
+                cache_dir = bm25_module._resolve_cache_dir()
+        self.assertEqual(cache_dir, str(bm25_module.Path.home() / ".cache" / "huggingface"))
 
 
 if __name__ == "__main__":
