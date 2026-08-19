@@ -43,10 +43,11 @@ def _resolve_cache_dir() -> str:
     explicit = os.environ.get("FASTEMBED_CACHE_PATH", "").strip()
     if explicit:
         return explicit
-    for candidate in (_DEFAULT_CACHE_DIR, str(Path.home() / ".cache" / "huggingface")):
+    home_cache = str(Path.home() / ".cache" / "huggingface")
+    for candidate in (_DEFAULT_CACHE_DIR, home_cache):
         if Path(candidate, "models--Qdrant--bm25").exists():
             return candidate
-    return _DEFAULT_CACHE_DIR
+    return home_cache
 
 
 def _get_model():
@@ -63,12 +64,13 @@ def _get_model():
                 from fastembed.sparse.bm25 import Bm25
 
                 cache_dir = _resolve_cache_dir()
+                local_only = Path(cache_dir, "models--Qdrant--bm25").exists()
                 _model = Bm25(
                     model_name=_MODEL_NAME,
                     language=_LANGUAGE,
                     token_max_length=_TOKEN_MAX_LENGTH,
                     cache_dir=cache_dir,
-                    local_files_only=True,
+                    local_files_only=local_only,
                 )
     return _model
 
