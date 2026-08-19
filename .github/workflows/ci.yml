@@ -25,6 +25,7 @@ jobs:
         env:
           MODEL_BACKEND: mock
           QDRANT_URL: ""
+          FASTEMBED_CACHE_PATH: /tmp/fastembed_cache
           RUN_VERTEX_LIVE_TESTS: "0"
           RUN_QDRANT_LIVE_TESTS: "0"
         run: |
