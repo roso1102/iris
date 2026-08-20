@@ -88,3 +88,10 @@ class SessionListResponse(BaseModel):
 class ViewUrlResponse(BaseModel):
     url: str
     expires_in_seconds: int = 900
+
+
+class DocStatusResponse(BaseModel):
+    doc_id: str
+    tenant_id: str
+    chunks: int
+    pages: int

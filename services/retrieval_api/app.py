@@ -38,6 +38,7 @@ from services.common.ingestion.store import get_chunk_store
 from services.common.models.factory import get_model_provider
 from services.common.retrieval.models import (
     DeleteResponse,
+    DocStatusResponse,
     QueryRequest,
     QueryResponse,
     ScoredChunk,
@@ -221,7 +222,7 @@ async def livez():
     }
 
 
-@app.get("/doc-status/{doc_id}")
+@app.get("/doc-status/{doc_id}", response_model=DocStatusResponse)
 async def doc_status(
     doc_id: str,
     auth: AuthContext = Depends(require_auth),
@@ -238,7 +239,7 @@ async def doc_status(
     }
 
 
-@app.post("/search")
+@app.post("/search", response_model=SearchResponse)
 async def search(
     request: SearchRequest,
     auth: AuthContext = Depends(require_auth),
@@ -275,7 +276,7 @@ async def search(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.post("/query")
+@app.post("/query", response_model=QueryResponse)
 async def query(
     request: QueryRequest,
     auth: AuthContext = Depends(require_auth),
@@ -344,7 +345,7 @@ def _build_synthesis_context(
     return "\n\n".join(parts), source_chunks
 
 
-@app.delete("/documents/{doc_id}")
+@app.delete("/documents/{doc_id}", response_model=DeleteResponse)
 async def delete_document(
     doc_id: str,
     auth: AuthContext = Depends(require_auth),
@@ -358,7 +359,7 @@ async def delete_document(
     return DeleteResponse(deleted_chunks=deleted, resource_id=doc_id)
 
 
-@app.delete("/sessions/{session_id}")
+@app.delete("/sessions/{session_id}", response_model=DeleteResponse)
 async def delete_session(
     session_id: str,
     auth: AuthContext = Depends(require_auth),
