@@ -95,3 +95,9 @@ class DocStatusResponse(BaseModel):
     tenant_id: str
     chunks: int
     pages: int
+
+
+class UploadResponse(BaseModel):
+    doc_id: str
+    status: str  # "processing" | "already_ingested" | "rejected"
+    detail: Optional[str] = None

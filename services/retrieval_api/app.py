@@ -23,7 +23,7 @@ import time
 import uuid
 from datetime import timedelta
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from services.common.auth.jwt import AuthContext, require_auth
@@ -48,6 +48,7 @@ from services.common.retrieval.models import (
     SessionCreateRequest,
     SessionListResponse,
     SessionResponse,
+    UploadResponse,
     ViewUrlResponse,
 )
 from services.common.retrieval.search import SearchOrchestrator
@@ -58,6 +59,19 @@ logger = logging.getLogger("retrieval-api")
 
 _RAW_BUCKET = "iris-raw-pdfs"
 _VIEW_URL_TTL_SECONDS = 900
+
+# Upload guards (Task 5.0b): size cap before any GCS write; page cap enforced
+# downstream by the ingestion-worker preflight. 50 MB is generous for scanned
+# legal PDFs and far below Cloud Run request limits.
+_UPLOAD_MAX_BYTES = 50 * 1024 * 1024
+
+# Ingestion trigger (Task 5.0b): the ingestion-worker /ingest endpoint performs
+# preflight + page split + Pub/Sub fan-out. It's secured by Cloud Run IAM, so we
+# impersonate its service account to mint an ID token (same pattern as
+# scripts/eval_phase2.py). Env overridable for local/emulator tests.
+_INGEST_URL = os.environ.get("INGEST_URL", "")
+_INGEST_SA = os.environ.get("INGEST_SA", "ingestion-worker-sa@naturepivot-rag.iam.gserviceaccount.com")
+_GCP_PROJECT = os.environ.get("GCP_PROJECT", "naturepivot-rag")
 
 
 def _get_gcs_client():
@@ -199,6 +213,72 @@ def _document_exists(tenant_id: str, doc_id: str) -> bool:
     snapshot = client.document(f"tenants/{tenant_id}/documents/{doc_id}").get()
     if not snapshot.exists:
         raise HTTPException(status_code=404, detail="Document not found")
+
+
+def _upload_pdf_to_gcs(tenant_id: str, doc_id: str, content: bytes) -> None:
+    """Stream the uploaded PDF to gs://iris-raw-pdfs/{tenant}/{doc_id}.pdf."""
+    gcs = _get_gcs_client()
+    if gcs is None:
+        raise HTTPException(status_code=503, detail="Storage unavailable")
+    bucket = gcs.bucket(_RAW_BUCKET)
+    blob = bucket.blob(f"{tenant_id}/{doc_id}.pdf")
+    blob.upload_from_string(content, content_type="application/pdf")
+
+
+def _create_document_record(tenant_id: str, doc_id: str, filename: str) -> None:
+    """Create the Firestore ownership record so view-url/delete work.
+
+    The record also carries processing state so the frontend documents table
+    can display it without a separate store.
+    """
+    client = _get_firestore_client()
+    if client is None:
+        raise HTTPException(status_code=503, detail="Firestore unavailable")
+    client.document(f"tenants/{tenant_id}/documents/{doc_id}").set({
+        "doc_id": doc_id,
+        "tenant_id": tenant_id,
+        "status": "processing",
+        "filename": filename,
+        "created_at": _server_timestamp(),
+    })
+
+
+def _trigger_ingestion(tenant_id: str, doc_id: str) -> dict:
+    """Call ingestion-worker /ingest to preflight + split + fan out to Pub/Sub.
+
+    Returns the worker's response JSON. On failure raises HTTPException so the
+    upload can report a clear error (the raw PDF is already in GCS; a retry of
+    the upload with the same doc_id must be handled, so this does NOT delete).
+    """
+    if not _INGEST_URL:
+        raise HTTPException(status_code=503, detail="Ingestion service not configured")
+
+    import requests
+    from google.auth import default, impersonated_credentials
+    from google.auth.transport import requests as gauth_requests
+
+    # Mint an ID token as the ingestion-worker SA (Cloud Run IAM).
+    creds, _ = default()
+    target_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+    impersonated = impersonated_credentials.Credentials(
+        source_credentials=creds,
+        target_principal=_INGEST_SA,
+        target_scopes=target_scopes,
+    )
+    auth_req = gauth_requests.Request()
+    impersonated.refresh(auth_req)
+    id_token = impersonated.id_token
+
+    resp = requests.post(
+        f"{_INGEST_URL}/ingest",
+        json={"gcs_uri": f"gs://{_RAW_BUCKET}/{tenant_id}/{doc_id}.pdf", "tenant_id": tenant_id, "doc_id": doc_id},
+        headers={"Authorization": f"Bearer {id_token}"},
+        timeout=120,
+    )
+    try:
+        return resp.json()
+    except Exception:
+        raise HTTPException(status_code=502, detail=f"Ingestion trigger failed (HTTP {resp.status_code})") from None
 
 
 # --- App --------------------------------------------------------------------------
@@ -457,3 +537,71 @@ async def view_url(
     _document_exists(auth.tenant_id, doc_id)
     url = _signed_view_url(auth.tenant_id, doc_id)
     return ViewUrlResponse(url=url, expires_in_seconds=_VIEW_URL_TTL_SECONDS)
+
+
+@app.post("/documents/upload", response_model=UploadResponse)
+async def upload_document(
+    file: UploadFile,
+    doc_id: str = Form(...),
+    auth: AuthContext = Depends(require_auth),
+):
+    """Upload a PDF and trigger ingestion (Task 5.0b).
+
+    Flow: validate doc_id + file -> stream to GCS -> write the Firestore
+    ownership record -> call ingestion-worker /ingest (preflight + split +
+    Pub/Sub fan-out). The frontend then polls /doc-status/{doc_id} for progress.
+
+    The client never supplies `tenant_id` — it comes exclusively from the
+    verified JWT (anti-IDOR, Phase 4.0).
+    """
+    validate_tenant_id(auth.tenant_id)
+    validate_doc_id(doc_id)
+
+    if file.content_type not in ("application/pdf", "application/octet-stream"):
+        raise HTTPException(status_code=422, detail="Only PDF files are accepted")
+
+    content = await file.read(_UPLOAD_MAX_BYTES + 1)
+    if not content:
+        raise HTTPException(status_code=422, detail="Empty file")
+    if len(content) > _UPLOAD_MAX_BYTES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"File exceeds {_UPLOAD_MAX_BYTES // (1024 * 1024)} MB limit",
+        )
+
+    # Reject duplicates before writing anything (409 keeps re-upload idempotent
+    # without clobbering an existing ingestion in flight).
+    client = _get_firestore_client()
+    if client is None:
+        raise HTTPException(status_code=503, detail="Firestore unavailable")
+    existing = client.document(f"tenants/{auth.tenant_id}/documents/{doc_id}").get()
+    if existing.exists:
+        raise HTTPException(
+            status_code=409,
+            detail=f"doc_id '{doc_id}' already exists; use DELETE first to re-upload",
+        )
+
+    filename = file.filename or f"{doc_id}.pdf"
+    try:
+        _upload_pdf_to_gcs(auth.tenant_id, doc_id, content)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("GCS upload failed for tenant %s doc %s", auth.tenant_id, doc_id)
+        raise HTTPException(status_code=502, detail=f"Storage write failed: {exc}") from exc
+
+    _create_document_record(auth.tenant_id, doc_id, filename)
+
+    try:
+        worker_resp = _trigger_ingestion(auth.tenant_id, doc_id)
+    except HTTPException as exc:
+        # The PDF + record are persisted; report the trigger failure but don't
+        # delete them — a retry of /ingest (or manual trigger) can recover.
+        logger.warning("Ingestion trigger failed for %s/%s: %s", auth.tenant_id, doc_id, exc.detail)
+        raise exc
+
+    status = worker_resp.get("status", "processing")
+    if status == "rejected":
+        raise HTTPException(status_code=422, detail=worker_resp.get("reason", "Ingestion rejected file"))
+
+    return UploadResponse(doc_id=doc_id, status=status)
