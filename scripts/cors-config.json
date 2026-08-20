@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["https://procambrian.ai", "http://localhost:3000"],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Content-Length", "Range"],
+    "maxAgeSeconds": 3600
+  }
+]
