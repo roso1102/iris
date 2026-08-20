@@ -369,33 +369,40 @@ A fully authenticated, zero-trust backend that relies exclusively on verified JW
 ## Phase 5.0 — Frontend Integration (Vercel)
 
 ### Scope
-Connect the existing Next.js frontend to the new GCP backend and ship the MVP.
+Build the client-facing Next.js app on the existing Vercel custom domain and connect it to the GCP backend over authenticated HTTPS, shipping the MVP journey: **login → upload → ask → pixel-accurate citation highlight**. The detailed UI/architecture specification (design system, folder structure, state management, Zod contracts, PDF.js/bbox UX flow) lives in `FRONTEND_PLAN.md` — this section is the build plan for it.
 
 ### Tasks
-- 5.1: Wire the existing `BboxOverlay.tsx` component to the Retrieval API's `/query` response shape.
-- 5.2: Implement the Firebase Auth login flow in the frontend.
-- 5.3: Build the session/chat UI, calling the tenant-scoped `/query` endpoint.
-- 5.4: Deploy to Vercel on the existing custom domain, pointing API calls at the GCP Retrieval API over authenticated HTTPS.
-- 5.5: Build a **PDF.js-based citation side panel**: clicking a citation opens the source PDF in a side pane next to the chat, auto-navigates to the cited page using bbox/page metadata from Docling (Phase 1.0), and highlights the exact bbox region. Fall back to text-search-and-highlight within the page if bbox rendering isn't available for a given citation. *(Note: at MVP this reads bbox metadata directly from Qdrant chunk payloads; once Phase 9.0's Citation Registry lands post-MVP, the panel switches to consuming its validated `GET /citations/{citation_id}` endpoint instead — a backend swap only, no frontend rework needed.)*
-- 5.6: End-to-end manual QA across the full user journey: login → upload → ask → see highlighted citation.
+**Backend prerequisites (deferred from Phase 4.0):**
+- 5.0: **`POST /documents/upload` on `retrieval-api`** *(deferred from Phase 4.0)* — Firebase JWT required, `tenant_id` from JWT only (anti-IDOR), `doc_id` regex-validated, stream PDF to `gs://iris-raw-pdfs/{tenant}/{doc_id}.pdf`, publish to the `iris-ingestion` topic, return `{doc_id, status}`. Progress is surfaced via the existing `GET /doc-status/{doc_id}` (polled by the frontend). *(The ingestion pipeline itself already exists — this endpoint is the user-facing trigger.)*
+
+**Frontend (per `FRONTEND_PLAN.md`):**
+- 5.1: **Scaffold & Design System** — Next.js (App Router, TypeScript) + shadcn/ui + Radix Themes; emerald palette + Manrope (FRONTEND_PLAN §1); folder structure with page-level resource co-location (`app/(auth)/`, `app/(app)/chat/`, `app/(app)/documents/`, `lib/api/`, `lib/auth/` — FRONTEND_PLAN §2).
+- 5.2: **Firebase Auth** — Firebase Client SDK (`lib/auth/firebase.ts` + `token.ts`): sign-in page, silent ID-token refresh, `X-Firebase-Token` header injection in `lib/api/client.ts`. **Never send `tenantId`** — query params carry UI state only (`sessionId`, `docId`, `page`, `citationId`, `panelWidth`); security state stays server-side from the JWT (FRONTEND_PLAN §3).
+- 5.3: **Chat surface (`/chat`)** — split-screen `ChatPanel` + `PdfPanel` + `ResizableSplit`; `POST /query` integration with loading skeleton + latency telemetry; Zod runtime validation of `QueryResponse`/`Citation` so unexpected backend data never crashes the UI (FRONTEND_PLAN §5).
+- 5.4: **Documents page** — `UploadDropzone` (calls `POST /documents/upload`) + `DocStatusTable` polling `/doc-status/{id}` via TanStack Query; server state in TanStack Query, UI state (active citation, PDF zoom, panel width) in Zustand (FRONTEND_PLAN §4).
+- 5.5: **PDF.js citation side panel** — click citation pill → fetch signed URL (`GET /documents/{doc_id}/view-url`) → PDF.js renders target page → `BboxOverlay.tsx` maps normalized `[left, top, right, bottom]` bbox to canvas pixels → animated highlight + auto-scroll; text-search fallback when bbox is null; auto-refresh signed URL when the 15-min TTL expires (HTTP 403) (FRONTEND_PLAN §6).
+- 5.6: **URL state pattern** — split-screen state lives in query params (`/chat?sessionId=s_123&docId=doc_456&page=14&citationId=c_789`) for instant state restoration on refresh/share (FRONTEND_PLAN §3.1).
+- 5.7: **Playwright E2E** — automated test: login → ask → click citation → PDF navigates + highlights bbox (automates Test 5-A).
+- 5.8: **Deploy to Vercel** — existing custom domain; env vars: Firebase web config (from the `FIREBASE_CONFIG` secret), `RETRIEVAL_URL`; enable CORS on `retrieval-api` for the Vercel origin if browser calls require it (the app already accepts `X-Firebase-Token`).
 
 ### Services Touched
-Vercel, Firebase Auth (client SDK), Cloud Run (Retrieval API), PDF.js.
+Vercel (Next.js), Firebase Auth (client SDK), Cloud Run (Retrieval API), GCS signed URLs, Pub/Sub (upload trigger), PDF.js.
 
 ### Deliverables
-A live, working product on the existing domain.
+A live, working product on the existing domain: a user can sign up/log in, upload a document, watch ingestion progress, ask questions, and see pixel-accurate citation highlights — with zero manual intervention.
 
 ### Benchmarks & Testing
-- **Test 5-A (E2E Journey):** A new user can sign up/log in, upload a document, ask a question, and see a correctly-positioned highlight — with zero manual intervention.
+- **Test 5-A (E2E Journey):** A new user can sign up/log in, upload a document, ask a question, and see a correctly-positioned highlight — zero manual intervention (automated via Playwright, Task 5.7).
 - **Test 5-B (Cross-Browser):** Verify the above journey on Chrome, Safari, and Firefox.
 - **Test 5-C (Load Test):** Simulate 20 concurrent tenant sessions; confirm no cross-tenant leakage and latency stays within NFR-1 bounds.
 - **Test 5-D (Citation Side Panel):** Clicking any citation in a test set of 15 sample answers correctly opens the source PDF, navigates to the right page, and highlights the right region within 1 second; the text-search fallback triggers correctly when bbox data is intentionally withheld for one test case.
+- **Test 5-E (Auth & Token Lifecycle):** Unauthenticated visit → login redirect; expired ID token → silent refresh → request retried successfully; signed-URL expiry (403) → auto-refetch.
 - **Benchmark:** Full user journey completes in a single session without errors, timeouts, or visual bbox misalignment greater than a few pixels.
 
 ### Exit Criteria
-✅ E2E journey passes on all three browsers. ✅ Load test shows no security or performance regression. ✅ Citation side panel and its fallback both verified.
+✅ E2E journey passes on all three browsers. ✅ Load test shows no security or performance regression. ✅ Citation side panel and its text-search fallback both verified. ✅ Upload → ingestion → doc-status progress → query → citation works end-to-end. ✅ `FRONTEND_PLAN.md` checklist fully implemented.
 
-**Est. Effort:** 1–1.5 weeks
+**Est. Effort:** 1.5–2 weeks
 
 ---
 
