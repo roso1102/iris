@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `71f88ebf`
+- Built from commit: `40a7c3a6`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -511,7 +511,7 @@ Cohesion: 0.67
 Nodes (3): _is_resource_exhausted(), Exception, Return True if the exception is a Vertex/API rate-limit condition.
 
 ## Knowledge Gaps
-- **291 isolated node(s):** `1. What IRIS Is`, `2. Current State`, `3. Key Decisions (frozen — do not violate)`, `4. Session Log (append-only — one bullet per session)`, `5. Gotchas & Notes` (+286 more)
+- **291 isolated node(s):** `The two containers`, `How per-phase checkpointing still works without per-phase containers`, `Why this doesn't delay stage-by-stage checking`, `Scope`, `Tasks` (+286 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **20 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -519,9 +519,9 @@ Nodes (3): _is_resource_exhausted(), Exception, Return True if the exception is 
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `ModelProvider` connect `ModelProvider` to `StructuredAnswer`, `ParsedElement`, `ElementType`, `SelfHostedGPUProvider`, `Chunk`, `ingestion/main.py`, `vlm_router.py`, `MockVlmRouter`, `VertexAIProvider`, `MockModelProvider`, `IngestionPipeline`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
+  _High betweenness centrality (0.045) - this node is a cross-community bridge._
 - **Why does `MemoryChunkStore` connect `MemoryChunkStore` to `Chunk`, `Chunk`, `text_to_sparse`, `store.py`, `test_ingestion_pipeline.py`, `check_pdf`, `TestMemoryChunkStoreSearch`, `test_pipeline_layer2.py`, `test_delete_cascade.py`, `test_ingestion_security.py`, `TestFullPipelineWiring`, `run_pipeline`, `run_pipeline`, `TestSearchOrchestrator`, `TestDeepSearch`, `ingestion/models.py`, `test_store.py`, `TestDoclingTrueassortCorpus`, `TestMemoryChunkStoreThreadSafety`?**
-  _High betweenness centrality (0.043) - this node is a cross-community bridge._
+  _High betweenness centrality (0.044) - this node is a cross-community bridge._
 - **Why does `VertexAIProvider` connect `VertexAIProvider` to `ModelProvider`, `StructuredAnswer`?**
   _High betweenness centrality (0.028) - this node is a cross-community bridge._
 - **Are the 17 inferred relationships involving `MemoryChunkStore` (e.g. with `RecordingProvider` and `TestDeepSearch`) actually correct?**
