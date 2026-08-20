@@ -9,6 +9,9 @@ set -euo pipefail
 PROJECT_ID="${1:-$(gcloud config get-value project 2>/dev/null)}"
 REGION="${2:-asia-south1}"
 REPO="${REGION}-docker.pkg.dev/${PROJECT_ID}/iris"
+# Browser origins allowed to call retrieval-api (comma-separated). Override via env:
+#   CORS_ALLOWED_ORIGINS="https://iris.example.com,http://localhost:3000" ./scripts/deploy.sh
+CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-}"
 
 if [[ -z "${PROJECT_ID}" || "${PROJECT_ID}" == "(unset)" ]]; then
   echo "ERROR: could not determine GCP project. Pass it: $0 <project-id> [region]" >&2
@@ -49,7 +52,7 @@ gcloud run deploy retrieval-api \
   --cpu=2 --memory=2Gi --max-instances=10 --min-instances=1 \
   --service-account="retrieval-api-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
   --vpc-connector=iris-connector --vpc-egress=private-ranges-only \
-  --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},FIREBASE_PROJECT_ID=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://10.0.0.5:6333"
+  --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},FIREBASE_PROJECT_ID=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://10.0.0.5:6333,CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}"
 
 echo "==> Granting Cloud Run IAM (kill-switch run.admin, trigger run.invoker)"
 gcloud run services add-iam-policy-binding ingestion-worker \

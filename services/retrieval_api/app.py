@@ -24,6 +24,7 @@ import uuid
 from datetime import timedelta
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from services.common.auth.jwt import AuthContext, require_auth
 from services.common.auth.rate_limit import limiter
@@ -203,6 +204,36 @@ def _document_exists(tenant_id: str, doc_id: str) -> bool:
 # --- App --------------------------------------------------------------------------
 PORT = int(os.environ.get("PORT", 8080))
 app = FastAPI(title="IRIS Retrieval API", version="4.0")
+
+
+def _cors_origins() -> list[str]:
+    """Comma-separated browser origins from CORS_ALLOWED_ORIGINS (trimmed)."""
+    return [
+        o.strip()
+        for o in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
+        if o.strip()
+    ]
+
+
+def add_cors_middleware(application: FastAPI) -> None:
+    """Register CORSMiddleware for the configured browser origins.
+
+    No-op when CORS_ALLOWED_ORIGINS is unset/empty. allow_headers="*" covers
+    the custom X-Firebase-Token header in the preflight OPTIONS.
+    """
+    origins = _cors_origins()
+    if origins:
+        application.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+            expose_headers=["*"],
+        )
+
+
+add_cors_middleware(app)
 
 store = get_chunk_store()
 provider = get_model_provider()
