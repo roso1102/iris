@@ -70,8 +70,8 @@
     "semantic_hash": "4a81e3987830a4beb5494f10bb5b9136"
   },
   "scripts/deploy.sh": {
-    "mtime": 1787150991.0674493,
-    "ast_hash": "6aa5d314fe46f9ab787a508b10478f8a",
+    "mtime": 1787230694.5343423,
+    "ast_hash": "b4c35edef36a3ff72bd4e7185ec19c34",
     "semantic_hash": ""
   },
   "scripts/setup_firebase.sh": {
@@ -270,13 +270,13 @@
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1787151041.8271227,
-    "ast_hash": "5cac84e13e93122e603968ddeca6c8a2",
+    "mtime": 1787230708.492131,
+    "ast_hash": "4cf483053267b6bdc7ef4e23c7796c39",
     "semantic_hash": ""
   },
   "ACTIONPLAN.md": {
-    "mtime": 1787152822.5064673,
-    "ast_hash": "e55f189da7c95e73255a4bc71def44b9",
+    "mtime": 1787230489.8342288,
+    "ast_hash": "c1b79e4819de9b671d76a08b92871f0c",
     "semantic_hash": ""
   },
   "BENCHMARK.md": {
@@ -290,8 +290,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1787152859.6561322,
-    "ast_hash": "9369f6598778426d2be896d6aa994ddf",
+    "mtime": 1787233801.8339589,
+    "ast_hash": "6fa2583d25c09b58e84aa7c514685033",
     "semantic_hash": ""
   },
   "README.md": {
@@ -339,11 +339,6 @@
     "ast_hash": "fe2a05559e37b37f1bdf2ef829bd3a35",
     "semantic_hash": ""
   },
-  "idea.md": {
-    "mtime": 1786167806.9358568,
-    "ast_hash": "29aa2698850bd6036b99763c8f712cd4",
-    "semantic_hash": ""
-  },
   "services/common/models/gpu.py": {
     "mtime": 1786791663.1322124,
     "ast_hash": "96f76e14767e352e0c530f0e048631e5",
@@ -365,8 +360,8 @@
     "semantic_hash": ""
   },
   "services/common/retrieval/models.py": {
-    "mtime": 1787062536.283715,
-    "ast_hash": "a8a6ed8925cc2ed02e8331b43662bb1a",
+    "mtime": 1787229639.842611,
+    "ast_hash": "73b46f46e16070cc869c39377aa12bb5",
     "semantic_hash": ""
   },
   "services/common/retrieval/rrf.py": {
@@ -385,8 +380,8 @@
     "semantic_hash": ""
   },
   "services/retrieval_api/app.py": {
-    "mtime": 1787149663.595299,
-    "ast_hash": "53d112fd6600c07d26b6177ec805a12b",
+    "mtime": 1787231193.7647986,
+    "ast_hash": "fc80efa9b3fd7d21ab49083c61c447f2",
     "semantic_hash": ""
   },
   "tests/test_bm25.py": {
@@ -644,9 +639,14 @@
     "ast_hash": "68bbc04ce7cda2f47a21f5771eb168d8",
     "semantic_hash": ""
   },
-  "lol.md": {
-    "mtime": 1787062135.062234,
-    "ast_hash": "74606fe29b7b02ef3ed10fb888f49bd3",
+  "FRONTEND_PLAN.md": {
+    "mtime": 1787228007.856039,
+    "ast_hash": "7d406ad698731bcbcf48ce4b6d0ad055",
+    "semantic_hash": ""
+  },
+  "tests/test_cors.py": {
+    "mtime": 1787231227.7205844,
+    "ast_hash": "3dfa6faef300756b8435c66f8a0acb51",
     "semantic_hash": ""
   }
 }
