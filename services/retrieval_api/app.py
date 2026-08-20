@@ -254,20 +254,31 @@ def _trigger_ingestion(tenant_id: str, doc_id: str) -> dict:
         raise HTTPException(status_code=503, detail="Ingestion service not configured")
 
     import requests
-    from google.auth import default, impersonated_credentials
+    from google.auth import default
     from google.auth.transport import requests as gauth_requests
 
-    # Mint an ID token as the ingestion-worker SA (Cloud Run IAM).
+    # Mint an ID token as the ingestion-worker SA (Cloud Run IAM) via the
+    # IAM Credentials generateIdToken API — impersonated_credentials only
+    # yields access tokens, not ID tokens.
     creds, _ = default()
-    target_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
-    impersonated = impersonated_credentials.Credentials(
-        source_credentials=creds,
-        target_principal=_INGEST_SA,
-        target_scopes=target_scopes,
-    )
     auth_req = gauth_requests.Request()
-    impersonated.refresh(auth_req)
-    id_token = impersonated.id_token
+    creds.refresh(auth_req)
+    token_endpoint = (
+        "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/"
+        f"{_INGEST_SA}:generateIdToken"
+    )
+    resp = requests.post(
+        token_endpoint,
+        headers={"Authorization": f"Bearer {creds.token}"},
+        json={"audience": _INGEST_URL, "includeEmail": True},
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ingestion auth failed (HTTP {resp.status_code})",
+        )
+    id_token = resp.json()["token"]
 
     resp = requests.post(
         f"{_INGEST_URL}/ingest",

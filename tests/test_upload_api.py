@@ -18,7 +18,7 @@ os.environ["MODEL_BACKEND"] = "mock"
 
 from fastapi.testclient import TestClient
 
-from services.retrieval_api.app import app, _UPLOAD_MAX_BYTES
+from services.retrieval_api.app import app, _UPLOAD_MAX_BYTES, _trigger_ingestion
 
 from tests.auth_testing import auth_headers, mock_auth
 
@@ -175,6 +175,38 @@ class TestUploadApi(unittest.TestCase):
         blob_path = gcs_mock.bucket.return_value.blob.call_args.args[0]
         self.assertEqual(blob_path, "tenant-a/doc_new.pdf")
         self.assertNotIn("tenant-evil", blob_path)
+
+    # ── _trigger_ingestion (IAM generateIdToken path) ────────────────────────
+
+    def test_trigger_ingestion_mints_id_token_and_posts(self):
+        """The trigger must mint an ID token via IAM generateIdToken, not use
+        impersonated_credentials.id_token (which doesn't exist)."""
+        import services.retrieval_api.app as app_module
+
+        creds = MagicMock()
+        creds.token = "source-access-token"
+        fake_resp = MagicMock()
+        fake_resp.status_code = 200
+        fake_resp.json.return_value = {"token": "minted-id-token"}
+
+        ingest_resp = MagicMock()
+        ingest_resp.status_code = 200
+        ingest_resp.json.return_value = {"status": "processing", "doc_id": "d1"}
+
+        with patch.object(app_module, "_INGEST_URL", "https://ingest.example"), \
+             patch.object(app_module, "_RAW_BUCKET", "iris-raw-pdfs"), \
+             patch("google.auth.default", return_value=(creds, None)), \
+             patch("requests.post") as post_mock:
+            post_mock.side_effect = [fake_resp, ingest_resp]
+            result = _trigger_ingestion("tenant-a", "d1")
+
+        self.assertEqual(result["status"], "processing")
+        # First call: IAM generateIdToken; second: /ingest with the minted token.
+        iam_call, ingest_call = post_mock.call_args_list
+        self.assertIn("generateIdToken", iam_call.args[0])
+        self.assertIn("source-access-token", iam_call.kwargs["headers"]["Authorization"])
+        self.assertEqual(ingest_call.kwargs["headers"]["Authorization"], "Bearer minted-id-token")
+        self.assertEqual(ingest_call.kwargs["json"]["gcs_uri"], "gs://iris-raw-pdfs/tenant-a/d1.pdf")
 
 
 if __name__ == "__main__":
