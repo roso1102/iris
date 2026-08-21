@@ -2,6 +2,7 @@
 
 import asyncio
 import unittest
+from unittest.mock import patch
 
 from services.common.ingestion.models import Chunk, ElementType, RouteDecision
 from services.common.ingestion.store import MemoryChunkStore
@@ -111,6 +112,63 @@ class TestSearchOrchestrator(unittest.TestCase):
         # With blend=1.0 the mock top-scored chunk (first candidate) becomes #1.
         # Assert the top-ranked chunk_id differs between the two legs.
         self.assertNotEqual(hybrid[0].chunk_id, reranked[0].chunk_id)
+
+    # ── Stage 1a/1b: query-task embedding + diversity placement ────────────
+
+    def test_standard_uses_embed_query_deep_uses_embed(self):
+        # Standard search embeds the query with the QUERY task type; deep
+        # search embeds the HyDE hypothetical DOCUMENT with the doc task.
+        class TrackProvider(MockModelProvider):
+            def __init__(self):
+                super().__init__()
+                self.query_embeds = []
+                self.doc_embeds = []
+
+            def embed_query(self, text):
+                # Do NOT delegate to embed() — the base-class delegation
+                # would record a phantom doc-side call.
+                self.query_embeds.append(text)
+                return [0.1] * 768
+
+            def embed(self, text):
+                self.doc_embeds.append(text)
+                return super().embed(text)
+
+        provider = TrackProvider()
+        orch = SearchOrchestrator(store=MemoryChunkStore(), provider=provider)
+        orch.store.upsert_batch([_chunk("d1", tenant_id="tenant-a", text="doc text")])
+
+        self._run(orch.standard_search("plain query", "tenant-a", top_k=3))
+        self.assertEqual(provider.query_embeds, ["plain query"])
+        self.assertEqual(provider.doc_embeds, [])
+
+        self._run(orch.deep_search("deep query", "tenant-a", top_k=3))
+        self.assertEqual(len(provider.doc_embeds), 1)
+        self.assertIn("Hypothetical", provider.doc_embeds[0])
+        self.assertEqual(provider.query_embeds, ["plain query"])
+
+    def test_doc_scoped_search_skips_diversity(self):
+        # Doc-scoped sessions (doc_ids set) bypass the diversity pass; every
+        # result is same-doc by construction and page-level dedup would only
+        # distort intra-document ranking.
+        import services.common.retrieval.search as search_mod
+
+        with patch.object(
+            search_mod, "diversity_penalty", wraps=search_mod.diversity_penalty
+        ) as dp:
+            self._run(
+                self.orchestrator.standard_search(
+                    "committee funding", "tenant-a", doc_ids=["d1"], top_k=5
+                )
+            )
+            dp.assert_not_called()
+
+            self._run(
+                self.orchestrator.standard_search(
+                    "committee funding", "tenant-a", top_k=5
+                )
+            )
+            dp.assert_called_once()
 
     # ── Phase 6.0a / 6.5: SLM rewrite wiring + pronoun gate ────────────────
 

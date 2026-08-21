@@ -30,7 +30,7 @@ from services.common.ingestion.store import ChunkStore
 from services.common.models.base import ModelProvider
 from services.common.retrieval.diversity import diversity_penalty
 from services.common.retrieval.models import ScoredChunk
-from services.common.retrieval.rrf import reciprocal_rank_fusion
+from services.common.retrieval.rrf import fuse_rerank_scores, reciprocal_rank_fusion
 
 logger = logging.getLogger(__name__)
 
@@ -72,9 +72,10 @@ class SearchOrchestrator:
         """Task 2.4a: Standard non-blocking async search path.
 
         `rerank_blend` (Phase 12.1): when set (0.0..1.0), the top candidates are
-        cross-encoder reranked and blended with the original RRF score:
-        final = (1 - blend) * orig + blend * rerank. Used by the eval harness to
-        sweep the blend ratio. None disables reranking (MVP behaviour).
+        cross-encoder reranked and fused with the original RRF scores via
+        weighted rank fusion (`fuse_rerank_scores` — scale-free, unlike a raw
+        score blend). Used by the eval harness to sweep the blend ratio. None
+        disables reranking (MVP behaviour).
 
         `history` (Phase 6.0a): when follow-ups contain an ambiguous reference
         (it/this/that/...), the SLM rewriter resolves them into a self-contained
@@ -87,7 +88,9 @@ class SearchOrchestrator:
                 self.provider.rewrite_query, query, history or []
             )
 
-        embedding = await asyncio.to_thread(self.provider.embed, query)
+        # Query-side embedding uses task_type=RETRIEVAL_QUERY (Stage 1a):
+        # text-embedding-004 is asymmetric and doc-task queries rank worse.
+        embedding = await asyncio.to_thread(self.provider.embed_query, query)
 
         dense_future = asyncio.to_thread(
             self.store.search_dense, embedding, tenant_id, doc_ids, limit=top_k * 3
@@ -103,17 +106,24 @@ class SearchOrchestrator:
             self._resolve_chunks, fused, top_k * 3, tenant_id
         )
 
+        # Diversity BEFORE the rerank leg (Stage 1b): page-level dedup only,
+        # skipped for doc-scoped sessions, so the precision stage (reranker)
+        # always has the final say on ordering.
+        if not doc_ids:
+            scored = diversity_penalty(scored, top_k=top_k)
+
         if rerank_blend is not None and scored:
             scores = await asyncio.to_thread(
                 self.provider.rerank, query, [c.text for c in scored]
             )
-            rerank_blend = max(0.0, min(1.0, rerank_blend))
-            for c, rs in zip(scored, scores):
-                c.score = (1.0 - rerank_blend) * c.score + rerank_blend * rs
+            blended = fuse_rerank_scores(
+                [c.score for c in scored], scores, rerank_blend
+            )
+            for chunk, blended_score in zip(scored, blended):
+                chunk.score = blended_score
             scored.sort(key=lambda c: c.score, reverse=True)
 
-        diversified = diversity_penalty(scored, top_k=top_k)
-        results = diversified[:top_k]
+        results = scored[:top_k]
 
         latency = round((time.time() - t0) * 1000, 2)
         logger.info(
@@ -166,8 +176,9 @@ class SearchOrchestrator:
         scored = await asyncio.to_thread(
             self._resolve_chunks, fused, top_k * 3, tenant_id
         )
-        diversified = diversity_penalty(scored, top_k=top_k)
-        results = diversified[:top_k]
+        if not doc_ids:
+            scored = diversity_penalty(scored, top_k=top_k)
+        results = scored[:top_k]
 
         latency = round((time.time() - t0) * 1000, 2)
         logger.info(

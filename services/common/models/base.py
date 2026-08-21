@@ -34,6 +34,16 @@ class ModelProvider(ABC):
         """
         pass
 
+    def embed_query(self, text: str) -> List[float]:
+        """
+        Query-side embedding. text-embedding-004 is trained asymmetrically:
+        retrieval queries must be embedded with task_type RETRIEVAL_QUERY to
+        match documents embedded with RETRIEVAL_DOCUMENT — using the document
+        task for both sides measurably degrades ranking. Providers that don't
+        distinguish sides (mock/gpu) inherit this embed() delegation.
+        """
+        return self.embed(text)
+
     @abstractmethod
     def extract_table(self, image_bytes: bytes) -> str:
         """
@@ -92,7 +102,8 @@ class ModelProvider(ABC):
         relevant), in the SAME order as `passages`.
 
         Backed by the Vertex AI Ranking API (semantic-ranker) via MODEL_BACKEND.
-        The returned scores are used to blend with the original RRF/hybrid score:
-        final = (1 - blend) * orig + blend * rerank_score.
+        The returned scores are converted to ranks and fused with the hybrid
+        RRF scores (weight `blend`), NOT blended raw — see
+        `services.common.retrieval.rrf.fuse_rerank_scores`.
         """
         pass

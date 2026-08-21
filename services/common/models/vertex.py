@@ -3,12 +3,15 @@ VertexAIProvider wrapping Google Cloud Vertex AI SDK.
 Uses text-embedding-004 (768-d) and Gemini Flash models.
 """
 
+import logging
 import os
 import re
 import time
 from typing import List, Optional
 
 from services.common.models.base import ModelProvider, StructuredAnswer, Citation
+
+logger = logging.getLogger(__name__)
 
 
 _MAX_CONTEXT_BYTES = 100_000
@@ -74,6 +77,8 @@ class VertexAIProvider(ModelProvider):
         self.embedding_model_name = os.getenv("EMBEDDING_MODEL", embedding_model)
         self._initialized = False
         self._vision_initialized = False
+        self._embedding_model_client = None
+        self._ranking_creds = None
 
     def _ensure_init(self):
         if not self._initialized:
@@ -166,11 +171,30 @@ class VertexAIProvider(ModelProvider):
         raise RuntimeError(f"Gemini Vision failed after {_MAX_RETRIES} attempts") from last_exc
 
     def embed(self, text: str) -> List[float]:
-        self._ensure_init()
-        from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
+        return self._embed_task(text, "RETRIEVAL_DOCUMENT")
 
-        model = TextEmbeddingModel.from_pretrained(self.embedding_model_name)
-        inputs = [TextEmbeddingInput(text=text, task_type="RETRIEVAL_DOCUMENT")]
+    def embed_query(self, text: str) -> List[float]:
+        # text-embedding-004 is asymmetric: queries must use RETRIEVAL_QUERY
+        # against RETRIEVAL_DOCUMENT-embedded chunks (Stage 1a metric fix).
+        return self._embed_task(text, "RETRIEVAL_QUERY")
+
+    def _get_embedding_model(self):
+        """Cached TextEmbeddingModel — from_pretrained per call re-resolves
+        the endpoint and shows up as tens of ms on every search."""
+        if self._embedding_model_client is None:
+            from vertexai.language_models import TextEmbeddingModel
+
+            self._embedding_model_client = TextEmbeddingModel.from_pretrained(
+                self.embedding_model_name
+            )
+        return self._embedding_model_client
+
+    def _embed_task(self, text: str, task_type: str) -> List[float]:
+        self._ensure_init()
+        from vertexai.language_models import TextEmbeddingInput
+
+        model = self._get_embedding_model()
+        inputs = [TextEmbeddingInput(text=text, task_type=task_type)]
 
         dim = _DIMENSIONALITY_MAP.get(self.embedding_model_name)
         if dim is not None:
@@ -322,56 +346,77 @@ class VertexAIProvider(ModelProvider):
     ) -> List[float]:
         """Cross-encoder reranking via the Vertex AI Ranking API (Phase 12.1).
 
-        Uses the `semantic-ranker@latest` model (model-garden), routed to
-        `rerank_location` (defaults to the vision location, typically the only
-        region the ranker is published in — not necessarily the embedding region).
-        Returns one score per passage in the SAME order as `passages`.
+        POST https://{location}-discoveryengine.googleapis.com/v1/projects/
+        {project}/locations/{location}/rankingConfigs/default_ranking_config:rank
+        with semantic-ranker@latest. The API returns the records REORDERED by
+        relevance; per-passage scores are derived from that rank order (rank 1
+        highest) and returned in input order.
 
-        On any failure (model unavailable in region, API error) returns equal
-        scores so the caller falls back to the original hybrid ranking — never
-        raises.
+        semantic-ranker is a ranking model served by the Ranking API — it is
+        NOT a GenerativeModel. Calling it through generate_content throws
+        every call, and the old silent neutral-score fallback turned the
+        reranker into an invisible no-op.
+
+        On any failure returns equal scores (hybrid order preserved) but logs
+        loudly — a silently degraded reranker is invisible in metrics.
         """
         if not passages:
             return []
-        self._ensure_vision_init()  # rerank uses the model-garden ranker (vision_location)
-        import json
-        from vertexai.generative_models import GenerativeModel
+        import requests
 
-        ranker_model = os.getenv("RERANK_MODEL", "semantic-ranker@latest")
-        safe_query = _sanitize_context(query)[:2000]
-        # Cap passage count/length to keep the ranking call bounded and cheap.
         capped = [_sanitize_context(p)[:500] for p in passages[:40]]
-
-        prompt_lines = [f"Rank the following passages by relevance to the query."]
-        prompt_lines.append(f"Query: {safe_query}")
-        for i, p in enumerate(capped):
-            prompt_lines.append(f"Passage {i}: {p}")
-        prompt_lines.append(
-            'Return JSON: {"scores": [<float per passage in order>]}'
+        location = os.getenv("RERANK_LOCATION", "global")
+        model = os.getenv("RERANK_MODEL", "semantic-ranker@latest")
+        endpoint = (
+            f"https://{location}-discoveryengine.googleapis.com/v1/projects/"
+            f"{self.project_id}/locations/{location}/rankingConfigs/"
+            "default_ranking_config:rank"
         )
-        prompt = "\n".join(prompt_lines)
-
-        schema = {
-            "type": "OBJECT",
-            "properties": {
-                "scores": {
-                    "type": "ARRAY",
-                    "items": {"type": "NUMBER"},
-                }
-            },
-            "required": ["scores"],
+        body = {
+            "model": model,
+            "query": _sanitize_context(query)[:2000],
+            "records": [
+                {"id": str(i), "content": p} for i, p in enumerate(capped)
+            ],
         }
-
         try:
-            model = GenerativeModel(ranker_model)
-            text = self._safe_generate(
-                model, prompt, response_mime_type="application/json", response_schema=schema
+            resp = requests.post(
+                endpoint,
+                json=body,
+                headers={"Authorization": f"Bearer {self._ranking_token()}"},
+                timeout=10,
             )
-            parsed = json.loads(text)
-            scores = parsed.get("scores", [])
-            if not isinstance(scores, list):
-                return [1.0] * len(capped)
-            return [float(s) for s in scores][: len(capped)]
-        except Exception:
-            # Fall back to neutral scores (original hybrid order preserved).
+            resp.raise_for_status()
+            records = resp.json().get("records") or []
+            scores = [0.0] * len(capped)
+            for rank_pos, rec in enumerate(records, start=1):
+                try:
+                    idx = int(rec.get("id"))
+                except (TypeError, ValueError):
+                    continue
+                if 0 <= idx < len(scores):
+                    scores[idx] = float(len(records) - rank_pos + 1)
+            return scores
+        except Exception as exc:
+            logger.warning(
+                "rerank_failed_fallback_to_hybrid",
+                extra={
+                    "error": str(exc)[:300],
+                    "location": location,
+                    "model": model,
+                    "num_passages": len(capped),
+                },
+            )
+            # Equal scores keep the hybrid ranking intact in rank fusion.
             return [1.0] * len(capped)
+
+    def _ranking_token(self) -> str:
+        """Valid ADC access token for the discoveryengine endpoint, cached."""
+        import google.auth
+        from google.auth.transport import requests as gauth_requests
+
+        if self._ranking_creds is None:
+            self._ranking_creds, _ = google.auth.default()
+        if not self._ranking_creds.valid:
+            self._ranking_creds.refresh(gauth_requests.Request())
+        return self._ranking_creds.token

@@ -1,8 +1,14 @@
-"""Diversity / dedup pass — prevents source-document flooding.
+"""Diversity / dedup pass — prevents single-page flooding.
 
-Applies a configurable penalty multiplier to chunks whose doc_id has
-already appeared in the current top-K window, preventing a single highly
-relevant document from starving synthesis of breadth.
+Applies a configurable penalty multiplier to chunks whose (doc_id, page_number)
+has already appeared in the current top-K window. The page-level key (Stage 1b)
+keeps same-document DIFFERENT-page chunks unpenalized — that multi-page
+evidence is exactly what Page-Recall@K measures — while still stopping one
+long page (several 256-token chunks) from starving the rest of the window.
+
+Doc-scoped searches (doc_ids filter set, i.e. single-document sessions)
+skip the pass entirely: every result is same-doc by construction and the
+penalty only distorts intra-document ranking.
 """
 
 from __future__ import annotations
@@ -17,10 +23,11 @@ def diversity_penalty(
     top_k: int = 10,
     penalty: float = 0.5,
 ) -> List[ScoredChunk]:
-    """Apply penalty to duplicate source docs in the top-K window.
+    """Apply penalty to duplicate (doc, page) sources in the top-K window.
 
-    For each chunk in the list, if its doc_id has already been seen
-    in the first top_k positions, multiply its score by the penalty factor.
+    For each chunk in the list, if its (doc_id, page_number) has already been
+    seen in the first top_k positions, multiply its score by the penalty
+    factor.
 
     Args:
         ranked_chunks: Chunks sorted by relevance score (highest first).
@@ -30,14 +37,15 @@ def diversity_penalty(
     Returns:
         Re-sorted list after applying penalties.
     """
-    seen_docs: set[str] = set()
+    seen: set[tuple[str, int]] = set()
 
     for i, chunk in enumerate(ranked_chunks):
         if i >= top_k:
             break
-        if chunk.doc_id in seen_docs:
+        key = (chunk.doc_id, chunk.page_number)
+        if key in seen:
             chunk.score *= penalty
-        seen_docs.add(chunk.doc_id)
+        seen.add(key)
 
     ranked_chunks.sort(key=lambda c: c.score, reverse=True)
     return ranked_chunks
