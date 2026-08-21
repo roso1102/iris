@@ -76,6 +76,66 @@ class TestRetrievalApi(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 401)
 
+    def test_query_rerank_blend_env_wiring(self):
+        # Phase 12.1: /query reads RERANK_BLEND from the server env (unset ->
+        # None -> hybrid only) and passes it to standard_search.
+        from services.retrieval_api import app as app_mod
+
+        chunk = Chunk(
+            tenant_id="tenant-a",
+            doc_id="d1",
+            page_number=1,
+            element_type=ElementType.TEXT,
+            text="government funds committee provides necessary funding",
+            bbox=[0.1, 0.1, 0.5, 0.4],
+            source=RouteDecision.DOCLING_TEXT,
+            embedding=[0.1] * 768,
+        )
+        store.upsert_batch([chunk])
+
+        recorded = []
+        original = app_mod.orchestrator.standard_search
+
+        async def spy(*args, **kwargs):
+            recorded.append(kwargs.get("rerank_blend", "absent"))
+            return await original(*args, **kwargs)
+
+        try:
+            os.environ.pop("RERANK_BLEND", None)
+            with mock_auth(tenant_id="tenant-a"), \
+                    patch.object(app_mod.orchestrator, "standard_search", new=spy):
+                resp = self.client.post(
+                    "/query",
+                    json={"query": "government funds", "mode": "standard"},
+                    headers=auth_headers(),
+                )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(recorded, [None])
+
+            os.environ["RERANK_BLEND"] = "0.7"
+            with mock_auth(tenant_id="tenant-a"), \
+                    patch.object(app_mod.orchestrator, "standard_search", new=spy):
+                resp = self.client.post(
+                    "/query",
+                    json={"query": "government funds", "mode": "standard"},
+                    headers=auth_headers(),
+                )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(recorded, [None, 0.7])
+
+            os.environ["RERANK_BLEND"] = "not-a-number"
+            with mock_auth(tenant_id="tenant-a"), \
+                    patch.object(app_mod.orchestrator, "standard_search", new=spy):
+                resp = self.client.post(
+                    "/query",
+                    json={"query": "government funds", "mode": "standard"},
+                    headers=auth_headers(),
+                )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(recorded, [None, 0.7, None])
+        finally:
+            os.environ.pop("RERANK_BLEND", None)
+
     def test_livez(self):
         response = self.client.get("/livez")
         self.assertEqual(response.status_code, 200)

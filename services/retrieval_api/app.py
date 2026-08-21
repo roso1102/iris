@@ -22,6 +22,7 @@ import os
 import time
 import uuid
 from datetime import timedelta
+from typing import Optional
 
 from fastapi import Depends, FastAPI, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -72,6 +73,22 @@ _UPLOAD_MAX_BYTES = 50 * 1024 * 1024
 _INGEST_URL = os.environ.get("INGEST_URL", "")
 _INGEST_SA = os.environ.get("INGEST_SA", "ingestion-worker-sa@naturepivot-rag.iam.gserviceaccount.com")
 _GCP_PROJECT = os.environ.get("GCP_PROJECT", "naturepivot-rag")
+
+
+def _env_rerank_blend() -> Optional[float]:
+    """RERANK_BLEND env as a 0..1 float, or None (reranking off) when unset.
+
+    Read per-request so tests can monkeypatch the env and deploys can change
+    the value without a code change.
+    """
+    raw = os.environ.get("RERANK_BLEND", "").strip()
+    if not raw:
+        return None
+    try:
+        return max(0.0, min(1.0, float(raw)))
+    except ValueError:
+        logger.warning("Invalid RERANK_BLEND %r ignored; reranking stays off", raw)
+        return None
 
 
 def _get_gcs_client():
@@ -423,11 +440,16 @@ async def query(
                 top_k=top_k,
             )
         else:
+            # RERANK_BLEND (Phase 12.1): server-side default rerank weight for
+            # production answers — /query has no request-level blend param, so
+            # the env picked by the eval sweep applies automatically. Unset/0
+            # keeps the hybrid-only ranking.
             retrieved = await orchestrator.standard_search(
                 query=request.query,
                 tenant_id=auth.tenant_id,
                 doc_ids=request.doc_ids,
                 top_k=top_k,
+                rerank_blend=_env_rerank_blend(),
                 history=history,
             )
 

@@ -35,3 +35,41 @@ def reciprocal_rank_fusion(
 
     merged = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
     return merged
+
+
+def fuse_rerank_scores(
+    hybrid_scores: List[float],
+    rerank_scores: List[float],
+    blend: float,
+    k: int = 60,
+) -> List[float]:
+    """Fuse hybrid RRF scores with cross-encoder reranker scores, rank-based.
+
+    The reranker's (possibly unbounded) scores are converted to RANKS first;
+    each chunk's fused score is `(1-blend)*hybrid + 2*blend/(k+rank)`. Rank
+    bases are scale-free — a direct `(1-b)*rrf + b*rerank` blend mixes RRF's
+    ~0.001-0.03 range with arbitrary ranker scores, which made any nonzero
+    blend effectively "pure reranker" (Phase 12.1 fix).
+
+    Weight semantics: blend is the fraction of total weight on the ranker —
+    0.0 preserves the hybrid order exactly, 1.0 is pure ranker order (ties
+    broken by input position), 0.5 puts the ranker on par with the combined
+    dense+sparse signal.
+    """
+    n = min(len(hybrid_scores), len(rerank_scores))
+    out = list(hybrid_scores)
+    if n == 0:
+        return out
+    blend = max(0.0, min(1.0, blend))
+    if blend == 0.0:
+        return out
+    # Rank passages by rerank score descending; ties keep earlier position.
+    order = sorted(range(n), key=lambda i: (rerank_scores[i], -i), reverse=True)
+    # Bump sized to the FULL hybrid list: passages beyond the reranker's
+    # returned scores keep a zero bump (hybrid-only) instead of being dropped.
+    bump = [0.0] * len(hybrid_scores)
+    for rank_pos, idx in enumerate(order, start=1):
+        bump[idx] = (2.0 * blend) / (k + rank_pos)
+    return [
+        (1.0 - blend) * h + b for h, b in zip(hybrid_scores, bump)
+    ]
