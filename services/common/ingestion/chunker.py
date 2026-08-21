@@ -1,6 +1,8 @@
 """Sentence-boundary chunking (ACTIONPLAN Task 1.6).
 
-Text elements -> chunks at ~512 tokens, split on sentence boundaries.
+Text elements -> chunks at ~256 tokens (CHUNK_TARGET_TOKENS env; Stage 3a
+small-to-big: fine units rank pages precisely, /query expands to parent
+pages for synthesis context), split on sentence boundaries.
 VLM outputs (tables, figures, scanned pages) -> single chunks carrying the
 source element's bbox.
 """
@@ -8,6 +10,7 @@ source element's bbox.
 from __future__ import annotations
 
 import logging
+import os
 import re
 from typing import List, Optional
 
@@ -21,14 +24,46 @@ from services.common.ingestion.vlm_router import RoutingResult, _valid_word_rati
 
 logger = logging.getLogger(__name__)
 
-# Rough English token estimate (~4 chars/token). Sentence-boundary split keeps
-# each chunk near this budget without mid-sentence cuts.
-TARGET_TOKENS = 512
+# Small-to-big retrieval units (Stage 3a): ~256 tokens ≈ 1024 chars. Finer
+# chunks make page ranking (Page-Recall/MRR) sharper and bbox highlights
+# tighter; the synthesis context is expanded to parent pages at query time.
+TARGET_TOKENS = 256
 CHARS_PER_TOKEN = 4.0
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
 _VLM_SINGLE_CHUNK = (RouteDecision.VLM_TABLE, RouteDecision.VLM_PICTURE,
                      RouteDecision.VLM_FULL_PAGE)
+
+# A bbox covering >=70% of the page (VLM full-page OCR chunks) is a
+# page-level citation: the frontend jumps to the page instead of drawing a
+# giant frame that carries no information.
+_PAGE_LEVEL_AREA = 0.7
+
+
+def _env_target_tokens() -> int:
+    """CHUNK_TARGET_TOKENS env, clamped to a sane 64..2048 range."""
+    raw = os.environ.get("CHUNK_TARGET_TOKENS", "").strip()
+    if not raw:
+        return TARGET_TOKENS
+    try:
+        return max(64, min(2048, int(raw)))
+    except ValueError:
+        logger.warning("Invalid CHUNK_TARGET_TOKENS %r; using %d", raw, TARGET_TOKENS)
+        return TARGET_TOKENS
+
+
+def _page_level_metadata(bbox: list[float]) -> dict:
+    if len(bbox) == 4:
+        left, top, right, bottom = bbox
+        if (right - left) * (bottom - top) >= _PAGE_LEVEL_AREA:
+            return {"page_level": True}
+    return {}
+
+
+def _chunk_metadata(rr: RoutingResult) -> dict:
+    meta = _standard_ocr_metadata(rr)
+    meta.update(_page_level_metadata(rr.element.bbox))
+    return meta
 
 
 def _standard_ocr_metadata(rr: RoutingResult) -> dict:
@@ -51,7 +86,7 @@ def chunk_routed(
     routed: List[RoutingResult],
     tenant_id: str,
     doc_id: str,
-    target_tokens: int = TARGET_TOKENS,
+    target_tokens: Optional[int] = None,
     page_number_override: Optional[int] = None,
 ) -> List[Chunk]:
     """Convert routed elements into embeddable Chunks.
@@ -60,6 +95,8 @@ def chunk_routed(
     a chunk is flushed at every page transition, so no chunk ever carries text
     from two pages. Tables/figures stay single chunks with the element bbox.
     """
+    if target_tokens is None:
+        target_tokens = _env_target_tokens()
     chunks: List[Chunk] = []
     empty_elements = 0
     # Group routed elements by their (possibly overridden) page number, in
@@ -83,7 +120,7 @@ def chunk_routed(
                             text=rr.text.strip(),
                             bbox=rr.element.bbox,
                             source=rr.decision,
-                            metadata=_standard_ocr_metadata(rr),
+                            metadata=_chunk_metadata(rr),
                         )
                     )
                 else:
@@ -142,7 +179,7 @@ def _chunk_text(
                     text=joined,
                     bbox=rr.element.bbox,
                     source=rr.decision,
-                    metadata=_standard_ocr_metadata(rr),
+                    metadata=_chunk_metadata(rr),
                 )
             )
             current = []
