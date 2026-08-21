@@ -210,21 +210,42 @@ def _page_size(page) -> tuple[float | None, float | None]:
 
 
 def _bbox_of(element, page_dims: tuple[float, float] | None) -> list[float] | None:
-    """Extract normalized [left, top, right, bottom] bbox (0-1).
+    """Extract normalized [left, top, right, bottom] bbox (0-1, top-left origin).
 
     Docling v2 provides bbox in absolute points with coord_origin=BOTTOMLEFT.
-    We normalize against the page dimensions from the page lookup.
+    We normalize against the page dimensions from the page lookup and flip the
+    Y-axis to top-left origin (Phase 9.0-C).
+
+    Elements with several provs on the SAME page (lists, multi-cell tables)
+    union every box on that page — prov[0] alone would highlight only the
+    first item. Provs on other pages (cross-page tables) are ignored; the
+    element's page is prov[0]'s, matching _page_of.
     """
     prov = getattr(element, "prov", None)
     if not prov or not isinstance(prov, list) or not prov:
         return None
-    return _bbox_of_items([prov[0]], page_dims)
+    page_no = int(getattr(prov[0], "page_no", 0) or 0)
+    same_page = [
+        p for p in prov if int(getattr(p, "page_no", 0) or 0) == page_no
+    ]
+    return _bbox_of_items(same_page or [prov[0]], page_dims)
 
 
 def _bbox_of_items(
     items: list, page_dims: tuple[float, float] | None
 ) -> list[float] | None:
-    """Union of bboxes across prov items, normalized to 0-1 page coords."""
+    """Union of bboxes across prov items, normalized to top-left 0-1 page coords.
+
+    Docling v2 emits bboxes in absolute points with coord_origin=BOTTOMLEFT.
+    We normalize against the element's OWN page dimensions (never a global/A4
+    constant, or letter/cropped pages would drift) and flip the Y-axis so the
+    stored bbox uses top-left 0-1 coordinates — the convention the frontend
+    BboxOverlay and Citation.bbox expect (Phase 9.0-C).
+
+    If page_dims is missing for this page we return None so the caller skips the
+    element rather than emitting raw absolute points, which would render as
+    off-screen/oversized highlights.
+    """
     boxes: list[tuple[float, float, float, float]] = []
     for item in items:
         bbox = getattr(item, "bbox", None)
@@ -237,21 +258,31 @@ def _bbox_of_items(
         return None
 
     l = min(b[0] for b in boxes)
-    t = min(b[1] for b in boxes)
     r = max(b[2] for b in boxes)
-    b = max(b[3] for b in boxes)
+    # BOTTOMLEFT boxes carry t > b per box (y grows upward), so the union's
+    # top edge is the LARGEST t and its bottom edge the SMALLEST b — min/max
+    # flipped relative to a TOPLEFT frame. Getting this backwards inverts the
+    # box (top > bottom) whenever one page has 2+ prov items.
+    t = max(b[1] for b in boxes)
+    b = min(b[3] for b in boxes)
 
-    if page_dims:
-        pw, ph = page_dims
-        if pw > 0 and ph > 0:
-            return [
-                max(0.0, min(1.0, round(l / pw, 4))),
-                max(0.0, min(1.0, round(t / ph, 4))),
-                max(0.0, min(1.0, round(r / pw, 4))),
-                max(0.0, min(1.0, round(b / ph, 4))),
-            ]
+    # Without the page dimension lookup we cannot normalize — skip rather than
+    # storing raw absolute points (which break the 0-1 frontend mapping).
+    if not page_dims:
+        return None
+    pw, ph = page_dims
+    if pw <= 0 or ph <= 0:
+        return None
 
-    return [l, t, r, b]
+    # BOTTOMLEFT -> TOPLEFT: in BOTTOMLEFT coords `t` is the physical TOP
+    # edge (larger numeric y) and `b` the physical BOTTOM (smaller y), so the
+    # flip is top = 1 - t/ph, bottom = 1 - b/ph (docling_core BoundingBox
+    # semantics: t=top, b=bottom, origin just sets which y is larger).
+    left = max(0.0, min(1.0, round(l / pw, 4)))
+    top = max(0.0, min(1.0, round(1.0 - (t / ph), 4)))
+    right = max(0.0, min(1.0, round(r / pw, 4)))
+    bottom = max(0.0, min(1.0, round(1.0 - (b / ph), 4)))
+    return [left, top, right, bottom]
 
 
 def _text_for_page(element, full_text: str, page_items: list) -> str:

@@ -47,40 +47,88 @@ class TestParserPageSplit(unittest.TestCase):
         # charspans: [0, 99) on page 13, [99, len) on page 14
         span13 = (0, 99)
         span14 = (99, len(text))
+        # BOTTOMLEFT origin: page 13 region near top (t=850,b=800 of 1000),
+        # page 14 region lower on the page (t=180,b=100 of 1000).
+        # In BOTTOMLEFT, y grows upward, so t (physical top) > b (physical
+        # bottom) numerically.
         prov = [
-            _FakeProv(13, _FakeBBox(0, 800, 500, 850), span13),
-            _FakeProv(14, _FakeBBox(0, 100, 500, 180), span14),
+            _FakeProv(13, _FakeBBox(0, 850, 500, 800), span13),
+            _FakeProv(14, _FakeBBox(0, 180, 500, 100), span14),
         ]
-        els = self._split("text", text, prov)
+        page_dims = {13: (500.0, 1000.0), 14: (500.0, 1000.0)}
+        els = self._split("text", text, prov, page_dims)
         self.assertEqual(len(els), 2)
         self.assertEqual({e.page_number for e in els}, {13, 14})
         p13 = next(e for e in els if e.page_number == 13)
         p14 = next(e for e in els if e.page_number == 14)
         self.assertEqual(p13.text, text[0:99].strip())
         self.assertEqual(p14.text, text[99:].strip())
-        # Each element carries its own page's bbox (normalized coords).
-        self.assertEqual(len(p13.bbox), 4)
-        self.assertEqual(len(p14.bbox), 4)
+        # Each element carries its own page's bbox (normalized, Y-flipped).
+        self.assertEqual(p13.bbox, [0.0, 0.15, 1.0, 0.2])  # top: 1-(850/1000)
+        self.assertEqual(p14.bbox, [0.0, 0.82, 1.0, 0.9])  # top: 1-(180/1000)
         self.assertNotEqual(p13.bbox, p14.bbox)
 
-    def test_single_page_element_unchanged(self):
+    def test_single_page_element_y_flip(self):
+        # Docling origin is BOTTOMLEFT. A bbox near the top edge of a 1000pt
+        # page has t > b in BOTTOMLEFT (y grows upward): t=1000, b=900.
         text = "Just one page of content. " * 20
-        prov = [_FakeProv(3, _FakeBBox(0, 0, 500, 100), (0, len(text)))]
+        prov = [_FakeProv(3, _FakeBBox(0, 1000, 500, 900), (0, len(text)))]
         els = self._split("text", text, prov, {3: (500.0, 1000.0)})
         self.assertEqual(len(els), 1)
         self.assertEqual(els[0].page_number, 3)
         self.assertEqual(els[0].text, text.strip())
-        # normalized: bbox / page dims
+        # BOTTOMLEFT -> TOPLEFT: top = 1 - (t/ph), bottom = 1 - (b/ph)
+        # [l/pw, 1-(t/ph), r/pw, 1-(b/ph)] = [0, 0, 1, 0.1]
         self.assertEqual(els[0].bbox, [0.0, 0.0, 1.0, 0.1])
+
+    def test_multi_prov_same_page_unions_bbox(self):
+        # A list with two items on page 5: BOTTOMLEFT boxes (10,900,200,700)
+        # and (100,500,400,100) on a 500x1000 page. The union must cover both
+        # (top edge = max t = 900 -> 0.1; bottom edge = min b = 100 -> 0.9),
+        # never just prov[0]'s box, and never vertically inverted.
+        text = "item one. item two."
+        prov = [
+            _FakeProv(5, _FakeBBox(10, 900, 200, 700), (0, 9)),
+            _FakeProv(5, _FakeBBox(100, 500, 400, 100), (10, len(text))),
+        ]
+        els = self._split("list_item", text, prov, {5: (500.0, 1000.0)})
+        self.assertEqual(len(els), 1)
+        self.assertEqual(els[0].bbox, [0.02, 0.1, 0.8, 0.9])
+        self.assertLessEqual(els[0].bbox[1], els[0].bbox[3])
+
+    def test_multi_page_split_unions_multiple_items_per_page(self):
+        # Two provs on page 13, one on page 14: the page-13 element must
+        # union BOTH page-13 boxes (not only the first item's).
+        text = "aaaa. bbbb. cccc."
+        prov = [
+            _FakeProv(13, _FakeBBox(10, 900, 200, 700), (0, 6)),
+            _FakeProv(13, _FakeBBox(100, 500, 400, 100), (6, 12)),
+            _FakeProv(14, _FakeBBox(0, 800, 500, 700), (12, len(text))),
+        ]
+        els = self._split(
+            "text", text, prov, {13: (500.0, 1000.0), 14: (500.0, 1000.0)}
+        )
+        self.assertEqual({e.page_number for e in els}, {13, 14})
+        p13 = next(e for e in els if e.page_number == 13)
+        self.assertEqual(p13.bbox, [0.02, 0.1, 0.8, 0.9])
+        self.assertLessEqual(p13.bbox[1], p13.bbox[3])
+
+    def test_bbox_missing_page_dims_skips_element(self):
+        # Without page dims we cannot normalize — the element is skipped, never
+        # stored as raw absolute points (which would break the 0-1 frontend map).
+        text = "content"
+        prov = [_FakeProv(3, _FakeBBox(0, 100, 500, 0), (0, len(text)))]
+        els = self._split("text", text, prov, {})  # page_dims has no page 3
+        self.assertEqual(els, [])
 
     def test_table_element_not_split(self):
         # Tables/figures stay single chunks even with multi-page prov.
         text = "big table content"
         prov = [
-            _FakeProv(2, _FakeBBox(0, 0, 500, 300), (0, 10)),
-            _FakeProv(3, _FakeBBox(0, 0, 500, 300), (10, len(text))),
+            _FakeProv(2, _FakeBBox(0, 300, 500, 0), (0, 10)),
+            _FakeProv(3, _FakeBBox(0, 300, 500, 0), (10, len(text))),
         ]
-        els = self._split("table", text, prov)
+        els = self._split("table", text, prov, {2: (500.0, 1000.0)})
         self.assertEqual(len(els), 1)
         self.assertEqual(els[0].element_type, ElementType.TABLE)
 
