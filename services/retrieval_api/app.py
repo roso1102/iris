@@ -386,6 +386,8 @@ async def search(
                 tenant_id=auth.tenant_id,
                 doc_ids=request.doc_ids,
                 top_k=top_k,
+                rerank_blend=request.rerank_blend,
+                history=history,
             )
         latency = round((time.perf_counter() - t0) * 1000, 2)
         return SearchResponse(
@@ -426,6 +428,7 @@ async def query(
                 tenant_id=auth.tenant_id,
                 doc_ids=request.doc_ids,
                 top_k=top_k,
+                history=history,
             )
 
         context, source_chunks = _build_synthesis_context(retrieved)
@@ -449,12 +452,17 @@ async def query(
 def _build_synthesis_context(
     retrieved: list[ScoredChunk],
 ) -> tuple[str, list[dict]]:
-    """Build the [CHUNK i] context and the source_chunks list for grounding."""
+    """Build the source-chunk context and the source_chunks list for grounding.
+
+    Sources are labeled with simple integer refs [1], [2], ... (Phase 9.0-D) so
+    the model cites via short, stable markers that map 1:1 back to chunk_ids in
+    `source_chunks` (position i -> source_chunks[i]).
+    """
     source_chunks: list[dict] = []
     parts: list[str] = []
-    for i, chunk in enumerate(retrieved):
+    for i, chunk in enumerate(retrieved, start=1):
         parts.append(
-            f"[CHUNK {i}] doc_id={chunk.doc_id} page={chunk.page_number}\n"
+            f"Source [{i}]: doc_id={chunk.doc_id} page={chunk.page_number}\n"
             f"{chunk.text}"
         )
         source_chunks.append({

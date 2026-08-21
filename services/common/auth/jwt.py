@@ -26,10 +26,11 @@ except ImportError:  # pragma: no cover - worker container
     Header = None
     HTTPException = None
 
-# FastAPI dependency-injection default. Evaluated at def time, so guard it:
-# with FastAPI the Header field makes FastAPI inject the Authorization header;
-# without it, a plain string keeps the module import-safe (never used there).
+# FastAPI dependency-injection defaults. Evaluated at def time, so guard each:
+# with FastAPI the Header fields make FastAPI inject the relevant headers; without
+# it, a plain string keeps the module import-safe (never used in the worker).
 _AUTH_HEADER_DEFAULT = Header(default="") if Header is not None else ""
+_FIREBASE_HEADER_DEFAULT = Header(default="") if Header is not None else ""
 
 # Lazily-initialized firebase_admin app (avoids touching ADC at import time,
 # which keeps the local test suite and non-auth code paths import-safe).
@@ -111,7 +112,7 @@ def token_to_auth_context(claims: dict) -> AuthContext:
 
 def require_auth(
     authorization: str = _AUTH_HEADER_DEFAULT,
-    x_firebase_token: str = Header(default=""),
+    x_firebase_token: str = _FIREBASE_HEADER_DEFAULT,
 ) -> "AuthContext":
     """FastAPI dependency: verify the Firebase ID token and return AuthContext.
 

@@ -4,7 +4,7 @@ import unittest
 
 from services.common.models.base import Citation, StructuredAnswer
 from services.common.retrieval.models import ScoredChunk
-from services.common.retrieval.synthesis import validate_citations
+from services.common.retrieval.synthesis import normalize_answer_markers, validate_citations
 
 
 def _chunk(chunk_id: str, doc_id: str = "d1") -> ScoredChunk:
@@ -66,6 +66,29 @@ class TestValidateCitations(unittest.TestCase):
         result = validate_citations(answer, [_chunk("c1")])
         self.assertEqual(result.answer, "no citations")
         self.assertEqual(result.citations, [])
+
+    def test_normalize_answer_markers_splits_arrays(self):
+        refs = {str(i): _chunk("c" + str(i)) for i in (1, 2)}
+        text = "The fund [1, 2] and also [1,2,3] apply."
+        # Only refs 1..2 exist; 3 is dropped.
+        self.assertEqual(
+            normalize_answer_markers(text, refs),
+            "The fund [1] [2] and also [1] [2] apply.",
+        )
+
+    def test_normalize_answer_markers_expands_ranges(self):
+        refs = {str(i): _chunk("c" + str(i)) for i in range(1, 6)}
+        self.assertEqual(
+            normalize_answer_markers("See [1-3].", refs),
+            "See [1] [2] [3].",
+        )
+
+    def test_normalize_answer_markers_drops_unknown_refs(self):
+        refs = {str(i): _chunk("c" + str(i)) for i in (1, 2)}
+        self.assertEqual(
+            normalize_answer_markers("Bad [9] and [1].", refs),
+            "Bad  and [1].",
+        )
 
 
 if __name__ == "__main__":
