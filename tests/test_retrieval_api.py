@@ -70,6 +70,51 @@ class TestRetrievalApi(unittest.TestCase):
         self.assertGreaterEqual(len(body["citations"]), 1)
         self.assertEqual(body["citations"][0]["chunk_id"], chunk.id)
 
+    def test_query_expands_to_parent_pages(self):
+        # Stage 3c small-to-big: /query's synthesis context includes the
+        # same-page siblings of the retrieved chunks; chunks_used still
+        # reports the RANKED count only.
+        from services.retrieval_api import app as app_mod
+
+        chunks = [
+            Chunk(
+                tenant_id="tenant-a", doc_id="d1", page_number=1,
+                element_type=ElementType.TEXT, text=f"sibling text {i}",
+                bbox=[0.1, 0.1, 0.5, 0.4], source=RouteDecision.DOCLING_TEXT,
+                embedding=[0.1] * 768,
+            )
+            for i in range(3)
+        ]
+        other_page = Chunk(
+            tenant_id="tenant-a", doc_id="d1", page_number=2,
+            element_type=ElementType.TEXT, text="page two text",
+            bbox=[0.1, 0.1, 0.5, 0.4], source=RouteDecision.DOCLING_TEXT,
+            embedding=[0.1] * 768,
+        )
+        store.upsert_batch(chunks + [other_page])
+
+        recorded = {}
+        original = app_mod.provider.synthesize
+
+        def spy(context, query, source_chunks):
+            recorded["n_sources"] = len(source_chunks)
+            recorded["texts"] = [s["text"] for s in source_chunks]
+            return original(context, query, source_chunks)
+
+        with mock_auth(tenant_id="tenant-a"), \
+                patch.object(app_mod.provider, "synthesize", new=spy):
+            resp = self.client.post(
+                "/query",
+                json={"query": "sibling text", "mode": "standard", "top_k": 1},
+                headers=auth_headers(),
+            )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        # 1 ranked chunk (top_k=1) + 2 same-page siblings; page 2 excluded.
+        self.assertEqual(recorded["n_sources"], 3)
+        self.assertNotIn("page two text", recorded["texts"])
+        self.assertEqual(body["chunks_used"], 1)
+
     def test_query_missing_token(self):
         response = self.client.post(
             "/query", json={"query": "government funds", "mode": "standard"}

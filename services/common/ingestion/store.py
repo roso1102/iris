@@ -75,6 +75,17 @@ class ChunkStore(ABC):
         """
 
     @abstractmethod
+    def get_by_doc_pages(
+        self, doc_id: str, page_numbers: List[int], tenant_id: str
+    ) -> List[Chunk]:
+        """Return all chunks of a document on the given pages, tenant-scoped.
+
+        Stage 3c small-to-big: /query expands top chunks to their parent
+        pages with this fetch (synthesis context only — /search never uses
+        it, so eval numbers keep measuring retrieval itself).
+        """
+
+    @abstractmethod
     def delete_by_doc(self, doc_id: str, tenant_id: str) -> int:
         """Delete all chunks for a document. Returns count deleted."""
 
@@ -175,6 +186,16 @@ class MemoryChunkStore(ChunkStore):
                     if str(c.id) in id_set and c.tenant_id == tenant_id:
                         results.append(c)
             return results
+
+    def get_by_doc_pages(
+        self, doc_id: str, page_numbers: List[int], tenant_id: str
+    ) -> List[Chunk]:
+        pages = set(page_numbers)
+        with self._lock:
+            return [
+                c for c in self._by_doc.get(doc_id, [])
+                if c.tenant_id == tenant_id and c.page_number in pages
+            ]
 
     def delete_by_session(self, session_id: str, tenant_id: str) -> int:
         deleted = 0
@@ -289,6 +310,31 @@ class QdrantChunkStore(ChunkStore):
         self._client.upsert(collection_name=self._collection, points=points)
         return len(points)
 
+    @staticmethod
+    def _payload_to_chunk(point_id, p: dict) -> Chunk:
+        element_type_raw = p.get("element_type", "Text")
+        try:
+            element_type = ElementType(element_type_raw)
+        except ValueError:
+            element_type = ElementType.TEXT
+        source_raw = p.get("source", "docling_text")
+        try:
+            source = RouteDecision(source_raw)
+        except ValueError:
+            source = RouteDecision.DOCLING_TEXT
+        return Chunk(
+            id=str(point_id),
+            tenant_id=str(p.get("tenant_id", "")),
+            doc_id=str(p.get("doc_id", "")),
+            session_id=p.get("session_id"),
+            page_number=int(p.get("page_number", 1)),
+            element_type=element_type,
+            text=str(p.get("text", "")),
+            bbox=list(p.get("bbox", [])),
+            source=source,
+            metadata=dict(p.get("metadata") or {}),
+        )
+
     def get_by_doc(self, doc_id: str, tenant_id: str) -> List[Chunk]:
         from qdrant_client import models
 
@@ -319,34 +365,48 @@ class QdrantChunkStore(ChunkStore):
                 break
             offset = next_offset
 
-        results: List[Chunk] = []
-        for h in all_hits:
-            p = h.payload or {}
-            element_type_raw = p.get("element_type", "Text")
-            try:
-                element_type = ElementType(element_type_raw)
-            except ValueError:
-                element_type = ElementType.TEXT
-            source_raw = p.get("source", "docling_text")
-            try:
-                source = RouteDecision(source_raw)
-            except ValueError:
-                source = RouteDecision.DOCLING_TEXT
-            results.append(
-                Chunk(
-                    id=str(h.id),
-                    tenant_id=str(p.get("tenant_id", "")),
-                    doc_id=str(p.get("doc_id", "")),
-                    session_id=p.get("session_id"),
-                    page_number=int(p.get("page_number", 1)),
-                    element_type=element_type,
-                    text=str(p.get("text", "")),
-                    bbox=list(p.get("bbox", [])),
-                    source=source,
-                    metadata=dict(p.get("metadata") or {}),
-                )
+        return [self._payload_to_chunk(h.id, h.payload or {}) for h in all_hits]
+
+    def get_by_doc_pages(
+        self, doc_id: str, page_numbers: List[int], tenant_id: str
+    ) -> List[Chunk]:
+        from qdrant_client import models
+
+        if not page_numbers:
+            return []
+        page_filter = models.Filter(
+            must=[
+                models.FieldCondition(
+                    key="doc_id", match=models.MatchValue(value=doc_id)
+                ),
+                models.FieldCondition(
+                    key="tenant_id", match=models.MatchValue(value=tenant_id)
+                ),
+                models.FieldCondition(
+                    # page_number is an integer payload; MatchAny works on
+                    # both keyword and integer payload types.
+                    key="page_number", match=models.MatchAny(any=list(page_numbers))
+                ),
+            ]
+        )
+
+        all_hits = []
+        offset = None
+        while True:
+            hits, next_offset = self._client.scroll(
+                collection_name=self._collection,
+                scroll_filter=page_filter,
+                offset=offset,
+                limit=100,
+                with_payload=True,
+                with_vectors=False,
             )
-        return results
+            all_hits.extend(hits)
+            if next_offset is None:
+                break
+            offset = next_offset
+
+        return [self._payload_to_chunk(h.id, h.payload or {}) for h in all_hits]
 
     def search_dense(
         self,
@@ -412,30 +472,7 @@ class QdrantChunkStore(ChunkStore):
             p = h.payload or {}
             if str(p.get("tenant_id", "")) != tenant_id:
                 continue
-            element_type_raw = p.get("element_type", "Text")
-            try:
-                element_type = ElementType(element_type_raw)
-            except ValueError:
-                element_type = ElementType.TEXT
-            source_raw = p.get("source", "docling_text")
-            try:
-                source = RouteDecision(source_raw)
-            except ValueError:
-                source = RouteDecision.DOCLING_TEXT
-            results.append(
-                Chunk(
-                    id=str(h.id),
-                    tenant_id=str(p.get("tenant_id", "")),
-                    doc_id=str(p.get("doc_id", "")),
-                    session_id=p.get("session_id"),
-                    page_number=int(p.get("page_number", 1)),
-                    element_type=element_type,
-                    text=str(p.get("text", "")),
-                    bbox=list(p.get("bbox", [])),
-                    source=source,
-                    metadata=dict(p.get("metadata") or {}),
-                )
-            )
+            results.append(self._payload_to_chunk(h.id, p))
         return results
 
     def delete_by_doc(self, doc_id: str, tenant_id: str) -> int:

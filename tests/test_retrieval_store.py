@@ -69,6 +69,28 @@ class TestMemoryChunkStoreSearch(unittest.TestCase):
         results = self.store.get_by_doc("d1", "tenant-a")
         self.assertEqual(results, [])
 
+    def test_get_by_doc_pages_filters_pages_and_tenant(self):
+        # Stage 3c: page-scoped fetch backing /query parent-page expansion.
+        p2 = _chunk("d1", "tenant-a", "page two content")
+        p2.page_number = 2
+        p3 = _chunk("d1", "tenant-a", "page three content")
+        p3.page_number = 3
+        self.store.upsert_batch([p2, p3])
+
+        got = self.store.get_by_doc_pages("d1", [1, 3], "tenant-a")
+        texts = {c.text for c in got}
+        self.assertIn("committee provides necessary funding", texts)
+        self.assertIn("section five of the act", texts)
+        self.assertIn("page three content", texts)
+        self.assertNotIn("page two content", texts)
+
+        # Tenant isolation holds on the page fetch too.
+        self.assertEqual(self.store.get_by_doc_pages("d1", [1], "tenant-b"), [])
+
+        # Missing doc / empty page list are safe.
+        self.assertEqual(self.store.get_by_doc_pages("nope", [1], "tenant-a"), [])
+        self.assertEqual(self.store.get_by_doc_pages("d1", [], "tenant-a"), [])
+
     def test_delete_by_doc_tenant_b(self):
         deleted = self.store.delete_by_doc("d3", "tenant-b")
         self.assertEqual(deleted, 1)

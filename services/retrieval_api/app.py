@@ -453,11 +453,14 @@ async def query(
                 history=history,
             )
 
-        context, source_chunks = _build_synthesis_context(retrieved)
+        expanded = await asyncio.to_thread(
+            _expand_to_parent_pages, retrieved, auth.tenant_id
+        )
+        context, source_chunks = _build_synthesis_context(expanded)
         answer = await asyncio.to_thread(
             provider.synthesize, context, request.query, source_chunks
         )
-        answer = validate_citations(answer, retrieved)
+        answer = validate_citations(answer, expanded)
         latency = round((time.perf_counter() - t0) * 1000, 2)
         return QueryResponse(
             answer=answer.answer,
@@ -469,6 +472,46 @@ async def query(
     except Exception as exc:
         logger.exception("Query failed for tenant %s", auth.tenant_id)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+def _expand_to_parent_pages(
+    retrieved: list[ScoredChunk], tenant_id: str
+) -> list[ScoredChunk]:
+    """Small-to-big (Stage 3c): append same-page siblings of the top chunks.
+
+    Retrieval ranks fine 256-token chunks; the synthesizer sees whole pages.
+    /search never runs this, so eval numbers keep measuring retrieval itself.
+    Citations are validated against the expanded set, so a citation can land
+    on a sibling chunk with its own real bbox/page. Ranked chunks keep their
+    positions (siblings appended after, score 0).
+    """
+    pages_by_doc: dict[str, set[int]] = {}
+    for c in retrieved:
+        pages_by_doc.setdefault(c.doc_id, set()).add(c.page_number)
+    seen = {c.chunk_id for c in retrieved}
+    expanded = list(retrieved)
+    for doc_id in sorted(pages_by_doc):
+        pages = sorted(pages_by_doc[doc_id])
+        for ch in store.get_by_doc_pages(doc_id, pages, tenant_id):
+            if ch.id in seen:
+                continue
+            seen.add(ch.id)
+            expanded.append(
+                ScoredChunk(
+                    chunk_id=ch.id,
+                    doc_id=ch.doc_id,
+                    tenant_id=ch.tenant_id,
+                    session_id=ch.session_id,
+                    text=ch.text,
+                    bbox=list(ch.bbox),
+                    page_number=ch.page_number,
+                    element_type=ch.element_type.value,
+                    source=ch.source.value,
+                    score=0.0,
+                    metadata=dict(ch.metadata or {}),
+                )
+            )
+    return expanded
 
 
 def _build_synthesis_context(
