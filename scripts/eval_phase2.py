@@ -242,12 +242,25 @@ def wait_for_ingestion(timeout_minutes: int = 45) -> bool:
 
 def _search(json_body: dict, timeout: int = 60) -> dict:
     import requests
-    resp = requests.post(
-        f"{RETRIEVAL_URL}/search",
-        json=json_body,
-        headers=_retrieval_headers(),
-        timeout=timeout,
-    )
+
+    def _post():
+        return requests.post(
+            f"{RETRIEVAL_URL}/search",
+            json=json_body,
+            headers=_retrieval_headers(),
+            timeout=timeout,
+        )
+
+    resp = _post()
+    # Per-tenant fixed-window limiter (30/min, Phase 4.0): searches are fast
+    # enough post-Stage-1 that the harness outpaces the window — wait it out
+    # and retry rather than aborting the run.
+    for _ in range(2):
+        if resp.status_code != 429:
+            break
+        _log("  429 rate-limited; waiting out the 60s tenant window...")
+        time.sleep(65)
+        resp = _post()
     if resp.status_code >= 400:
         _log(f"  SEARCH {resp.status_code}: {resp.text[:150]}")
     resp.raise_for_status()
