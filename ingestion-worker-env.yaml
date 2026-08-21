@@ -7,3 +7,6 @@ LITE_MODEL: "gemini-2.5-flash-lite"
 VERTEX_VISION_LOCATION: "us-central1"
 QDRANT_URL: "http://10.0.0.5:6333"
 RETRIEVAL_COLLECTION: "iris_chunks_v2"
+# Re-ingest #1 (bbox-fix attribution): keep legacy chunk size, Hindi BM25 off.
+# Re-ingest #2: CHUNK_TARGET_TOKENS -> "256" and add BM25_HINDI_ENABLED: "1".
+CHUNK_TARGET_TOKENS: "512"
