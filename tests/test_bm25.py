@@ -83,5 +83,105 @@ class TestBakedCacheLayout(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(storage, "files_metadata.json")))
 
 
+class TestHindiPreprocess(unittest.TestCase):
+    """Stage 5 — Devanagari stopword/stemming preprocessing (pure logic)."""
+
+    def test_pure_english_unchanged(self):
+        from services.common.retrieval.hindi import preprocess
+
+        self.assertEqual(preprocess("The High Court dismissed the petition"), 
+                         "The High Court dismissed the petition")
+
+    def test_stopwords_removed(self):
+        from services.common.retrieval.hindi import preprocess
+
+        out = preprocess("राजस्व का भुगतान किया गया")
+        self.assertNotIn("का", out.split())
+        self.assertIn("राजस्व", out.split())
+
+    def test_suffix_stemming_one_strip(self):
+        from services.common.retrieval.hindi import preprocess, _stem
+
+        # Plural/oblique variants collapse to the stem.
+        self.assertEqual(_stem("किताबें"), "किताब")
+        self.assertEqual(_stem("राजस्वों"), "राजस्व")
+        self.assertEqual(_stem("आयोगों"), "आयोग")
+        # Only ONE strip, never down to nothing.
+        self.assertEqual(_stem("किताब"), "किताब")
+
+    def test_short_words_not_overstemmed(self):
+        from services.common.retrieval.hindi import _stem
+
+        # Stem would be shorter than the minimum — token survives intact.
+        self.assertEqual(_stem("क्यों"), "क्यों")
+        self.assertEqual(_stem("राना"), "राना")
+
+    def test_mixed_script_latin_tokens_preserved(self):
+        from services.common.retrieval.hindi import preprocess
+
+        out = preprocess("SDRF राजस्व की धनराशि Article 226")
+        self.assertIn("SDRF", out.split())
+        self.assertIn("Article", out.split())
+        self.assertIn("226", out.split())
+        self.assertNotIn("की", out.split())
+
+    def test_all_stopwords_yields_empty(self):
+        from services.common.retrieval.hindi import preprocess
+
+        self.assertEqual(preprocess("का की को और"), "")
+
+
+class TestHindiSparseWiring(unittest.TestCase):
+    """BM25_HINDI_ENABLED gates preprocessing inside text_to_sparse."""
+
+    def _mock_model(self):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+
+        calls = []
+        model = MagicMock()
+        model.query_embed = lambda text: calls.append(text) or iter(
+            [SimpleNamespace(as_dict=lambda: {1: 1.0})]
+        )
+        return model, calls
+
+    def test_disabled_by_default_passthrough(self):
+        from unittest.mock import patch
+
+        import services.common.retrieval.bm25 as bm25_mod
+
+        model, calls = self._mock_model()
+        with patch.dict(os.environ, {}, clear=False), \
+                patch.object(bm25_mod, "_get_model", return_value=model):
+            os.environ.pop("BM25_HINDI_ENABLED", None)
+            bm25_mod.text_to_sparse("राजस्व का भुगतान")
+        self.assertEqual(calls, ["राजस्व का भुगतान"])
+
+    def test_enabled_preprocesses_input(self):
+        from unittest.mock import patch
+
+        import services.common.retrieval.bm25 as bm25_mod
+        from services.common.retrieval.hindi import preprocess
+
+        model, calls = self._mock_model()
+        raw = "राजस्व का भुगतान"
+        with patch.dict(os.environ, {"BM25_HINDI_ENABLED": "1"}), \
+                patch.object(bm25_mod, "_get_model", return_value=model):
+            bm25_mod.text_to_sparse(raw)
+        self.assertEqual(calls, [preprocess(raw)])
+        self.assertNotEqual(preprocess(raw), raw)  # sanity: it did change
+
+    def test_enabled_english_untouched(self):
+        from unittest.mock import patch
+
+        import services.common.retrieval.bm25 as bm25_mod
+
+        model, calls = self._mock_model()
+        with patch.dict(os.environ, {"BM25_HINDI_ENABLED": "1"}), \
+                patch.object(bm25_mod, "_get_model", return_value=model):
+            bm25_mod.text_to_sparse("plain english query")
+        self.assertEqual(calls, ["plain english query"])
+
+
 if __name__ == "__main__":
     unittest.main()

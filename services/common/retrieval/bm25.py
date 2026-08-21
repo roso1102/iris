@@ -76,11 +76,22 @@ def _get_model():
 def text_to_sparse(text: str) -> Dict[int, float]:
     """Encode text into {term_index: raw_term_count} via Qdrant/bm25.
 
+    When BM25_HINDI_ENABLED is set, Devanagari tokens are stopword-filtered
+    and lightly stemmed first (`retrieval.hindi`). The SAME path runs for
+    queries and passages (upsert_batch uses this function too), keeping the
+    encoding symmetric — the only property sparse matching cares about.
+    Enable it only together with a full re-ingest.
+
     Returns an empty dict for empty/whitespace text. The values are raw term
     counts (not IDF-weighted); Qdrant applies IDF via `modifier="idf"`.
     """
     if not text or not text.strip():
         return {}
+
+    if os.environ.get("BM25_HINDI_ENABLED", "").strip().lower() in ("1", "true", "yes"):
+        from services.common.retrieval.hindi import preprocess
+
+        text = preprocess(text)
 
     model = _get_model()
     result = next(iter(model.query_embed(text)))
