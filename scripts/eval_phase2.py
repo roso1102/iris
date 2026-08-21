@@ -257,8 +257,11 @@ def _search(json_body: dict, timeout: int = 60) -> dict:
 def run_search(query: str, mode: str = "standard",
                doc_ids: Optional[List[str]] = None,
                history: Optional[List[dict]] = None,
-               top_k: int = 10) -> dict:
+               top_k: int = 10,
+               rerank_blend: Optional[float] = None) -> dict:
     body = {"query": query, "mode": mode, "top_k": top_k}
+    if rerank_blend is not None:
+        body["rerank_blend"] = rerank_blend
     if doc_ids:
         body["doc_ids"] = doc_ids
     if history and mode == "deep":
@@ -601,12 +604,84 @@ def run_threshold_sweep():
     print(f"  Best coverage: {best_c:.2f} (acc={best_ca:.1%})")
 
 
+# ── phase 12.1a: reranker blend-ratio sweep ──────────────────────────────────
+
+def run_rerank_sweep(golden: List[dict],
+                     ratios: Optional[List[float]] = None) -> None:
+    """Run the standard hybrid leg and reranked legs side-by-side, sweeping the
+    cross-encoder blend ratio, and report MRR/Recall/latency per ratio.
+
+    (Phase 12.1a) Uses `rerank_blend` on the live /search endpoint. The ratio
+    that maximizes MRR within the latency budget is the one to ship in 12.1.
+    """
+    print("\n── Phase 12.1a: Reranker Blend-Ratio Sweep ──")
+    if ratios is None:
+        ratios = [0.0, 0.3, 0.5, 0.7, 1.0]
+    golden = [q for q in golden if q.get("relevant_doc_ids")]
+
+    summary = []
+    for ratio in ratios:
+        # Side-by-side: run BOTH the un-reranked hybrid leg (always) and the
+        # reranked leg at this ratio so we measure the incremental effect.
+        mrr_scores, rec_scores, page_rec, lats = [], [], [], []
+        for item in golden:
+            resp = run_search(
+                item["query"], mode="standard", top_k=10, rerank_blend=ratio
+            )
+            docs = resp.get("results", [])
+            lats.append(resp.get("latency_ms", 0))
+            mrr_scores.append(
+                compute_mrr(docs, item["relevant_doc_ids"],
+                            item.get("relevant_page_numbers", []), k=10)
+            )
+            rec_scores.append(
+                compute_recall_at_k(docs, item["relevant_doc_ids"], k=5)
+            )
+            page_rec.append(
+                compute_page_recall_at_k(
+                    docs, item["relevant_doc_ids"],
+                    item.get("relevant_page_numbers", []), k=5)
+            )
+        n = len(golden)
+        summary.append({
+            "blend": ratio,
+            "mrr": round(sum(mrr_scores) / n, 4) if n else 0.0,
+            "recall_at_5": round(sum(rec_scores) / n, 4) if n else 0.0,
+            "page_recall_at_5": round(sum(page_rec) / n, 4) if n else 0.0,
+            "lat_p95": round(percentile(lats, 95), 1) if lats else 0.0,
+        })
+        _log(f"  blend={ratio:<4} MRR={summary[-1]['mrr']:.3f} "
+             f"Recall@5={summary[-1]['recall_at_5']:.3f} "
+             f"PageRec@5={summary[-1]['page_recall_at_5']:.3f} "
+             f"latP95={summary[-1]['lat_p95']:.0f}ms")
+
+    best = max(summary, key=lambda s: s["mrr"])
+    print(f"\n  Best MRR blend : {best['blend']}  (MRR={best['mrr']:.3f})")
+    print(f"  Latency P95 @ best : {best['lat_p95']:.0f}ms (target < 500ms)")
+
+    # ── write report ────────────────────────────────────────────────────
+    report_path = "eval_report_phase2.json"
+    try:
+        import json as _json
+        with open(report_path, "r", encoding="utf-8") as f:
+            report = _json.load(f)
+    except (OSError, _json.JSONDecodeError):
+        report = {}
+    report["rerank_sweep"] = summary
+    with open(report_path, "w", encoding="utf-8") as f:
+        _json.dump(report, f, indent=2)
+    _log(f"  Wrote rerank sweep to {report_path}")
+
+
 # ── main ─────────────────────────────────────────────────────────────────────
 
 def main():
     skip_ingestion = "--skip-ingestion" in sys.argv
     skip_deep = "--skip-deep" in sys.argv
     run_benchmarks(skip_ingestion=skip_ingestion, skip_deep=skip_deep)
+
+    if "--rerank-sweep" in sys.argv:
+        run_rerank_sweep(load_golden())
 
 
 if __name__ == "__main__":

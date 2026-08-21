@@ -49,3 +49,9 @@ class MockModelProvider(ModelProvider):
 
     def generate_hyde(self, query: str) -> str:
         return f"Hypothetical answer snippet for query: '{query}'"
+
+    def rerank(self, query: str, passages: List[str]) -> List[float]:
+        # Deterministic mock: score passages in ascending order so the LAST
+        # passage ranks highest. Pure rerank therefore flips the original hybrid
+        # ranking, letting tests assert the reranker leg reorders results.
+        return [float(i) / max(len(passages), 1) for i in range(len(passages))]

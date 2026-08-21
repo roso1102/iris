@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from typing import Dict, List, Optional, Tuple
 
@@ -32,6 +33,24 @@ from services.common.retrieval.models import ScoredChunk
 from services.common.retrieval.rrf import reciprocal_rank_fusion
 
 logger = logging.getLogger(__name__)
+
+# Phase 6.5 pronoun/dependency heuristic gate: if the raw query contains none of
+# these ambiguous indicators, skip the (costly) SLM rewriter entirely.
+_AMBIGUOUS_REFERENCE_RE = re.compile(
+    r"\b(it|this|that|these|those|former|latter|above|previous|the\s+(?:former|latter))\b",
+    re.IGNORECASE,
+)
+
+
+def _needs_rewrite(query: str, history: Optional[List[dict]]) -> bool:
+    """Phase 6.5 gate: true only when there is history AND an ambiguous reference.
+
+    Standalone queries without pronouns bypass the rewriter (0ms, 0 cost),
+    preserving the fast standard path.
+    """
+    if not history:
+        return False
+    return bool(_AMBIGUOUS_REFERENCE_RE.search(query))
 
 
 class SearchOrchestrator:
@@ -47,9 +66,27 @@ class SearchOrchestrator:
         tenant_id: str,
         doc_ids: Optional[List[str]] = None,
         top_k: int = 10,
+        rerank_blend: Optional[float] = None,
+        history: Optional[List[dict]] = None,
     ) -> List[ScoredChunk]:
-        """Task 2.4a: Standard non-blocking async search path."""
+        """Task 2.4a: Standard non-blocking async search path.
+
+        `rerank_blend` (Phase 12.1): when set (0.0..1.0), the top candidates are
+        cross-encoder reranked and blended with the original RRF score:
+        final = (1 - blend) * orig + blend * rerank. Used by the eval harness to
+        sweep the blend ratio. None disables reranking (MVP behaviour).
+
+        `history` (Phase 6.0a): when follow-ups contain an ambiguous reference
+        (it/this/that/...), the SLM rewriter resolves them into a self-contained
+        query before retrieval. Gated by `_needs_rewrite` (Phase 6.5).
+        """
         t0 = time.time()
+
+        if _needs_rewrite(query, history):
+            query = await asyncio.to_thread(
+                self.provider.rewrite_query, query, history or []
+            )
+
         embedding = await asyncio.to_thread(self.provider.embed, query)
 
         dense_future = asyncio.to_thread(
@@ -65,6 +102,16 @@ class SearchOrchestrator:
         scored = await asyncio.to_thread(
             self._resolve_chunks, fused, top_k * 3, tenant_id
         )
+
+        if rerank_blend is not None and scored:
+            scores = await asyncio.to_thread(
+                self.provider.rerank, query, [c.text for c in scored]
+            )
+            rerank_blend = max(0.0, min(1.0, rerank_blend))
+            for c, rs in zip(scored, scores):
+                c.score = (1.0 - rerank_blend) * c.score + rerank_blend * rs
+            scored.sort(key=lambda c: c.score, reverse=True)
+
         diversified = diversity_penalty(scored, top_k=top_k)
         results = diversified[:top_k]
 
@@ -74,6 +121,7 @@ class SearchOrchestrator:
             extra={
                 "query": query[:100],
                 "mode": "standard",
+                "rerank_blend": rerank_blend,
                 "latency_ms": latency,
                 "top_score": results[0].score if results else 0.0,
                 "tenant_id": tenant_id,

@@ -6,7 +6,7 @@ import unittest
 from services.common.ingestion.models import Chunk, ElementType, RouteDecision
 from services.common.ingestion.store import MemoryChunkStore
 from services.common.models.mock import MockModelProvider
-from services.common.retrieval.search import SearchOrchestrator
+from services.common.retrieval.search import SearchOrchestrator, _needs_rewrite
 
 
 def _chunk(
@@ -91,6 +91,75 @@ class TestSearchOrchestrator(unittest.TestCase):
         )
         for r in results:
             self.assertEqual(r.tenant_id, "tenant-a")
+
+    def test_rerank_blend_pure_reorders_results(self):
+        # Mock rerank scores passages in REVERSE order. Pure rerank (blend=1.0)
+        # must invert the hybrid ranking so the mock's top-scored chunk lands
+        # first — proving the reranker leg is wired into standard_search.
+        hybrid = self._run(
+            self.orchestrator.standard_search(
+                "committee funding", "tenant-a", top_k=3, rerank_blend=0.0
+            )
+        )
+        reranked = self._run(
+            self.orchestrator.standard_search(
+                "committee funding", "tenant-a", top_k=3, rerank_blend=1.0
+            )
+        )
+        self.assertGreaterEqual(len(hybrid), 1)
+        self.assertGreaterEqual(len(reranked), 1)
+        # With blend=1.0 the mock top-scored chunk (first candidate) becomes #1.
+        # Assert the top-ranked chunk_id differs between the two legs.
+        self.assertNotEqual(hybrid[0].chunk_id, reranked[0].chunk_id)
+
+    # ── Phase 6.0a / 6.5: SLM rewrite wiring + pronoun gate ────────────────
+
+    def test_needs_rewrite_requires_history_and_pronoun(self):
+        self.assertFalse(_needs_rewrite("What is SDRF?", []))            # no history
+        self.assertFalse(_needs_rewrite("What is SDRF?", [{"role": "user", "content": "hi"}]))  # no pronoun
+        self.assertFalse(_needs_rewrite("what does it do?", []))          # pronoun, but no history
+
+    def test_needs_rewrite_true_for_ambiguous_followup(self):
+        history = [{"role": "user", "content": "Explain the SDRF."},
+                   {"role": "assistant", "content": "The SDRF is..."}]
+        self.assertTrue(_needs_rewrite("what does it do?", history))
+        self.assertTrue(_needs_rewrite("How about that clause?", history))
+
+    def test_standard_search_rewrites_ambiguous_followup(self):
+        # Track whether the rewriter ran. The mock embed is constant, so we
+        # assert on invocation (via a spy provider) rather than result deltas.
+        class RecordingProvider(MockModelProvider):
+            def __init__(self):
+                super().__init__(embed_dim=768)
+                self.rewrite_calls = []
+
+            def rewrite_query(self, query, history):
+                self.rewrite_calls.append((query, history))
+                return f"Resolved: {query}"
+
+        provider = RecordingProvider()
+        orch = SearchOrchestrator(store=MemoryChunkStore(), provider=provider)
+        orch.store.upsert_batch([_chunk("d1", tenant_id="tenant-a", text="doc text")])
+
+        history = [{"role": "user", "content": "Explain the SDRF."}]
+        self._run(orch.standard_search("what does it do?", "tenant-a", top_k=5, history=history))
+        self.assertEqual(len(provider.rewrite_calls), 1)
+
+    def test_standard_search_skips_rewrite_without_history(self):
+        provider = MockModelProvider(embed_dim=768)
+        orig_rewrite = provider.rewrite_query
+        calls = []
+
+        def spy(query, history):
+            calls.append(query)
+            return orig_rewrite(query, history)
+
+        provider.rewrite_query = spy
+        orch = SearchOrchestrator(store=MemoryChunkStore(), provider=provider)
+        orch.store.upsert_batch([_chunk("d1", tenant_id="tenant-a", text="doc text")])
+
+        self._run(orch.standard_search("what does it do?", "tenant-a", top_k=5))
+        self.assertEqual(calls, [])
 
 
 if __name__ == "__main__":

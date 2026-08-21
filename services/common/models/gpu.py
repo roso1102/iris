@@ -55,3 +55,8 @@ class SelfHostedGPUProvider(ModelProvider):
         raise NotImplementedError(
             "Self-hosted GPU HyDE not implemented. See Phase 10.0."
         )
+
+    def rerank(self, query: str, passages: List[str]) -> List[float]:
+        raise NotImplementedError(
+            "Self-hosted GPU reranking not implemented. See Phase 10.0."
+        )

@@ -81,3 +81,18 @@ class ModelProvider(ABC):
         HyDE (Hypothetical Document Embeddings) generator for Deep Search mode.
         """
         pass
+
+    @abstractmethod
+    def rerank(
+        self, query: str, passages: List[str]
+    ) -> List[float]:
+        """
+        Cross-encoder reranking (Phase 12.1): score a list of passages against
+        the query and return one relevance score per passage (higher = more
+        relevant), in the SAME order as `passages`.
+
+        Backed by the Vertex AI Ranking API (semantic-ranker) via MODEL_BACKEND.
+        The returned scores are used to blend with the original RRF/hybrid score:
+        final = (1 - blend) * orig + blend * rerank_score.
+        """
+        pass
