@@ -9,6 +9,7 @@ graphify-out/
 trueassort/
 node_modules/
 firestore-rules-test/node_modules/
+infra/.terraform/
 .env
 *.log
 
