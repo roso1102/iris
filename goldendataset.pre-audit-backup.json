@@ -4,613 +4,399 @@
     "type": "direct_factual",
     "query": "What term is used by Knudsen (2020) to describe the conversion of data from analogue to digital format?",
     "answer": "Digitisation.",
-    "relevant_doc_ids": [
-      "doc_006"
-    ],
-    "relevant_page_numbers": [
-      2
-    ]
+    "relevant_doc_ids": ["doc_006"],
+    "relevant_page_numbers": [1]
   },
   {
     "query_id": "q_002",
     "type": "direct_factual",
     "query": "In what year did the US SEC establish the XBRL Voluntary Filing Program (VFP)?",
     "answer": "2005.",
-    "relevant_doc_ids": [
-      "doc_006"
-    ],
-    "relevant_page_numbers": [
-      14
-    ]
+    "relevant_doc_ids": ["doc_006"],
+    "relevant_page_numbers": [13]
   },
   {
     "query_id": "q_003",
     "type": "direct_factual",
     "query": "What markup language was announced by JP Morgan and PricewaterhouseCoopers to exchange information on financial derivatives?",
     "answer": "FpML (Financial Products Markup Language).",
-    "relevant_doc_ids": [
-      "doc_007"
-    ],
-    "relevant_page_numbers": [
-      41
-    ]
+    "relevant_doc_ids": ["doc_007"],
+    "relevant_page_numbers": [41]
   },
   {
     "query_id": "q_004",
     "type": "direct_factual",
     "query": "What is the total Capital Expenditure amount proposed in the Assam Budget 2024-25?",
     "answer": "33,799 crore.",
-    "relevant_doc_ids": [
-      "doc_005"
-    ],
-    "relevant_page_numbers": [
-      11
-    ]
+    "relevant_doc_ids": ["doc_005"],
+    "relevant_page_numbers": [11]
   },
   {
     "query_id": "q_005",
     "type": "direct_factual",
     "query": "According to the 15th Finance Commission guidelines, what percentage of the NDRMF is kept for Preparedness and Capacity-building activities?",
     "answer": "10 per cent of the annual allocation of SDRMF.",
-    "relevant_doc_ids": [
-      "doc_003"
-    ],
-    "relevant_page_numbers": [
-      10
-    ]
+    "relevant_doc_ids": ["doc_003"],
+    "relevant_page_numbers": [9]
   },
   {
     "query_id": "q_006",
     "type": "direct_factual",
     "query": "What is the name of the hypothetical example from the Jenkins report that the FASB transformed into an online report?",
     "answer": "Faux.Com.",
-    "relevant_doc_ids": [
-      "doc_007"
-    ],
-    "relevant_page_numbers": [
-      9
-    ]
+    "relevant_doc_ids": ["doc_007"],
+    "relevant_page_numbers": [9]
   },
   {
     "query_id": "q_007",
     "type": "direct_factual",
     "query": "Who are the authors of the academic paper titled 'Digital corporate reporting: research developments and implications'?",
     "answer": "Indrit Troshani and Nick Rowbottom.",
-    "relevant_doc_ids": [
-      "doc_006"
-    ],
-    "relevant_page_numbers": [
-      1
-    ]
+    "relevant_doc_ids": ["doc_006"],
+    "relevant_page_numbers": [1]
   },
   {
     "query_id": "q_008",
     "type": "direct_factual",
     "query": "What is the estimated total Non-Tax Revenue in the Assam Budget 2024-25?",
     "answer": "8,871 crore.",
-    "relevant_doc_ids": [
-      "doc_005"
-    ],
-    "relevant_page_numbers": [
-      8
-    ]
+    "relevant_doc_ids": ["doc_005"],
+    "relevant_page_numbers": [8]
   },
   {
     "query_id": "q_009",
     "type": "direct_factual",
     "query": "What is the maximum term of imprisonment under Section 9 of the Public Records Act, 1993 for contraventions?",
     "answer": "Imprisonment for a term which may extend to five years.",
-    "relevant_doc_ids": [
-      "doc_001"
-    ],
-    "relevant_page_numbers": [
-      5
-    ]
+    "relevant_doc_ids": ["doc_001"],
+    "relevant_page_numbers": [5]
   },
   {
     "query_id": "q_010",
     "type": "direct_factual",
     "query": "Under the revised NDRF norms of July 2023, what is the Ex-Gratia payment for grievous injury requiring hospitalization for more than a week?",
     "answer": "Rs. 16,000/- per person.",
-    "relevant_doc_ids": [
-      "doc_008"
-    ],
-    "relevant_page_numbers": [
-      1
-    ]
+    "relevant_doc_ids": ["doc_008"],
+    "relevant_page_numbers": [1]
   },
   {
     "query_id": "q_011",
     "type": "multi_hop",
     "query": "Does the definition of 'records officer' in the Public Records Act 1993 align with the rank required in the 1997 Rules?",
     "answer": "The 1993 Act defines a records officer generally under Section 2(g), while Rule 3 of the 1997 Rules specifically mandates this officer must not be below the rank or grade of a Section Officer.",
-    "relevant_doc_ids": [
-      "doc_001",
-      "doc_002"
-    ],
-    "relevant_page_numbers": [
-      3,
-      2
-    ]
+    "relevant_doc_ids": ["doc_001", "doc_002"],
+    "relevant_page_numbers": [2, 1]
   },
   {
     "query_id": "q_012",
     "type": "multi_hop",
     "query": "How does the allocation for response and relief under SDRF compare to the maximum limit allowed for Gratuitous Relief for livelihood?",
     "answer": "Response & Relief receives 40% of the SDRMF. From this 40% window, Gratuitous Relief generally cannot exceed 30%, but specifically for drought, it can be extended up to 50% of that window.",
-    "relevant_doc_ids": [
-      "doc_003",
-      "doc_008"
-    ],
-    "relevant_page_numbers": [
-      9,
-      1
-    ]
+    "relevant_doc_ids": ["doc_003", "doc_008"],
+    "relevant_page_numbers": [9, 1]
   },
   {
     "query_id": "q_013",
     "type": "multi_hop",
     "query": "Which standard-setting bodies were actively researching Web-based business reporting, and what XML initiative was announced by the AICPA?",
     "answer": "FASB and CICA were researching Web-based business reporting. The AICPA announced the eXtensible Financial Reporting Markup Language (XFRML).",
-    "relevant_doc_ids": [
-      "doc_007"
-    ],
-    "relevant_page_numbers": [
-      9,
-      42
-    ]
+    "relevant_doc_ids": ["doc_007"],
+    "relevant_page_numbers": [9, 42]
   },
   {
     "query_id": "q_014",
     "type": "multi_hop",
     "query": "If a small farmer suffers a 40% crop loss in a rainfed area due to severe drought, what is the input subsidy per hectare and the maximum duration for gratuitous relief?",
     "answer": "The input subsidy is Rs. 8,500/- per hectare in rainfed areas. For severe drought, the default 30-day period for gratuitous relief can be extended up to 90 days.",
-    "relevant_doc_ids": [
-      "doc_008"
-    ],
-    "relevant_page_numbers": [
-      4,
-      6
-    ]
+    "relevant_doc_ids": ["doc_008"],
+    "relevant_page_numbers": [4, 6]
   },
   {
     "query_id": "q_015",
     "type": "multi_hop",
     "query": "Calculate the increase in the total capital expenditure of Assam between the 2016-17 financial year and the 2022-23 financial year.",
     "answer": "Capital expenditure was Rs. 6,001 crore in 2016-17 and Rs. 16,338 crore in 2022-23. The increase is Rs. 10,337 crore.",
-    "relevant_doc_ids": [
-      "doc_005"
-    ],
-    "relevant_page_numbers": [
-      6
-    ]
+    "relevant_doc_ids": ["doc_005"],
+    "relevant_page_numbers": [6]
   },
   {
     "query_id": "q_016",
     "type": "multi_hop",
     "query": "What is the relationship between the European Single Electronic Format (ESEF) and the XBRL language?",
     "answer": "ESMA requires EU-listed firms to file digital reports in the European Single Electronic Format (ESEF), which utilizes Inline XBRL (iXBRL) to structure the data.",
-    "relevant_doc_ids": [
-      "doc_006"
-    ],
-    "relevant_page_numbers": [
-      2,
-      6
-    ]
+    "relevant_doc_ids": ["doc_006"],
+    "relevant_page_numbers": [2, 6]
   },
   {
     "query_id": "q_017",
     "type": "multi_hop",
     "query": "If the SEC extends Gratuitous Relief for an earthquake beyond 60 days, does this violate the July 2023 NDRF norms?",
     "answer": "No. Depending on the ground situation, the SEC can extend the time period beyond the prescribed limits as long as the expenditure does not exceed 30% of the SDRF allocation under the Response & Relief window.",
-    "relevant_doc_ids": [
-      "doc_008"
-    ],
-    "relevant_page_numbers": [
-      3
-    ]
+    "relevant_doc_ids": ["doc_008"],
+    "relevant_page_numbers": [2]
   },
   {
     "query_id": "q_018",
     "type": "multi_hop",
     "query": "How does the Public Records Act define 'public records', and who is permitted to downgrade their classification?",
     "answer": "The Act defines public records to include documents, manuscripts, files, microfilms, and computer records. The Rules specify that an officer not below the rank of Under Secretary to the Government of India must be authorized to evaluate and downgrade classified records.",
-    "relevant_doc_ids": [
-      "doc_001",
-      "doc_002"
-    ],
-    "relevant_page_numbers": [
-      3,
-      3
-    ]
+    "relevant_doc_ids": ["doc_001", "doc_002"],
+    "relevant_page_numbers": [2, 2]
   },
   {
     "query_id": "q_019",
     "type": "multi_hop",
     "query": "How does the Assam budget allocation for Education, Sports, Art and Culture compare against Health and Family Welfare?",
     "answer": "Education, Sports, Art and Culture is allocated Rs. 23,227 crore, which is significantly higher than the Rs. 8,399 crore allocated to Health and Family Welfare.",
-    "relevant_doc_ids": [
-      "doc_005"
-    ],
-    "relevant_page_numbers": [
-      15
-    ]
+    "relevant_doc_ids": ["doc_005"],
+    "relevant_page_numbers": [15]
   },
   {
     "query_id": "q_020",
     "type": "multi_hop",
     "query": "Is XBRL based on a W3C standard? If so, what is it?",
     "answer": "Yes, XBRL is an application of XML (eXtensible Markup Language), which is a standard defined by the W3 Consortium.",
-    "relevant_doc_ids": [
-      "doc_007"
-    ],
-    "relevant_page_numbers": [
-      41
-    ]
+    "relevant_doc_ids": ["doc_007"],
+    "relevant_page_numbers": [41]
   },
   {
     "query_id": "q_021",
     "type": "table_interpretation",
     "query": "Based on the State-wise allocation of SDRF table, what is the Central Share allocated to Bihar for the 2024-25 period?",
     "answer": "1,311.20 crore.",
-    "relevant_doc_ids": [
-      "doc_003"
-    ],
-    "relevant_page_numbers": [
-      15
-    ]
+    "relevant_doc_ids": ["doc_003"],
+    "relevant_page_numbers": [14]
   },
   {
     "query_id": "q_022",
     "type": "table_interpretation",
     "query": "According to the 'Rupee Comes From' chart in the Assam Budget 2024-25, what is the largest individual source of revenue?",
     "answer": "Share of Central Taxes, contributing 40,000 crore.",
-    "relevant_doc_ids": [
-      "doc_005"
-    ],
-    "relevant_page_numbers": [
-      8
-    ]
+    "relevant_doc_ids": ["doc_005"],
+    "relevant_page_numbers": [8]
   },
   {
     "query_id": "q_023",
     "type": "table_interpretation",
     "query": "In the Assam Budget SDGs chart, what is the total allocation for Goal 3 (Good Health and Wellbeing)?",
     "answer": "25,856 crore.",
-    "relevant_doc_ids": [
-      "doc_005"
-    ],
-    "relevant_page_numbers": [
-      16
-    ]
+    "relevant_doc_ids": ["doc_005"],
+    "relevant_page_numbers": [16]
   },
   {
     "query_id": "q_024",
     "type": "table_interpretation",
     "query": "Based on the Cross-Border Transactions table in the IASC document, what was the percentage for Germany in 1998?",
     "answer": "334% of GDP.",
-    "relevant_doc_ids": [
-      "doc_007"
-    ],
-    "relevant_page_numbers": [
-      7
-    ]
+    "relevant_doc_ids": ["doc_007"],
+    "relevant_page_numbers": [7]
   },
   {
     "query_id": "q_025",
     "type": "table_interpretation",
     "query": "What is the total budget demand allocated for Panchayat & Rural Development in the Top 15 departments of the Assam Budget?",
     "answer": "8,403 crore.",
-    "relevant_doc_ids": [
-      "doc_005"
-    ],
-    "relevant_page_numbers": [
-      17
-    ]
+    "relevant_doc_ids": ["doc_005"],
+    "relevant_page_numbers": [17]
   },
   {
     "query_id": "q_026",
     "type": "table_interpretation",
     "query": "What is the budget demand for Public Works (Roads) compared to Public Works (Buildings & NH) in Assam?",
     "answer": "Public Works (Roads) is allocated Rs. 8,998 crore, while Public Works (Buildings & NH) is allocated Rs. 3,944 crore.",
-    "relevant_doc_ids": [
-      "doc_005"
-    ],
-    "relevant_page_numbers": [
-      17
-    ]
+    "relevant_doc_ids": ["doc_005"],
+    "relevant_page_numbers": [17]
   },
   {
     "query_id": "q_027",
     "type": "table_interpretation",
     "query": "According to the Assam Green Budget table, what is the Green Estimate amount for the Environment & Forest Department?",
     "answer": "265.88 crore.",
-    "relevant_doc_ids": [
-      "doc_005"
-    ],
-    "relevant_page_numbers": [
-      19
-    ]
+    "relevant_doc_ids": ["doc_005"],
+    "relevant_page_numbers": [19]
   },
   {
     "query_id": "q_028",
     "type": "table_interpretation",
     "query": "In the Financial Information Disclosed table by Hussey et al. (1998), how many UK FTSE 100 companies published Detailed Accounts in March 1998?",
     "answer": "54 companies (85.7%).",
-    "relevant_doc_ids": [
-      "doc_007"
-    ],
-    "relevant_page_numbers": [
-      47
-    ]
+    "relevant_doc_ids": ["doc_007"],
+    "relevant_page_numbers": [47]
   },
   {
     "query_id": "q_029",
     "type": "table_interpretation",
     "query": "What is the Central Share for Maharashtra in the 2021-22 SDRF allocation?",
     "answer": "1,456.00 crore.",
-    "relevant_doc_ids": [
-      "doc_003"
-    ],
-    "relevant_page_numbers": [
-      15
-    ]
+    "relevant_doc_ids": ["doc_003"],
+    "relevant_page_numbers": [14]
   },
   {
     "query_id": "q_030",
     "type": "table_interpretation",
     "query": "What was the total State Share allocation for Goa across the 2021-26 period?",
     "answer": "16.00 crore.",
-    "relevant_doc_ids": [
-      "doc_003"
-    ],
-    "relevant_page_numbers": [
-      15
-    ]
+    "relevant_doc_ids": ["doc_003"],
+    "relevant_page_numbers": [14]
   },
   {
     "query_id": "q_031",
     "type": "scanned_lookup",
     "query": "What Form number is used for the 'Requisition slip' to withdraw public records under the Public Records Rules, 1997?",
     "answer": "Form-3.",
-    "relevant_doc_ids": [
-      "doc_002"
-    ],
-    "relevant_page_numbers": [
-      4
-    ]
+    "relevant_doc_ids": ["doc_002"],
+    "relevant_page_numbers": [4]
   },
   {
     "query_id": "q_032",
     "type": "hindi_lookup",
     "query": "1985 के भारत सरकार (कार्य आवंटन) संशोधन नियमों के अनुसार ग्रामीण विकास विभाग किस अनुसूची के अंतर्गत आता है?",
     "answer": "प्रथम अनुसूची (First Schedule).",
-    "relevant_doc_ids": [
-      "doc_004"
-    ],
-    "relevant_page_numbers": [
-      1
-    ]
+    "relevant_doc_ids": ["doc_004"],
+    "relevant_page_numbers": [1]
   },
   {
     "query_id": "q_033",
     "type": "scanned_lookup",
     "query": "According to the revised SDRF norms, what is the maximum assistance for the loss of a camel, horse, or bullock acting as a draught animal?",
     "answer": "Rs. 32,000/- per animal.",
-    "relevant_doc_ids": [
-      "doc_008"
-    ],
-    "relevant_page_numbers": [
-      5
-    ]
+    "relevant_doc_ids": ["doc_008"],
+    "relevant_page_numbers": [5]
   },
   {
     "query_id": "q_034",
     "type": "scanned_lookup",
     "query": "What is the specific penalty or action for unauthorized removal of public records by a records officer under the 1993 Act?",
     "answer": "Under Section 7, the records officer must take appropriate action for recovery/restoration and submit a report without delay. Contravening Section 4 or 8 broadly carries up to a 5-year prison term or fine under Section 9.",
-    "relevant_doc_ids": [
-      "doc_001"
-    ],
-    "relevant_page_numbers": [
-      4,
-      5
-    ]
+    "relevant_doc_ids": ["doc_001"],
+    "relevant_page_numbers": [4, 5]
   },
   {
     "query_id": "q_035",
     "type": "scanned_lookup",
     "query": "Form-8 in the Public Records Rules 1997 is used for what purpose?",
     "answer": "It is the Application form for permission to consult records by a research scholar.",
-    "relevant_doc_ids": [
-      "doc_002"
-    ],
-    "relevant_page_numbers": [
-      7
-    ]
+    "relevant_doc_ids": ["doc_002"],
+    "relevant_page_numbers": [7]
   },
   {
     "query_id": "q_036",
     "type": "hindi_lookup",
     "query": "कृषि उत्पाद के विपणन संबंधी सामान्य नीति (Marketing of agricultural produce) किस भाग के अंतर्गत आती है?",
     "answer": "भाग- III (Part III).",
-    "relevant_doc_ids": [
-      "doc_004"
-    ],
-    "relevant_page_numbers": [
-      3
-    ]
+    "relevant_doc_ids": ["doc_004"],
+    "relevant_page_numbers": [3]
   },
   {
     "query_id": "q_037",
     "type": "scanned_lookup",
     "query": "Under the 2023 revised SDRF norms, how much assistance is provided for repairing a damaged Primary/Community Health Centre?",
     "answer": "As per actual, subject to a ceiling of Rs. 2.00 lakh per unit.",
-    "relevant_doc_ids": [
-      "doc_008"
-    ],
-    "relevant_page_numbers": [
-      11
-    ]
+    "relevant_doc_ids": ["doc_008"],
+    "relevant_page_numbers": [11]
   },
   {
     "query_id": "q_038",
     "type": "scanned_lookup",
     "query": "Who serves as the ex-officio Chairman of the Archival Advisory Board?",
     "answer": "The Secretary to the Government of India in the Ministry of Central Government dealing with culture.",
-    "relevant_doc_ids": [
-      "doc_001"
-    ],
-    "relevant_page_numbers": [
-      5
-    ]
+    "relevant_doc_ids": ["doc_001"],
+    "relevant_page_numbers": [5]
   },
   {
     "query_id": "q_039",
     "type": "scanned_lookup",
     "query": "What is the assistance rate for repairs of State Highways and Major District Roads in hilly areas under the revised SDRF norms?",
     "answer": "Rs. 1.25 lakh/km.",
-    "relevant_doc_ids": [
-      "doc_008"
-    ],
-    "relevant_page_numbers": [
-      9
-    ]
+    "relevant_doc_ids": ["doc_008"],
+    "relevant_page_numbers": [9]
   },
   {
     "query_id": "q_040",
     "type": "hindi_lookup",
     "query": "'पशुपालन' (Animal Husbandry) किस विभाग के आवंटन में सूचीबद्ध है?",
     "answer": "कृषि और सहकारिता विभाग (Department of Agriculture and Cooperation).",
-    "relevant_doc_ids": [
-      "doc_004"
-    ],
-    "relevant_page_numbers": [
-      3
-    ]
+    "relevant_doc_ids": ["doc_004"],
+    "relevant_page_numbers": [3]
   },
   {
     "query_id": "q_041",
     "type": "short_ambiguous",
     "query": "What about clause 5?",
     "answer": "Section 5 of the Public Records Act 1993 requires every records creating agency to nominate an officer as a records officer to discharge functions and set up record rooms.",
-    "relevant_doc_ids": [
-      "doc_001"
-    ],
-    "relevant_page_numbers": [
-      3
-    ]
+    "relevant_doc_ids": ["doc_001"],
+    "relevant_page_numbers": [3]
   },
   {
     "query_id": "q_042",
     "type": "short_ambiguous",
     "query": "Summarize the risks of plug-ins.",
     "answer": "Plug-ins pose a computer security risk. If a file contains a virus or Trojan horse, the plug-in executing automatically can seriously damage the user's computer.",
-    "relevant_doc_ids": [
-      "doc_007"
-    ],
-    "relevant_page_numbers": [
-      31
-    ]
+    "relevant_doc_ids": ["doc_007"],
+    "relevant_page_numbers": [31]
   },
   {
     "query_id": "q_043",
     "type": "short_ambiguous",
     "query": "What are the forms used for?",
     "answer": "The forms (Form 1 through 9) in the Public Records Rules 1997 are used for appraisal, transfer, requisition, downgrading classified records, annual reporting, destruction of records, and applying for consultation/reprographic facilities.",
-    "relevant_doc_ids": [
-      "doc_002"
-    ],
-    "relevant_page_numbers": [
-      3,
-      4,
-      5,
-      6,
-      7
-    ]
+    "relevant_doc_ids": ["doc_002"],
+    "relevant_page_numbers": [3, 4, 5, 6, 7]
   },
   {
     "query_id": "q_044",
     "type": "short_ambiguous",
     "query": "Who pays for the audit?",
     "answer": "Literature explores the economics of auditing digital reports, speculating whether the user accessing audited data—rather than the reporting firm—should pay for the assurance.",
-    "relevant_doc_ids": [
-      "doc_006"
-    ],
-    "relevant_page_numbers": [
-      19
-    ]
+    "relevant_doc_ids": ["doc_006"],
+    "relevant_page_numbers": [19]
   },
   {
     "query_id": "q_045",
     "type": "short_ambiguous",
     "query": "How much for a dead cow?",
     "answer": "Rs. 37,500/- per animal for a milch cow, yak, camel, or buffalo under the SDRF/NDRF animal husbandry assistance norms.",
-    "relevant_doc_ids": [
-      "doc_008"
-    ],
-    "relevant_page_numbers": [
-      5
-    ]
+    "relevant_doc_ids": ["doc_008"],
+    "relevant_page_numbers": [5]
   },
   {
     "query_id": "q_046",
     "type": "short_ambiguous",
     "query": "Is Adobe free?",
     "answer": "Adobe's Acrobat reader is currently free, but there is no certainty it will remain so permanently, as it is a proprietary standard managed solely by Adobe.",
-    "relevant_doc_ids": [
-      "doc_007"
-    ],
-    "relevant_page_numbers": [
-      26
-    ]
+    "relevant_doc_ids": ["doc_007"],
+    "relevant_page_numbers": [26]
   },
   {
     "query_id": "q_047",
     "type": "short_ambiguous",
     "query": "What is MM Mahila Udyamita Abhiyaan?",
     "answer": "Mukhya Mantri Mahila Udyamita Abhiyaan is one of the flagship schemes under the 'Ashtadash Mukutor Unnoyonee Maala' listed in the Assam Budget 2024-25.",
-    "relevant_doc_ids": [
-      "doc_005"
-    ],
-    "relevant_page_numbers": [
-      20
-    ]
+    "relevant_doc_ids": ["doc_005"],
+    "relevant_page_numbers": [20]
   },
   {
     "query_id": "q_048",
     "type": "short_ambiguous",
     "query": "When does the act come into force?",
     "answer": "The Public Records Act 1993 comes into force on such date as the Central Government may appoint by notification in the Official Gazette.",
-    "relevant_doc_ids": [
-      "doc_001"
-    ],
-    "relevant_page_numbers": [
-      1
-    ]
+    "relevant_doc_ids": ["doc_001"],
+    "relevant_page_numbers": [1]
   },
   {
     "query_id": "q_049",
     "type": "short_ambiguous",
     "query": "Any help for weavers?",
     "answer": "Yes, assistance to artisans for handicrafts/handloom includes Rs. 5,000 per artisan for the replacement of damaged functional tools/equipments and Rs. 5,000 for loss of raw material.",
-    "relevant_doc_ids": [
-      "doc_008"
-    ],
-    "relevant_page_numbers": [
-      9
-    ]
+    "relevant_doc_ids": ["doc_008"],
+    "relevant_page_numbers": [8]
   },
   {
     "query_id": "q_050",
     "type": "short_ambiguous",
     "query": "What's the target for One Lakh Plus?",
     "answer": "'One Lakh Plus Jobs' is listed as flagship scheme #06 under the Ashtadash Mukutor Unnoyonee Maala in the Assam Budget 2024-25.",
-    "relevant_doc_ids": [
-      "doc_005"
-    ],
-    "relevant_page_numbers": [
-      20
-    ]
+    "relevant_doc_ids": ["doc_005"],
+    "relevant_page_numbers": [20]
   }
 ]
