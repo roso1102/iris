@@ -1,0 +1,13 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        docker create --name iw asia-south1-docker.pkg.dev/naturepivot-rag/iris/ingestion-worker:latest
+        docker cp iw:/app/services/common/ingestion/chunker.py /workspace/chunker.py
+        echo '=== deployed chunker head ==='
+        head -c 1200 /workspace/chunker.py
+        echo
+        echo '=== env token grep ==='
+        grep -n 'CHUNK_TARGET_TOKENS' /workspace/chunker.py || echo 'CHUNK_TARGET_TOKENS NOT IN IMAGE'
