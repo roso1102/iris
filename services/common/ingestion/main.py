@@ -36,6 +36,29 @@ class RetryError(Exception):
     """Transient failure; Pub/Sub should redeliver (up to 3 attempts)."""
 
 
+def _warn_page_coverage(
+    chunks: List[Chunk], pdf_pages: int, page_number: Optional[int], doc_id: str
+) -> None:
+    """Log loudly when chunks do not cover every PDF page (integrity net)."""
+    if page_number is not None:
+        # Single-page blob: the one page must have produced at least one chunk.
+        covered = {c.page_number for c in chunks}
+        if not covered:
+            logger.warning(
+                "page_coverage_gap: doc=%s page=%s produced ZERO chunks - "
+                "content may be silently missing from the index",
+                doc_id, page_number,
+            )
+        return
+    covered = {c.page_number for c in chunks}
+    missing = set(range(1, pdf_pages + 1)) - covered
+    if missing:
+        logger.warning(
+            "page_coverage_gap: doc=%s %d/%d pages have no chunks (missing: %s)",
+            doc_id, pdf_pages - len(missing), pdf_pages, sorted(missing)[:10],
+        )
+
+
 @dataclass
 class IngestResult:
     doc_id: str
@@ -133,6 +156,12 @@ class IngestionPipeline:
 
             self._embed(chunks)
             written = self._store.upsert_batch(chunks)
+
+            # Standing integrity net (reviewer Q2): every PDF page must land
+            # in the index. A gap here is the silent-data-loss class the
+            # zero-element fallback fixed — this catches any regressions
+            # (blank VLM output, future parser changes) at ingest time.
+            _warn_page_coverage(chunks, meta["page_count"], page_number, doc_id)
 
             return IngestResult(
                 doc_id=doc_id,

@@ -209,6 +209,34 @@ def run_canary(request) -> tuple[str, int]:
         # hybrid ordering on many queries, including the canary query.)
         results["ranking_api"] = _probe_ranking_api()
 
+        # 3c. Corpus integrity (reviewer Q2): every golden page must stay in
+        # the index. A re-ingestion silently dropping pages (the zero-element
+        # class) moves this number and fails the canary within 15 minutes.
+        expected_pages = int(os.environ.get("EXPECTED_TOTAL_PAGES", "201"))
+        total_pages = 0
+        import urllib.request as _u
+        for doc in ("doc_001", "doc_002", "doc_003", "doc_004",
+                    "doc_005", "doc_006", "doc_007", "doc_008"):
+            req = _u.Request(
+                f"{RETRIEVAL_URL}/doc-status/{doc}",
+                headers={"X-Firebase-Token": token},
+            )
+            try:
+                with _u.urlopen(req, timeout=30) as resp:
+                    total_pages += int(json.loads(resp.read().decode()).get("pages", 0))
+            except Exception as exc:
+                results["corpus_integrity"] = {"ok": False, "error": f"{doc}: {str(exc)[:100]}"}
+                failures.append("corpus integrity fetch failed")
+                total_pages = -1
+                break
+        if total_pages >= 0:
+            ok = total_pages >= expected_pages
+            results["corpus_integrity"] = {
+                "ok": ok, "pages": total_pages, "expected": expected_pages,
+            }
+            if not ok:
+                failures.append(f"corpus shrank: {total_pages}/{expected_pages} pages indexed")
+
         if not results["ranking_api"]["ok"]:
             failures.append("direct Ranking API probe failed")
 

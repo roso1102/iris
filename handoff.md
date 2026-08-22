@@ -52,7 +52,7 @@ Key outcomes adopted: observability as a prerequisite (canary), eval-set validit
 ### Phase G — Corpus completion (pipeline #1)
 - Corpus scan: **16 un-indexed pages** (doc_001 6, doc_002 5, doc_008 2 scanned; doc_003 p27 DIGITAL with 1,751 chars; doc_004/005 trailing blanks). Root cause reproduced locally: **Docling detects ZERO layout elements on some pages**; with `do_ocr=False` nothing reaches the router; pages "ingest successfully" with `chunks=0 vlm_calls=0` — silent data loss.
 - **Fix** (`services/common/ingestion/main.py` ingest()): zero elements → synthesize one empty-text full-page `ParsedElement` → rides the router's existing low-text path (Signal 2, `_valid_word_ratio("")=0 < 0.75`) into `VLM_FULL_PAGE` OCR. Zero router changes. Chunker tags the `[0,0,1,1]` bbox `page_level`. Logs `zero_element_page_fallback`.
-- **CI STALLED** (see gotchas) → manual build+deploy of worker rev `00080-h5l`; re-ingested all 8 docs (3 quota-429 recoveries) → **100% page coverage (185/185, 1,379 chunks)**.
+- **CI STALLED** (see gotchas) → manual build+deploy of worker rev `00080-h5l`; re-ingested all 8 docs (3 quota-429 recoveries) → **100% page coverage (201/201, 1,379 chunks)**.
 - **Final eval: Recall@5 1.000 · Page-Recall@5 0.740 · MRR 0.667 · P95 561ms** (avg 478). scanned_lookup page-recall 0.143 → **0.857**.
 
 ### Phase H — Language findings (empirical, live-tested)
@@ -66,7 +66,7 @@ Hindi query → Hindi doc: **works** (top-3). English query → Hindi doc: **fai
 | Page-Recall@5 | **0.740** | per-type: direct 0.80 · hindi 0.667 · multi_hop 0.625 · scanned 0.857 · short_ambiguous 0.473 · table 1.000 |
 | MRR | **0.667** | page-level |
 | Latency | P95 561ms / avg 478ms | budget 500ms P95; slightly over on last run |
-| Corpus | 185/185 pages indexed, 1,379 chunks | first full-coverage state |
+| Corpus | 201/201 pages indexed, 1,379 chunks | first full-coverage state |
 
 Journey from session start (broken instrument): PageRec 0.320→0.740, MRR 0.262→0.667, P95 2,934→~500ms. History of every intermediate state is in the CONTEXT.md session log and git log.
 
@@ -156,7 +156,7 @@ Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong c
 ## 9. Live state right now
 
 - **Worker** `ingestion-worker-00080-h5l` (fallback code, `CHUNK_TARGET_TOKENS=256`, `BM25_HINDI_ENABLED=1`); **api** `retrieval-api-00025-42s` (`RERANK_LOCATION=global`, `RERANK_BLEND` unset, Hindi on). Canary live every 15 min, alert armed (user configured).
-- Corpus fully re-ingested 2026-08-23: 185/185 pages, 1,379 chunks, `test-tenant`.
+- Corpus fully re-ingested 2026-08-23: 201/201 pages, 1,379 chunks, `test-tenant`.
 - Git `main` = `f0a5a6c`, clean, pushed. ~30 commits this session.
 - User's outstanding personal items: check the stalled GitHub Actions; CORS repo var before the CNAME lands; occasional frontend highlight eyeball.
 
