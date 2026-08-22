@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from services.common.ingestion.chunker import chunk_routed
-from services.common.ingestion.models import Chunk
+from services.common.ingestion.models import Chunk, ElementType, ParsedElement
 from services.common.ingestion.parser import DoclingParser, MockDocParser
 from services.common.ingestion.preflight import PreflightError, check_pdf
 from services.common.ingestion.store import ChunkStore, get_chunk_store
@@ -101,6 +101,28 @@ class IngestionPipeline:
             vlm_calls_before = getattr(self._router, "vlm_calls", 0)
 
             elements = self._parser.parse(local_path)
+            if not elements:
+                # Page-level VLM fallback (pipeline #1): Docling's layout model
+                # detects ZERO elements on some scanned pages (doc_001/002/008
+                # lost 13 pages this way, silently) and on rare digital pages
+                # (doc_003 p27). Without this the page "ingests successfully"
+                # with zero chunks. A single empty-text full-page element rides
+                # the router's existing low-text path (Signal 2) into a
+                # VLM_FULL_PAGE OCR call — no router changes needed. The
+                # chunker tags the resulting [0,0,1,1] bbox as page_level.
+                logger.warning(
+                    "zero_element_page_fallback: doc=%s page=%s parser produced "
+                    "no elements, routing full page to VLM OCR",
+                    doc_id, page_number or 1,
+                )
+                elements = [
+                    ParsedElement(
+                        page_number=1,
+                        element_type=ElementType.TEXT,
+                        text="",
+                        bbox=[0.0, 0.0, 1.0, 1.0],
+                    )
+                ]
             routed = self._router.route(elements, pdf_path=str(local_path))
             chunks = chunk_routed(
                 routed,

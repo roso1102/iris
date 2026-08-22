@@ -127,13 +127,53 @@ class TestIngestEntryPoint(unittest.TestCase):
                 len(self.store.get_by_doc("doc_001", "tenant-a")), 0
             )
 
+    def test_ingest_zero_element_page_falls_back_to_vlm(self):
+        """Pipeline #1: a page where Docling detects ZERO elements must not
+        vanish silently — the handler synthesizes a full-page element that
+        rides the router's low-text path into a VLM_FULL_PAGE OCR call."""
+        from services.common.ingestion.parser import DocParser
+
+        class ZeroElementParser(DocParser):
+            def parse(self, pdf_path):
+                return []
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf = Path(tmpdir) / "doc.pdf"
+            self._write_tiny_pdf(pdf)
+
+            pipeline = IngestionPipeline(
+                provider=MockModelProvider(),
+                store=self.store,
+                parser=ZeroElementParser(),
+                router=MockVlmRouter(),
+            )
+
+            with patch.object(pipeline, "_download", return_value=pdf):
+                result = pipeline.ingest(
+                    gcs_uri="gs://bucket/doc.pdf",
+                    tenant_id="tenant-a",
+                    doc_id="doc_009",
+                    page_number=6,
+                )
+
+            # The fallback element produced exactly one VLM chunk...
+            self.assertEqual(result.chunk_count, 1)
+            self.assertGreaterEqual(result.vlm_calls, 1)
+            stored = self.store.get_by_doc("doc_009", "tenant-a")
+            self.assertEqual(len(stored), 1)
+            chunk = stored[0]
+            # ...carrying the real page number via the override and the
+            # full-page bbox tagged page_level by the chunker.
+            self.assertEqual(chunk.page_number, 6)
+            self.assertEqual(chunk.bbox, [0.0, 0.0, 1.0, 1.0])
+            self.assertIs(chunk.metadata.get("page_level"), True)
+
     def test_ingest_rejects_missing_fields(self):
         pipeline = IngestionPipeline(
             provider=MockModelProvider(),
             store=self.store,
             parser=MockDocParser(),
-            router=MockVlmRouter(),
-        )
+            router=MockVlmRouter(),        )
         with self.assertRaises(Exception) as ctx:
             pipeline.ingest("", "", "")
         from services.common.ingestion.main import RejectError
