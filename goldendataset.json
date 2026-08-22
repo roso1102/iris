@@ -51,12 +51,12 @@
     "query_id": "q_005",
     "type": "direct_factual",
     "query": "According to the 15th Finance Commission guidelines, what percentage of the NDRMF is kept for Preparedness and Capacity-building activities?",
-    "answer": "10 per cent of the annual allocation of SDRMF.",
+    "answer": "Provisions for disaster preparedness, restoration, reconstruction and mitigation of long-term activities of permanent nature (except Recovery & Reconstruction and Preparedness & Capacity-Building windows) should not be part of SDRF or NDRF; such expenditure must be built into normal budgetary heads/separate schemes/State Plan funds of the State Governments.",
     "relevant_doc_ids": [
       "doc_003"
     ],
     "relevant_page_numbers": [
-      10
+      24
     ]
   },
   {
@@ -68,7 +68,7 @@
       "doc_007"
     ],
     "relevant_page_numbers": [
-      9
+      19
     ]
   },
   {
@@ -99,12 +99,12 @@
     "query_id": "q_009",
     "type": "direct_factual",
     "query": "What is the maximum term of imprisonment under Section 9 of the Public Records Act, 1993 for contraventions?",
-    "answer": "Imprisonment for a term which may extend to five years.",
+    "answer": "Imprisonment for a term which may extend to five years, and/or a fine up to five thousand rupees - Section 9 penalizes contravention of Sections 4 and 8.",
     "relevant_doc_ids": [
       "doc_001"
     ],
     "relevant_page_numbers": [
-      5
+      4
     ]
   },
   {
@@ -143,8 +143,8 @@
       "doc_008"
     ],
     "relevant_page_numbers": [
-      9,
-      1
+      10,
+      3
     ]
   },
   {
@@ -157,7 +157,7 @@
     ],
     "relevant_page_numbers": [
       9,
-      42
+      33
     ]
   },
   {
@@ -169,8 +169,8 @@
       "doc_008"
     ],
     "relevant_page_numbers": [
-      4,
-      6
+      6,
+      8
     ]
   },
   {
@@ -194,8 +194,8 @@
       "doc_006"
     ],
     "relevant_page_numbers": [
-      2,
-      6
+      3,
+      7
     ]
   },
   {
@@ -207,7 +207,7 @@
       "doc_008"
     ],
     "relevant_page_numbers": [
-      3
+      5
     ]
   },
   {
@@ -245,7 +245,7 @@
       "doc_007"
     ],
     "relevant_page_numbers": [
-      41
+      32
     ]
   },
   {
@@ -293,7 +293,7 @@
       "doc_007"
     ],
     "relevant_page_numbers": [
-      7
+      17
     ]
   },
   {
@@ -341,14 +341,14 @@
       "doc_007"
     ],
     "relevant_page_numbers": [
-      47
+      36
     ]
   },
   {
     "query_id": "q_029",
     "type": "table_interpretation",
     "query": "What is the Central Share for Maharashtra in the 2021-22 SDRF allocation?",
-    "answer": "1,456.00 crore.",
+    "answer": "Rs. 2,577.60 crore.",
     "relevant_doc_ids": [
       "doc_003"
     ],
@@ -426,7 +426,7 @@
       "doc_002"
     ],
     "relevant_page_numbers": [
-      7
+      5
     ]
   },
   {
@@ -450,7 +450,7 @@
       "doc_008"
     ],
     "relevant_page_numbers": [
-      11
+      13
     ]
   },
   {
@@ -474,7 +474,7 @@
       "doc_008"
     ],
     "relevant_page_numbers": [
-      9
+      11
     ]
   },
   {
