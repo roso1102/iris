@@ -1,6 +1,8 @@
 # Golden-Set Adjudication Guide
 
-**Created:** 2026-08-22 · **Owner:** Rohit · **Status:** OPEN — items below need your eyes
+**Created:** 2026-08-22 · **Owner:** Rohit · **Status:** ✅ RESOLVED 2026-08-22 (owner adjudicated section B; applied to goldendataset.json)
+**Page-number convention (settled):** the pipeline, citations, frontend viewer, and this golden set all use **PDF physical sequence, 1-based** ("viewer" numbering). The ORIGINAL labels were authored against the documents' PRINTED page numbers, whose offset from physical sequence varies per document (doc_007: printed = viewer + 9; most others: printed = viewer − 1) — that is the root cause of the original off-by-one plague. Any future label must be read off the PDF viewer, not the printed page.
+**Final metrics with fully-adjudicated labels:** Recall@5 0.880 · Page-Recall@5 0.626 · MRR 0.555.
 **Rules attached to this sheet:**
 1. Current corrected metrics are **floors, not finals**: Page-Recall@5 ≥ 0.539, MRR ≥ 0.455. Do not quote them as exact in any doc until this sheet is cleared.
 2. **q_003 / q_010 (and q_020) are HELD OUT** of any "corrected" number — they are suspected label errors awaiting your verdict.
