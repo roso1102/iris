@@ -3,6 +3,8 @@
 **Written:** 2026-08-23 · **Branch:** `main` @ `f0a5a6c` · **Working tree:** clean (everything pushed)
 **Scope of this handoff:** the entire ZCode session that began with "analyse the codebase, suggest ideas for better MRR/recall/page-recall and bbox handling" and ended with the fully-indexed corpus and Recall@5 = 1.000. Read this top to bottom before touching anything.
 
+**Table of contents:** §1 What IRIS is · §2 User's ground rules · §3 Chronological record (Phases A–H) · §4 Latest benchmark · §5 Stage ledger + completion status · §6 Remaining pipeline specs · §7 Gotchas & caveats · §8 Key files map · §9 Live state · §10 First moves · §11 Reference documents (all MD files)
+
 ---
 
 ## 1. What IRIS is (one paragraph)
@@ -70,12 +72,23 @@ Journey from session start (broken instrument): PageRec 0.320→0.740, MRR 0.262
 
 **Weak cells now = page-level precision**: short_ambiguous 0.47, hindi 0.67, multi_hop 0.63 — all three point at VLM mega-chunks (pipeline #2) as the next lever.
 
-## 5. Stage ledger
+## 5. Stage ledger + completion status
 
-**Original 8-stage plan:** S0 ✅ · S1 ✅ · S2 ✅ (built+swept; production-off by data) · S3 ✅ · S5 ✅ · S7 🔶 (CONTEXT.md current; ph6.md checkboxes not updated) · **S4 ❌ frontend ladder** · **S6 ❌ Phase 6.1–6.4**.
+### Completion at a glance
+
+| Workstream | Items | Done | % |
+|---|---|---|---|
+| Original 8-stage quality plan (S0–S7) | 8 | 5 complete + S7 partial (docs current, ph6.md checkboxes pending) | **~65%** |
+| Measurement & observability workstream | label audit ×2 rounds, canary deploy+alert, CI parity, pushes | all complete | **100%** |
+| Current 6-item pipeline (§6) | 6 | #1 fallback done; #2–#6 pending | **1/6 ≈ 17%** |
+| **Overall session scope** (plan + measurement + pipeline) | ~15 major items | ~10 | **~65–70%** |
+
+### Detailed ledger
+
+**Original 8-stage plan:** S0 ✅ · S1 ✅ · S2 ✅ (built+swept; production-off by data) · S3 ✅ · S5 ✅ · S7 🔶 (CONTEXT.md current; ph6.md checkboxes not updated) · **S4 ❌ frontend ladder (= pipeline #5)** · **S6 ❌ Phase 6.1–6.4 (= pipeline #6)**.
 **Measurement/observability workstream:** ✅ complete.
 **Current 6-item pipeline:** #1 page-level VLM fallback ✅ · #2 VLM chunking ❌ · #3 cross-lingual dual-query ❌ · #4 eval-set growth ❌ · #5 S4 frontend ❌ · #6 S6 memory ❌.
-**Parked:** reranker re-sweep after chunking lands; Qdrant VM snapshots/backup; distributed (Firestore) rate limiter; 3072-d `gemini-embedding-001` (explicitly post-MVP, needs full re-embed); line-level bboxes.
+**Parked (deliberately, see §3 Phase A/D):** reranker re-sweep after chunking lands; Qdrant VM snapshots/backup; distributed (Firestore) rate limiter; 3072-d `gemini-embedding-001` (explicitly post-MVP per `CONTEXT.md` §3, needs full re-embed); line-level bboxes.
 
 ## 6. Remaining pipeline — exactly what to do
 
@@ -153,3 +166,38 @@ Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong c
 2. Run the local suite (command in §7) to confirm 242-pass baseline.
 3. Start pipeline #2 (VLM chunking) — spec in §6. Local tests first; the one re-ingest + eval needs the user's explicit go-ahead (they always answer).
 4. When in doubt on intent, re-read §2 (the user's rules) — they were set explicitly and the user enforces them.
+
+## 11. Reference documents (every MD file that matters)
+
+### Created this session
+| File | What it is | Consult when |
+|---|---|---|
+| `handoff.md` | This document — full session record, status, gotchas | First read, always |
+| `label_adjudication_guide.md` | The measurement rulebook: page-number convention (PDF-viewer 1-based), the printed-vs-viewer saga, floors-not-finals rules, authoring rules for new queries, resolution status of all 50 queries | Before touching `goldendataset.json`, before authoring pipeline #4's new 50 queries, before quoting any metric |
+| `label_audit_sheet.md` | Generated adjudication sheet (query → flag → evidence → checkboxes) from `scripts/label_audit.py` | Historical evidence trail for label corrections; regenerate with the script for future audits |
+
+### Pre-existing, updated this session
+| File | What it is | Consult when |
+|---|---|---|
+| `CONTEXT.md` | **Canonical living project memory** (fixed template: what IRIS is, current state, frozen decisions §3, append-only session log §4, gotchas §5, open questions §6). Two session bullets added this session. | Before any work — §3 decisions are FROZEN (768-d embeddings, CPU-only, tenant isolation rules, licensing); append your own session bullet when done |
+| `ph6.md` | The Phase 6+ execution plan this session's plan v2 was built from (bbox fixes, rerank pull-forward, phase ordering) | For original intent behind Stages 0–5; its checkboxes are NOT yet ticked (S7 leftover) |
+
+### Pre-existing, unchanged (referenced by this handoff)
+| File | Referenced from |
+|---|---|
+| `ACTIONPLAN.md` (~lines 425–450) | §6 pipeline #6 — exact Phase 6.1–6.6 task definitions + Tests 6-A…D |
+| `SRS.md` (§5.2) | §3 Phase A — 768-d embedding freeze rationale |
+| `BENCHMARK.md` | Original eval-suite definitions (Recall@5, MRR, RAGAS, latency budgets) |
+| `FRONTEND_PLAN.md` (§6) | §6 pipeline #5 — the citation-panel/highlight design the ladder implements |
+| `README.md` | Product overview |
+| Frontend repo (`D:\iris-frontend`): `CONTEXT.md`, `FRONTEND_PLAN.md`, `AGENTS.md` | §6 pipeline #5 — frontend-side conventions |
+
+### Non-MD reference artifacts (frequently needed)
+| File | What |
+|---|---|
+| `goldendataset.json` (+ `goldendataset.pre-audit-backup.json`) | The 50 golden queries — fully corrected & adjudicated as of 2026-08-23; backup = pre-audit original |
+| `eval_report_phase2.json` | Regenerated by every eval run; contains `rerank_sweep` history and per-type breakdowns |
+| `ingestion-worker-env.yaml` | Worker deploy env reference (two-phase re-ingest notes) |
+| `trueassort/` | The 8 golden source PDFs + `document_routing.csv` (VLM threshold labels) |
+
+**Cross-reference index for this handoff:** user rules → §2 · why a decision was made → §3 (Phases A–H) · current numbers → §4 · what's left + specs → §6 · before running any command → §7 · where code lives → §8 · what's deployed right now → §9 · label/metric rules → `label_adjudication_guide.md` · frozen product decisions → `CONTEXT.md` §3.
