@@ -86,6 +86,48 @@ def _valid_bbox(bbox) -> bool:
     )
 
 
+def _probe_ranking_api() -> dict:
+    """Call the Ranking API directly (function's own ADC): rank one relevant
+    and one irrelevant record; a working ranker separates their scores."""
+    import google.auth
+    import google.auth.transport.requests as gauth_requests
+    from urllib.error import HTTPError
+
+    project = os.environ.get("GCP_PROJECT", "naturepivot-rag")
+    location = os.environ.get("RERANK_LOCATION", "global")
+    endpoint = (
+        f"https://{location}-discoveryengine.googleapis.com/v1/projects/"
+        f"{project}/locations/{location}/rankingConfigs/"
+        "default_ranking_config:rank"
+    )
+    body = json.dumps({
+        "model": os.environ.get("RERANK_MODEL", "semantic-ranker@latest"),
+        "query": "What is the State Disaster Response Fund?",
+        "records": [
+            {"id": "rel", "content": "The State Disaster Response Fund provides financial assistance for disaster relief."},
+            {"id": "irr", "content": "Cooking recipes for a weeknight dinner."},
+        ],
+    }).encode()
+    try:
+        creds, _ = google.auth.default()
+        if not creds.valid:
+            creds.refresh(gauth_requests.Request())
+        req = urllib.request.Request(
+            endpoint, data=body,
+            headers={"Content-Type": "application/json",
+                     "Authorization": f"Bearer {creds.token}"},
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            records = json.loads(resp.read().decode()).get("records", [])
+        scores = {r.get("id"): r.get("score", 0.0) for r in records}
+        ok = scores.get("rel", 0.0) > scores.get("irr", 0.0)
+        return {"ok": ok, "scores": scores}
+    except HTTPError as exc:
+        return {"ok": False, "error": f"HTTP {exc.code}: {exc.read()[:150]}"}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}
+
+
 def run_canary(request) -> tuple[str, int]:
     results: dict[str, object] = {}
     failures: list[str] = []
@@ -148,6 +190,18 @@ def run_canary(request) -> tuple[str, int]:
         }
         if not rerank_ok:
             failures.append("rerank leg did not run (no latency signature)")
+
+        # 3b. direct Ranking API probe — independent engagement check of the
+        # dependency itself. The latency signature catches fast-failure
+        # inside retrieval-api; this catches the API being disabled,
+        # permission revoked, or the model retired, even if retrieval-api
+        # still adds latency for other reasons. (An order-difference
+        # assertion would false-alarm: the ranker legitimately agrees with
+        # hybrid ordering on many queries, including the canary query.)
+        results["ranking_api"] = _probe_ranking_api()
+
+        if not results["ranking_api"]["ok"]:
+            failures.append("direct Ranking API probe failed")
 
     except Exception as exc:
         results["runtime"] = {"ok": False, "error": str(exc)[:200]}

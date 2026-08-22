@@ -23,8 +23,13 @@ ROOT = Path(__file__).resolve().parent.parent
 GOLDEN = ROOT / "goldendataset.json"
 BACKUP = ROOT / "goldendataset.pre-audit-backup.json"
 
-# Off-by-one queries with ground-truth verification (PDF text layer or
-# VLM-OCR overlap on label+1, absent on label).
+# Off-by-one queries with ground-truth verification.
+#   q_001, q_002, q_005, q_021, q_029, q_030 — CONFIRMED via the PDF text
+#     layer (independent ground truth).
+#   q_011, q_017, q_018, q_049 — HIGH-CONFIDENCE, ONE SOURCE: verified only
+#     against the ingestion store's VLM OCR text (scanned docs have no text
+#     layer). Not fully independent — if OCR had its own page-attribution
+#     bug it would corroborate a wrong label. Visual spot-check pending.
 VERIFIED = [
     "q_001", "q_002", "q_005", "q_011", "q_017", "q_018",
     "q_021", "q_029", "q_030", "q_049",
