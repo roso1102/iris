@@ -150,8 +150,8 @@
     "semantic_hash": ""
   },
   "services/common/models/vertex.py": {
-    "mtime": 1787341949.954404,
-    "ast_hash": "8456145a8cd3d8252083629d161efe5d",
+    "mtime": 1787379218.7180564,
+    "ast_hash": "295bc92130e60e76bc817b515955336e",
     "semantic_hash": ""
   },
   "services/ingestion-worker/app.py": {
@@ -190,8 +190,8 @@
     "semantic_hash": ""
   },
   "tests/test_model_provider.py": {
-    "mtime": 1787342241.8837714,
-    "ast_hash": "065d2d56c8c91efb40802e2797fcbfe1",
+    "mtime": 1787379239.295028,
+    "ast_hash": "9e7c9af2bae19df177c5ef5014ba3a4f",
     "semantic_hash": ""
   },
   "tests/test_preflight.py": {
@@ -290,8 +290,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1787329440.931036,
-    "ast_hash": "449479f2a23621b6742145f8895ac96c",
+    "mtime": 1787382857.2440326,
+    "ast_hash": "7b4cba80f3bec982fbbff7028205849f",
     "semantic_hash": ""
   },
   "README.md": {
@@ -430,13 +430,13 @@
     "semantic_hash": ""
   },
   "goldendataset.json": {
-    "mtime": 1786538727.6043172,
-    "ast_hash": "0a963ed774df40e94f54023e479eda95",
+    "mtime": 1787384656.8132935,
+    "ast_hash": "4bd2342102dfaec7e12c71f0c7d0880f",
     "semantic_hash": ""
   },
   "scripts/eval_phase2.py": {
-    "mtime": 1787332432.9865935,
-    "ast_hash": "8b890ba270668adae903ed39bd81f443",
+    "mtime": 1787345934.2262151,
+    "ast_hash": "b0495c91e17b18d0c8caabaf6fb390c8",
     "semantic_hash": ""
   },
   "tests/test_pipeline_layer2.py": {
@@ -692,6 +692,56 @@
   "services/common/retrieval/hindi.py": {
     "mtime": 1787343259.683177,
     "ast_hash": "f40f146d4083ee1ad3cc9ffbca2c90fe",
+    "semantic_hash": ""
+  },
+  "scripts/round_a_recover.py": {
+    "mtime": 1787345242.825292,
+    "ast_hash": "b2e73a69dbe72365166ade0130eabb68",
+    "semantic_hash": ""
+  },
+  "scripts/round_a_reingest.py": {
+    "mtime": 1787345066.9511187,
+    "ast_hash": "e87f0d8d40161368682bdc290abd0111",
+    "semantic_hash": ""
+  },
+  "scripts/inspect-image-cloudbuild.yaml": {
+    "mtime": 1787381375.024484,
+    "ast_hash": "bb6697c86c0c5b6fe38f1207c661b6cc",
+    "semantic_hash": ""
+  },
+  "goldendataset.pre-audit-backup.json": {
+    "mtime": 1787384656.8102825,
+    "ast_hash": "0a963ed774df40e94f54023e479eda95",
+    "semantic_hash": ""
+  },
+  "scripts/fix_golden_pages.py": {
+    "mtime": 1787385358.8539333,
+    "ast_hash": "b51da5730c5f4d2219ab0488b54da07a",
+    "semantic_hash": ""
+  },
+  "scripts/label_audit.py": {
+    "mtime": 1787384128.16499,
+    "ast_hash": "9118d106688f9ef9accae709fd5b5057",
+    "semantic_hash": ""
+  },
+  "label_audit_sheet.md": {
+    "mtime": 1787384263.7366834,
+    "ast_hash": "e3b4e2e483317ccf6572d1d1e8a92aad",
+    "semantic_hash": ""
+  },
+  "services/canary/main.py": {
+    "mtime": 1787385417.3206098,
+    "ast_hash": "18c70ab833de51064282bdfe777b5eaa",
+    "semantic_hash": ""
+  },
+  "scripts/examine_flags.py": {
+    "mtime": 1787385269.321083,
+    "ast_hash": "9da5a9d967e0d2c8a5afbc426dd7d133",
+    "semantic_hash": ""
+  },
+  "label_adjudication_guide.md": {
+    "mtime": 1787386509.5338824,
+    "ast_hash": "0d4c582f57b38bc7ff56cf71951661df",
     "semantic_hash": ""
   }
 }

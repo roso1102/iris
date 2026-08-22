@@ -154,7 +154,10 @@ def run_canary(request) -> tuple[str, int]:
     try:
         token = _firebase_token()
 
-        # 2. search + bbox sanity
+        # 2. search + bbox sanity — with a throwaway WARM-UP first: the
+        # first request on a scaling instance pays hundreds of ms of warm-up
+        # which would poison the baseline for the rerank delta comparison.
+        _post("/search", {"query": CANARY_QUERY, "mode": "standard", "top_k": 3}, token)
         status, body, latency_ms = _post(
             "/search", {"query": CANARY_QUERY, "mode": "standard", "top_k": 10}, token
         )
@@ -176,18 +179,24 @@ def run_canary(request) -> tuple[str, int]:
         if not search_ok:
             failures.append("search assertion failed")
 
-        # 3. rerank leg (latency signature)
-        status_r, _, latency_r_ms = _post(
-            "/search",
-            {"query": CANARY_QUERY, "mode": "standard", "top_k": 10, "rerank_blend": 0.3},
-            token,
-        )
-        rerank_ok = status_r == 200 and (latency_r_ms - latency_ms) >= RERANK_DELTA_MIN_MS
-        results["rerank_leg"] = {
-            "ok": rerank_ok,
-            "status": status_r,
-            "delta_ms": round(latency_r_ms - latency_ms),
-        }
+        # 3. rerank leg (latency signature). Two attempts, pass if EITHER
+        # shows the signature — single-shot deltas can go negative from
+        # warm/cold instance variance observed in production logs.
+        rerank_ok = False
+        deltas = []
+        for _ in range(2):
+            status_r, _, latency_r_ms = _post(
+                "/search",
+                {"query": CANARY_QUERY, "mode": "standard", "top_k": 10,
+                 "rerank_blend": 0.3},
+                token,
+            )
+            delta = latency_r_ms - latency_ms
+            deltas.append(round(delta))
+            if status_r == 200 and delta >= RERANK_DELTA_MIN_MS:
+                rerank_ok = True
+                break
+        results["rerank_leg"] = {"ok": rerank_ok, "deltas_ms": deltas}
         if not rerank_ok:
             failures.append("rerank leg did not run (no latency signature)")
 

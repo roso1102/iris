@@ -43,7 +43,7 @@ gcloud run deploy ingestion-worker \
   --timeout=900 \
   --service-account="ingestion-worker-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
   --vpc-connector=iris-connector --vpc-egress=private-ranges-only \
-  --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},FIREBASE_PROJECT_ID=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,VERTEX_VISION_LOCATION=us-central1,QDRANT_URL=http://10.0.0.5:6333,RETRIEVAL_COLLECTION=iris_chunks_v2"
+  --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},FIREBASE_PROJECT_ID=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,VERTEX_VISION_LOCATION=us-central1,QDRANT_URL=http://10.0.0.5:6333,RETRIEVAL_COLLECTION=iris_chunks_v2,CHUNK_TARGET_TOKENS=256,BM25_HINDI_ENABLED=1"
 
 gcloud run deploy retrieval-api \
   --image="${REPO}/retrieval-api:latest" \
@@ -52,7 +52,7 @@ gcloud run deploy retrieval-api \
   --cpu=2 --memory=2Gi --max-instances=10 --min-instances=1 \
   --service-account="retrieval-api-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
   --vpc-connector=iris-connector --vpc-egress=private-ranges-only \
-  --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},FIREBASE_PROJECT_ID=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://10.0.0.5:6333,CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}"
+  --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},FIREBASE_PROJECT_ID=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://10.0.0.5:6333,CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS},RERANK_LOCATION=global,BM25_HINDI_ENABLED=1"
 
 echo "==> Granting Cloud Run IAM (kill-switch run.admin, trigger run.invoker)"
 gcloud run services add-iam-policy-binding ingestion-worker \

@@ -89,7 +89,7 @@ jobs:
             --no-allow-unauthenticated --ingress=all --cpu=2 --memory=8Gi --max-instances=10 --min-instances=0 --concurrency=1 --timeout=900 \
             --service-account=ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
             --vpc-connector=iris-connector --vpc-egress=private-ranges-only \
-            --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${{ vars.GCP_PROJECT_ID }},FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,VERTEX_VISION_LOCATION=us-central1,QDRANT_URL=http://10.0.0.5:6333,RETRIEVAL_COLLECTION=iris_chunks_v2"
+            --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${{ vars.GCP_PROJECT_ID }},FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,VERTEX_VISION_LOCATION=us-central1,QDRANT_URL=http://10.0.0.5:6333,RETRIEVAL_COLLECTION=iris_chunks_v2,CHUNK_TARGET_TOKENS=256,BM25_HINDI_ENABLED=1"
       - name: Deploy retrieval-api
         run: |
           gcloud run deploy retrieval-api \
@@ -98,4 +98,4 @@ jobs:
             --allow-unauthenticated --ingress=all --cpu=2 --memory=2Gi --max-instances=10 --min-instances=1 \
             --service-account=retrieval-api-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
             --vpc-connector=iris-connector --vpc-egress=private-ranges-only \
-            --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${{ vars.GCP_PROJECT_ID }},FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://10.0.0.5:6333,CORS_ALLOWED_ORIGINS=${{ vars.CORS_ALLOWED_ORIGINS }},INGEST_URL=${{ vars.INGEST_URL }},INGEST_SA=${{ vars.INGEST_SA }}"
+            --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${{ vars.GCP_PROJECT_ID }},FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://10.0.0.5:6333,CORS_ALLOWED_ORIGINS=${{ vars.CORS_ALLOWED_ORIGINS || 'https://iris-frontend-steel-nine.vercel.app' }},INGEST_URL=${{ vars.INGEST_URL || 'https://ingestion-worker-zzdrfa3kqa-el.a.run.app' }},INGEST_SA=${{ vars.INGEST_SA || 'ingestion-worker-sa@naturepivot-rag.iam.gserviceaccount.com' }},RERANK_LOCATION=global,BM25_HINDI_ENABLED=1"
