@@ -82,15 +82,16 @@ class TestVertexRerank(unittest.TestCase):
             provider.rerank("q", ["a"])
         self.assertIn("https://us-central1-discoveryengine", post.call_args.args[0])
 
-    def test_rerank_caps_at_40_passages_and_500_chars(self):
+    def test_rerank_caps_at_40_passages_and_max_chars(self):
         provider = self._provider()
         with patch.object(provider, "_ranking_token", return_value="tok"), \
                 patch("requests.post", return_value=self._fake_response([])) as post:
-            scores = provider.rerank("q", ["p" * 2000] + [f"p{i}" for i in range(49)])
+            scores = provider.rerank("q", ["p" * 9000] + [f"p{i}" for i in range(49)])
         self.assertEqual(len(scores), 40)
         body = post.call_args.kwargs["json"]
         self.assertEqual(len(body["records"]), 40)
-        self.assertTrue(all(len(r["content"]) <= 500 for r in body["records"]))
+        self.assertTrue(all(len(r["content"]) <= 3500 for r in body["records"]))
+        self.assertEqual(len(body["records"][0]["content"]), 3500)
 
     def test_rerank_failure_neutral_and_logged(self):
         provider = self._provider()

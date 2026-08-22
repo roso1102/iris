@@ -364,7 +364,12 @@ class VertexAIProvider(ModelProvider):
             return []
         import requests
 
-        capped = [_sanitize_context(p)[:500] for p in passages[:40]]
+        # semantic-ranker v004 accepts 1024 tokens/record (~4000 chars) and
+        # TRUNCATES beyond it. The old 500-char cap fed the ranker ~1/8 of
+        # each 512-token chunk — the answer sentence was usually missing,
+        # which measurably degraded every blend in the first live sweep.
+        max_chars = int(os.getenv("RERANK_MAX_CHARS", "3500"))
+        capped = [_sanitize_context(p)[:max_chars] for p in passages[:40]]
         location = os.getenv("RERANK_LOCATION", "global")
         model = os.getenv("RERANK_MODEL", "semantic-ranker@latest")
         endpoint = (
