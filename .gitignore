@@ -26,6 +26,9 @@ graphify-out/20*/
 # Generated evaluation report (not source)
 eval_report_phase2.json
 
+# Adjudication page renders (regenerable via scripts/render_page_evidence.py)
+adjudication/
+
 # User-specific agent state (taste, sessions, plans)
 .commandcode/
 

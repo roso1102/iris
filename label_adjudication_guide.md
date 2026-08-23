@@ -54,6 +54,34 @@ q_009, q_034, q_038, q_041, q_048 (all doc_001), q_035 (doc_002 p7).
 
 q_006, q_013, q_028 — answer verified ON the labeled page (doc_007 pages 9/42, 47), retrieval missed. Real signal, largely the VLM-mega-chunk problem already on the roadmap.
 
-## E. Already fixed this round
+## F. Round 3 (2026-08-23): answer-evidence pass — 11 page-placement items
+
+`scripts/answer_evidence_pass.py` verified every answer text against ground truth (PDF text layer + VLM OCR concatenated per page). **39/50 verified OK — no additional wrong answers (the q_005/q_029 class is cleared).** 11 queries show strongest evidence on a page OUTSIDE the current labels. These are evidence flags, not verdicts — several adjacent-page cases may be both-pages-referenced; your call.
+
+| # | Query (short) | Label | Best evidence | Note |
+|---|---|---|---|---|
+| q_009 | S.9 penalty term | 4 | **p5** (0.77 vs 0.31) | you adjudicated p4 (vision: S.9 ON p4); p5 may restate — check both |
+| q_010 | Ex-Gratia grievous injury | 3 | **p14** (0.50, label 0.00) | doc_008; verify |
+| q_011 | records officer alignment | [2,3] | **p1** (0.61) | doc_001/002; p1 may quote definitions |
+| q_018 | 'public records' definition | [3,3] | **p1** (0.50) | same pattern |
+| q_031 | scanned: SDRF item | 4 | **p3** (1.00, label 0.00) | doc_002 |
+| q_036 | Hindi: कृषि उत्पाद विपणन नीति | 3 | **p1** (1.00, label 0.00) | doc_004 |
+| q_043 | short_ambiguous | [3–7] | **p1** (0.55) | |
+| q_044 | short_ambiguous | 19 | **p20** (0.89 vs 0.39) | adjacent |
+| q_046 | short_ambiguous | 26 | **p24** (0.79 vs 0.43) | |
+| q_048 | "when does the act come into force" | 1 | **p5** (0.64, label 0.00) | doc_001 |
+| q_049 | cattle compensation (dead cow) | 9 | **p10** (0.93 vs 0.21) | adjacent; note q_045 (same content) = p7 |
+
+*Pattern worth noting: five "best evidence p1" flags (q_011/q_018/q_036/q_043 + others) — first pages of gazettes are often summary/notification pages that quote the same content; decide whether the summary page or the substantive page is the "right" citation target (recommendation: substantive page; treat p1-summary hits as correct-but-not-preferred).*
+
+*Render evidence (2026-08-23, `scripts/render_page_evidence.py` → `adjudication/<qid>/`, gitignored): q_009's renders show Section 9 verbatim on viewer **p5** ("penal for contravention", 5 years / 10,000 rupees) while labeled p4 carries Section 7 with no S.9 — the earlier "S.9 ON p4" vision call looks like a page slip; label likely 4→5, owner's call. All 11 items have label+best-evidence page renders with needle highlights on digital pages.*
+
+## G. Standing integrity (2026-08-23)
+
+- `scripts/answer_evidence_pass.py` — rerunnable full-corpus answer verification.
+- Worker logs `page_coverage_gap` when chunks miss PDF pages (deployed in worker rev ≥00081).
+- Canary assertion 6: sum of `/doc-status` pages across the 8 golden docs vs `EXPECTED_TOTAL_PAGES` (default **201**; the earlier "185" was our own mis-sum, caught by this very check on its first run).
+
+## E. Already fixed (round 1)
 
 10 off-by-one labels corrected (+1; 6 confirmed via PDF text layer = independent ground truth, 4 via VLM OCR text = one-source, visual spot-check pending — see `scripts/fix_golden_pages.py`).

@@ -70,8 +70,8 @@
     "semantic_hash": "4a81e3987830a4beb5494f10bb5b9136"
   },
   "scripts/deploy.sh": {
-    "mtime": 1787230694.5343423,
-    "ast_hash": "b4c35edef36a3ff72bd4e7185ec19c34",
+    "mtime": 1787386936.3792768,
+    "ast_hash": "79e7beb0b5c97ee08bccaf109662b665",
     "semantic_hash": ""
   },
   "scripts/setup_firebase.sh": {
@@ -95,8 +95,8 @@
     "semantic_hash": ""
   },
   "services/common/ingestion/main.py": {
-    "mtime": 1786793643.7985423,
-    "ast_hash": "87bf4f9e4a3921d5b6a2a2d0935ca2d6",
+    "mtime": 1787432635.1260908,
+    "ast_hash": "9aae9fe23d1916e9f402e7e5421d39a3",
     "semantic_hash": ""
   },
   "services/common/ingestion/models.py": {
@@ -270,8 +270,8 @@
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1787254896.3596654,
-    "ast_hash": "d01183bd52d26ccbc911723284d01f4c",
+    "mtime": 1787388329.0433698,
+    "ast_hash": "0d598852c46694ae2c4aa2998d2a7394",
     "semantic_hash": ""
   },
   "ACTIONPLAN.md": {
@@ -290,8 +290,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1787382857.2440326,
-    "ast_hash": "7b4cba80f3bec982fbbff7028205849f",
+    "mtime": 1787432688.818301,
+    "ast_hash": "fac5a0732f5473337a67c41cc0821465",
     "semantic_hash": ""
   },
   "README.md": {
@@ -430,8 +430,8 @@
     "semantic_hash": ""
   },
   "goldendataset.json": {
-    "mtime": 1787384656.8132935,
-    "ast_hash": "4bd2342102dfaec7e12c71f0c7d0880f",
+    "mtime": 1787427749.005186,
+    "ast_hash": "bbfe99ff45e2878c8f8569e6eff72f6a",
     "semantic_hash": ""
   },
   "scripts/eval_phase2.py": {
@@ -510,8 +510,8 @@
     "semantic_hash": ""
   },
   "tests/test_ingestion_pipeline.py": {
-    "mtime": 1786722854.2652638,
-    "ast_hash": "859690a26bd5f8aeabecedb447cd9d52",
+    "mtime": 1787428615.7812,
+    "ast_hash": "148b3c4d8377aacb53b0738312643dfb",
     "semantic_hash": ""
   },
   "tests/test_pubsub_parser.py": {
@@ -730,8 +730,8 @@
     "semantic_hash": ""
   },
   "services/canary/main.py": {
-    "mtime": 1787385417.3206098,
-    "ast_hash": "18c70ab833de51064282bdfe777b5eaa",
+    "mtime": 1787432675.5546186,
+    "ast_hash": "2e49f126cf4cff916b46ddc63d185055",
     "semantic_hash": ""
   },
   "scripts/examine_flags.py": {
@@ -740,8 +740,23 @@
     "semantic_hash": ""
   },
   "label_adjudication_guide.md": {
-    "mtime": 1787386509.5338824,
-    "ast_hash": "0d4c582f57b38bc7ff56cf71951661df",
+    "mtime": 1787410018.1064003,
+    "ast_hash": "e574229fcf4dd323965aa7f87c738433",
+    "semantic_hash": ""
+  },
+  "services/canary/requirements.txt": {
+    "mtime": 1787387598.7572546,
+    "ast_hash": "d81da1e0bb9c3c162131259cb6d838b2",
+    "semantic_hash": ""
+  },
+  "handoff.md": {
+    "mtime": 1787432688.7933023,
+    "ast_hash": "6738a7f312a2fb8839690d6023607396",
+    "semantic_hash": ""
+  },
+  "scripts/answer_evidence_pass.py": {
+    "mtime": 1787432383.6624866,
+    "ast_hash": "a9c47fb201d5d59f3304914b79194d41",
     "semantic_hash": ""
   }
 }

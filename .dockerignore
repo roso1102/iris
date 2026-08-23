@@ -5,6 +5,10 @@ __pycache__
 *.pyc
 *.pyo
 .env
+.env.*
+!.env.example
+.github/
+firestore-rules-test/
 *.log
 .DS_Store
 trueassort/
