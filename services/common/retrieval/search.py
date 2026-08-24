@@ -124,6 +124,7 @@ class SearchOrchestrator:
         embedding = await asyncio.to_thread(self.provider.embed_query, query)
 
         from services.common.retrieval.hindi import (
+            contains_devanagari,
             is_romanized_hindi,
             transliterate_romanized_hindi,
         )
@@ -135,7 +136,39 @@ class SearchOrchestrator:
             and is_romanized_hindi(query)
         )
 
+        # ── Phase 2b: Cross-lingual gate (English→Hindi variant) ────
+        # Fires for English queries on mixed-Devanagari tenants where
+        # transliteration didn't already handle it. Flash-Lite generates
+        # a Hindi variant; the reranker filters noise after fusion.
+        has_dev = self._has_devanagari_corpus(tenant_id)
+        needs_xling = (
+            has_dev
+            and not needs_translit
+            and not is_romanized_hindi(query)
+            and not contains_devanagari(query)
+        )
+
         # ── Phase 3: All store searches in parallel ──────────────────
+        # Core: dense_orig + sparse_orig (always).
+        # Transliteration leg: sparse on Devanagari-transliterated query.
+        # Cross-lingual leg: dense_hindi + sparse_hindi (if variant generated).
+        xling_variant = None
+        xling_variant_embedding = None
+
+        if needs_xling:
+            # Generate Hindi variant in parallel with original embedding.
+            variant_task = asyncio.to_thread(
+                self.provider.generate_cross_lingual_variants, query
+            )
+            _, variants = await asyncio.gather(
+                asyncio.sleep(0), variant_task
+            )
+            xling_variant = variants[0] if variants else None
+            if xling_variant:
+                xling_variant_embedding = await asyncio.to_thread(
+                    self.provider.embed_query, xling_variant
+                )
+
         search_tasks = [
             asyncio.to_thread(
                 self.store.search_dense,
@@ -164,6 +197,25 @@ class SearchOrchestrator:
                     limit=top_k * 3,
                 )
             )
+        if xling_variant and xling_variant_embedding:
+            search_tasks.append(
+                asyncio.to_thread(
+                    self.store.search_dense,
+                    xling_variant_embedding,
+                    tenant_id,
+                    doc_ids,
+                    limit=top_k * 3,
+                )
+            )
+            search_tasks.append(
+                asyncio.to_thread(
+                    self.store.search_sparse,
+                    xling_variant,
+                    tenant_id,
+                    doc_ids,
+                    limit=top_k * 3,
+                )
+            )
 
         all_ranked = list(await asyncio.gather(*search_tasks))
 
@@ -173,16 +225,16 @@ class SearchOrchestrator:
         else:
             fused = reciprocal_rank_fusion(all_ranked[0], all_ranked[1])
 
+        # When cross-lingual is active, expand candidate pool for the
+        # reranker to filter. Otherwise use the standard pool size.
+        pool_size = top_k * 8 if xling_variant else top_k * 3
         scored = await asyncio.to_thread(
-            self._resolve_chunks, fused, top_k * 3, tenant_id
+            self._resolve_chunks, fused, pool_size, tenant_id
         )
 
-        # Diversity BEFORE the rerank leg (Stage 1b): page-level dedup only,
-        # skipped for doc-scoped sessions, so the precision stage (reranker)
-        # always has the final say on ordering.
-        if not doc_ids:
-            scored = diversity_penalty(scored, top_k=top_k)
-
+        # When reranker is active (rerank_blend set), skip diversity
+        # BEFORE reranking — let the reranker see all candidates.
+        # Diversity runs only when reranking is disabled (pure hybrid).
         if rerank_blend is not None and scored:
             scores = await asyncio.to_thread(
                 self.provider.rerank, query, [c.text for c in scored]
@@ -193,6 +245,8 @@ class SearchOrchestrator:
             for chunk, blended_score in zip(scored, blended):
                 chunk.score = blended_score
             scored.sort(key=lambda c: c.score, reverse=True)
+        elif not doc_ids:
+            scored = diversity_penalty(scored, top_k=top_k)
 
         results = scored[:top_k]
 
@@ -208,6 +262,7 @@ class SearchOrchestrator:
                 "tenant_id": tenant_id,
                 "num_results": len(results),
                 "transliteration": needs_translit,
+                "cross_lingual": bool(xling_variant),
             },
         )
         return results
@@ -229,6 +284,7 @@ class SearchOrchestrator:
 
         # ── Transliteration on the REWRITTEN query ────────────────────
         from services.common.retrieval.hindi import (
+            contains_devanagari,
             is_romanized_hindi,
             transliterate_romanized_hindi,
         )
@@ -239,6 +295,28 @@ class SearchOrchestrator:
             and self._has_devanagari_corpus(tenant_id)
             and is_romanized_hindi(rewritten)
         )
+
+        # ── Cross-lingual gate (English→Hindi variant) ──────────────
+        has_dev = self._has_devanagari_corpus(tenant_id)
+        needs_xling = (
+            has_dev
+            and not needs_translit
+            and not is_romanized_hindi(rewritten)
+            and not contains_devanagari(rewritten)
+        )
+        xling_variant = None
+        xling_variant_embedding = None
+
+        if needs_xling:
+            variant_task = asyncio.to_thread(
+                self.provider.generate_cross_lingual_variants, rewritten
+            )
+            _, variants = await asyncio.gather(asyncio.sleep(0), variant_task)
+            xling_variant = variants[0] if variants else None
+            if xling_variant:
+                xling_variant_embedding = await asyncio.to_thread(
+                    self.provider.embed_query, xling_variant
+                )
 
         # ── HyDE for original query (unchanged) ──────────────────────
         try:
@@ -275,6 +353,25 @@ class SearchOrchestrator:
                     limit=top_k * 3,
                 )
             )
+        if xling_variant and xling_variant_embedding:
+            search_tasks.append(
+                asyncio.to_thread(
+                    self.store.search_dense,
+                    xling_variant_embedding,
+                    tenant_id,
+                    doc_ids,
+                    limit=top_k * 3,
+                )
+            )
+            search_tasks.append(
+                asyncio.to_thread(
+                    self.store.search_sparse,
+                    xling_variant,
+                    tenant_id,
+                    doc_ids,
+                    limit=top_k * 3,
+                )
+            )
 
         all_ranked = list(await asyncio.gather(*search_tasks))
 
@@ -301,6 +398,7 @@ class SearchOrchestrator:
                 "tenant_id": tenant_id,
                 "num_results": len(results),
                 "transliteration": needs_translit,
+                "cross_lingual": bool(xling_variant),
             },
         )
         return results
