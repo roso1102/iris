@@ -90,8 +90,8 @@
     "semantic_hash": "35a1a9fb9872b76465c9e3fb1908826b"
   },
   "services/common/ingestion/chunker.py": {
-    "mtime": 1787342849.4071941,
-    "ast_hash": "dc7ee4c002b1bc7c1958b8dea3ab6747",
+    "mtime": 1787574044.1791558,
+    "ast_hash": "35fbcb0bae05095940f1366fe44f9204",
     "semantic_hash": ""
   },
   "services/common/ingestion/main.py": {
@@ -160,8 +160,8 @@
     "semantic_hash": ""
   },
   "tests/test_chunker.py": {
-    "mtime": 1787343169.2092707,
-    "ast_hash": "14bda00bf396c25c2b99646ed79ffa95",
+    "mtime": 1787574547.5577574,
+    "ast_hash": "69219d212325f15a9f15223dc1e865d4",
     "semantic_hash": ""
   },
   "tests/test_docling_integration.py": {

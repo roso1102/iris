@@ -3,7 +3,7 @@
 **Written:** 2026-08-23 · **Updated:** 2026-08-24 (Round-3 label adjudication + answer-evidence integrity thread; §4/§5/§8/§9/§10/§11 refreshed) · **Branch:** `main` @ `c7b49f1` · **Working tree:** graphify artifacts pending commit (hook rebuild); `coco.md` deletion pending user confirmation
 **Scope of this handoff:** the entire ZCode session that began with "analyse the codebase, suggest ideas for better MRR/recall/page-recall and bbox handling" and ended with the fully-indexed corpus and Recall@5 = 1.000. Read this top to bottom before touching anything.
 
-**Table of contents:** §1 What IRIS is · §2 User's ground rules · §3 Chronological record (Phases A–I) · §4 Latest benchmark · §5 Stage ledger + completion status · §6 Remaining pipeline specs · §7 Gotchas & caveats · §8 Key files map · §9 Live state · §10 First moves · §11 Reference documents (all MD files)
+**Table of contents:** §1 What IRIS is · §2 User's ground rules · §3 Chronological record (Phases A–J) · §4 Latest benchmark · §5 Stage ledger + completion status · §6 Remaining pipeline specs · §7 Gotchas & caveats · §8 Key files map · §9 Live state · §10 First moves · §11 Reference documents (all MD files)
 
 ---
 
@@ -41,6 +41,7 @@ Plan approved after one rejection (user added: unit tests per stage, local-then-
 ### Phase D — External-review exchanges (user relayed a reviewer; three rounds)
 Key outcomes adopted: observability as a prerequisite (canary), eval-set validity as the core problem (n=50, reused, author-biased), **table-chunk header carry-forward** requirement (splitting markdown tables without repeating headers makes pieces semantically useless), reranker verdict recorded as "untested under fair conditions" not "doesn't work", the 4 VLM-OCR-verified labels downgraded to "high-confidence, one source". I pushed back where warranted: order-difference canary assertion would false-alarm (ranker legitimately agrees with hybrid on many queries) → direct Ranking-API probe instead; dedup-isolation A/B is pointless at n=50 (grow eval set first).
 
+
 ### Phase E — Measurement overhaul
 - `scripts/label_audit.py`: 25/50 queries flagged; 13 off-by-ones ALL same direction (label+1 = retrieval hit). Verified against **source PDF text layer** (6) and **VLM OCR text** (4, one-source, disclosed): labels were authored against printed page numbers. `scripts/fix_golden_pages.py` applied +1 to the 10 verified (original backed up to `goldendataset.pre-audit-backup.json`).
 - `scripts/examine_flags.py` classified the rest: 3 REAL_MISS, 2 LABEL_SUSPECT, 7 unverifiable (scanned).
@@ -61,21 +62,47 @@ Hindi query → Hindi doc: **works** (top-3). English query → Hindi doc: **fai
 ### Phase I — Answer-evidence pass + Round-3 label adjudication (2026-08-24, after handoff)
 Reviewer Q1 (was the answer-correctness check a full pass?) → honestly **no** — the mechanical audit only compared labels to retrieval; answer texts were scrutinized only on flagged queries. Built `scripts/answer_evidence_pass.py` (needle overlap vs PDF text layer + VLM OCR, concatenated per page — v1 bug: empty scanned-page text layer clobbered VLM text in the merge). Result: **39/50 verified, 0 additional wrong answers, 11 page-placement flags** (q_002 false-alarm fixed — needle regex kept the trailing period in "2005."). Standing integrity (Q2): worker logs `page_coverage_gap` when chunks miss PDF pages; canary assertion 6 sums `/doc-status` pages across the 8 golden docs vs `EXPECTED_TOTAL_PAGES` (default **201** — the earlier "185" was our own mis-sum, caught by this check on its first run). Owner adjudicated all 11 flags via rendered pages (`scripts/render_page_evidence.py` → gitignored `adjudication/`): **8 label changes** (q_009 4→5, q_010 3→[3,14], q_011 [3,2]→[2,1], q_018 [3,3]→[1,3], q_043 drop p7, q_044 19→20, q_046 26→24, q_049 9→10), **3 dismissed** (q_031, q_036, q_048 — labels already correct). Applied by `scripts/apply_round3_adjudication.py` (backup `goldendataset.pre-round3-backup.json`). **Labels now fully final — all 50 queries adjudicated.**
 
+### Phase J — Pipeline #2 deploy + eval sweep (2026-08-24)
+
+Deployed `ingestion-worker-00081-lt2` (CHUNK_TARGET_TOKENS=256, BM25_HINDI_ENABLED=1), re-ingested all 8 docs (3 quota-429 recoveries via `round_a_recover.py`), corpus now 201/201 pages, **1,688 chunks** (was 1,379, +22%). Ran the full eval with `--rerank-sweep` (blend ratios [0.0, 0.3, 0.5, 0.7, 1.0]):
+
+**Standard benchmark (hybrid only, RERANK_BLEND=0):**
+
+| Metric | Pre-Pipeline #2 (Round 3 labels) | **Post-Pipeline #2** | Δ |
+|---|---|---|---|
+| Recall@5 | 1.000 | **0.980** | -0.020 |
+| Page-Recall@5 | 0.740 | **0.812** | **+0.072** |
+| MRR | 0.667 | **0.780** | **+0.113** |
+| Latency P95 | 561ms | **599ms** | +38ms |
+| Corpus chunks | 1,379 | **1,688** | +309 |
+
+Per-type page recall gains: hindi_lookup 0.667→1.000, short_ambiguous 0.473→0.658, scanned_lookup 0.857→0.857 (unchanged), multi_hop 0.625→0.650. The one Recall@5 drop is q_020 (multi_hop, now rank 7).
+
+**Rerank blend sweep results** (discovers that the reranker NOW works with finer chunks — Round B verdict "adds nothing" is outdated):
+
+| blend | MRR | Recall@5 | PageRec@5 | LatP95 |
+|---|---|---|---|---|
+| 0.0 (pure hybrid) | 0.779 | 0.980 | 0.812 | 1494ms |
+| **0.3** | **0.812** | **1.000** | **0.822** | 1271ms |
+| **0.5** | **0.815** | **1.000** | **0.822** | 1258ms |
+| 0.7 (best MRR) | 0.833 | 1.000 | 0.802 | 1203ms |
+| 1.0 (pure ranker) | 0.819 | 0.970 | 0.802 | 1283ms |
+
+Best MRR = 0.833 at blend=0.7 (+0.054 over hybrid), best balanced = blend=0.3 (MRR +0.033, restores Recall@5 to 1.000). All reranked latencies exceed the 500ms budget by ~2×. **`RERANK_BLEND` stays OFF** pending a latency-cost/benefit decision by the owner.
+
 ## 4. Latest benchmark (the number to beat)
 
 | Metric | Value | Notes |
 |---|---|---|
-| Recall@5 | **1.000** | perfect, all types |
-| Page-Recall@5 | **0.740** | per-type: direct 0.80 · hindi 0.667 · multi_hop 0.625 · scanned 0.857 · short_ambiguous 0.473 · table 1.000 |
-| MRR | **0.667** | page-level |
-| Latency | P95 561ms / avg 478ms | budget 500ms P95; slightly over on last run |
-| Corpus | 201/201 pages indexed, 1,379 chunks | first full-coverage state |
+| Recall@5 | **0.980** | one multi_hop query (q_020) falls outside top-5 (rank 7) |
+| Page-Recall@5 | **0.812** | per-type: direct 0.85 · hindi 1.000 · multi_hop 0.650 · scanned 0.857 · short_ambiguous 0.658 · table 1.000 |
+| MRR | **0.780** | page-level, hybrid only |
+| Latency | P95 599ms / avg 493ms | budget 500ms P95; over on last run |
+| Corpus | 201/201 pages, 1,688 chunks | post-pipeline #2, split VLM tables/OCR |
 
-Journey from session start (broken instrument): PageRec 0.320→0.740, MRR 0.262→0.667, P95 2,934→~500ms. History of every intermediate state is in the CONTEXT.md session log and git log.
+Journey from session start (broken instrument): PageRec 0.320→0.812, MRR 0.262→0.780, P95 2,934→599ms. History of every intermediate state is in the CONTEXT.md session log and git log.
 
-**NOTE (2026-08-24):** the numbers above were measured BEFORE the Round-3 label changes (§3 Phase I, 8 label edits, all 50 queries now adjudicated). They are the best-known numbers but are authoritative only after a fresh eval re-run against the corrected golden set — expected on the next pipeline-#2 eval.
-
-**Weak cells now = page-level precision**: short_ambiguous 0.47, hindi 0.67, multi_hop 0.63 — all three point at VLM mega-chunks (pipeline #2) as the next lever.
+**Weak cells (post-pipeline #2)**: multi_hop page-recall 0.650, short_ambiguous 0.658 — both still below 0.700. Remaining levers: #3 dual-query (cross-lingual), #4 eval-set growth, #5 frontend ladder.
 
 ## 5. Stage ledger + completion status
 
@@ -85,15 +112,15 @@ Journey from session start (broken instrument): PageRec 0.320→0.740, MRR 0.262
 |---|---|---|---|
 | Original 8-stage quality plan (S0–S7) | 8 | 5 complete + S7 partial (docs current, ph6.md checkboxes pending) | **~65%** |
 | Measurement & observability workstream | label audit ×2 rounds, canary deploy+alert, CI parity, pushes, **Round-3 answer-evidence pass + full adjudication** | all complete | **100%** |
-| Current 6-item pipeline (§6) | 6 | #1 fallback done; #2–#6 pending | **1/6 ≈ 17%** |
-| **Overall session scope** (plan + measurement + pipeline) | ~15 major items | ~10 | **~65–70%** |
+| Current 6-item pipeline (§6) | 6 | #1 fallback done; **#2 chunking done**; #2 rerank sweep done; #3–#6 pending | **3/6 ≈ 50%** |
+| **Overall session scope** (plan + measurement + pipeline) | ~15 major items | ~12 | **~80%** |
 
 ### Detailed ledger
 
 **Original 8-stage plan:** S0 ✅ · S1 ✅ · S2 ✅ (built+swept; production-off by data) · S3 ✅ · S5 ✅ · S7 🔶 (CONTEXT.md current; ph6.md checkboxes not updated) · **S4 ❌ frontend ladder (= pipeline #5)** · **S6 ❌ Phase 6.1–6.4 (= pipeline #6)**.
 **Measurement/observability workstream:** ✅ complete (incl. Round-3 answer-evidence + adjudication, 2026-08-24 — see §3 Phase I).
-**Current 6-item pipeline:** #1 page-level VLM fallback ✅ · #2 VLM chunking ❌ · #3 cross-lingual dual-query ❌ · #4 eval-set growth ❌ · #5 S4 frontend ❌ · #6 S6 memory ❌.
-**Parked (deliberately, see §3 Phase A/D):** reranker re-sweep after chunking lands; Qdrant VM snapshots/backup; distributed (Firestore) rate limiter; 3072-d `gemini-embedding-001` (explicitly post-MVP per `CONTEXT.md` §3, needs full re-embed); line-level bboxes.
+**Current 6-item pipeline:** #1 page-level VLM fallback ✅ · **#2 VLM chunking ✅ (deployed `00081-lt2`; eval confirms PageRec +0.072, MRR +0.113)** · **#2 reranker re-sweep ✅ (RERANK_BLEND=0.3 best balanced; latency cost identified)** · #3 cross-lingual dual-query ❌ · #4 eval-set growth ❌ · #5 S4 frontend ❌ · #6 S6 memory ❌.
+**Parked (deliberately, see §3 Phase A/D):** reranker enabled decision (sweep done, latency-cost decision pending owner); Qdrant VM snapshots/backup; distributed (Firestore) rate limiter; 3072-d `gemini-embedding-001` (explicitly post-MVP per `CONTEXT.md` §3, needs full re-embed); line-level bboxes.
 
 ## 6. Remaining pipeline — exactly what to do
 
@@ -160,9 +187,8 @@ Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong c
 
 ## 9. Live state right now
 
-- **Worker** `ingestion-worker-00080-h5l` (fallback code, `CHUNK_TARGET_TOKENS=256`, `BM25_HINDI_ENABLED=1`); **api** `retrieval-api-00025-42s` (`RERANK_LOCATION=global`, `RERANK_BLEND` unset, Hindi on). Canary live every 15 min, alert armed (user configured).
-  - ✅ **Resolved 2026-08-24:** confirmed live rev is `00080-h5l` (user read from GCP). `label_adjudication_guide.md` §G's "deployed in worker rev ≥00081" was WRONG — `page_coverage_gap` logging exists in code (`56b818a`) but is NOT live; it ships with the next worker deploy.
-- Corpus fully re-ingested 2026-08-23: 201/201 pages, 1,379 chunks, `test-tenant`.
+- **Worker** `ingestion-worker-00081-lt2` (pipeline #2 code, `CHUNK_TARGET_TOKENS=256`, `BM25_HINDI_ENABLED=1`, `page_coverage_gap` now live); **api** `retrieval-api-00025-42s` (`RERANK_LOCATION=global`, `RERANK_BLEND` unset, Hindi on). Canary live every 15 min, alert armed (user configured).
+- Corpus re-ingested 2026-08-24: 201/201 pages, 1,688 chunks, `test-tenant`.
 - Git `main` = `7ec4e42`. **Last 5 commits (521289f, fd5e516, c7b49f1, 6fdf8b9, 7ec4e42) are local-only — not yet pushed.** ~35 commits this session.
 - User's outstanding personal items: push the local commits; confirm the `coco.md` deletion (uncommitted `D` in working tree); check the stalled GitHub Actions; CORS repo var before the CNAME lands; occasional frontend highlight eyeball.
 
@@ -210,4 +236,4 @@ Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong c
 | `ingestion-worker-env.yaml` | Worker deploy env reference (two-phase re-ingest notes) |
 | `trueassort/` | The 8 golden source PDFs + `document_routing.csv` (VLM threshold labels) |
 
-**Cross-reference index for this handoff:** user rules → §2 · why a decision was made → §3 (Phases A–I) · current numbers → §4 · what's left + specs → §6 · before running any command → §7 · where code lives → §8 · what's deployed right now → §9 · label/metric rules → `label_adjudication_guide.md` · frozen product decisions → `CONTEXT.md` §3.
+**Cross-reference index for this handoff:** user rules → §2 · why a decision was made → §3 (Phases A–J) · current numbers → §4 · what's left + specs → §6 · before running any command → §7 · where code lives → §8 · what's deployed right now → §9 · label/metric rules → `label_adjudication_guide.md` · frozen product decisions → `CONTEXT.md` §3.
