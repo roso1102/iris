@@ -161,18 +161,18 @@ Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong c
 ## 9. Live state right now
 
 - **Worker** `ingestion-worker-00080-h5l` (fallback code, `CHUNK_TARGET_TOKENS=256`, `BM25_HINDI_ENABLED=1`); **api** `retrieval-api-00025-42s` (`RERANK_LOCATION=global`, `RERANK_BLEND` unset, Hindi on). Canary live every 15 min, alert armed (user configured).
-  - ⚠️ **Discrepancy to verify:** `label_adjudication_guide.md` §G claims `page_coverage_gap` is "deployed in worker rev ≥00081" — this handoff records the live worker as `00080-h5l`. Confirm the actual deployed rev (`gcloud run services describe`, ask first) before relying on that assertion in prod.
+  - ✅ **Resolved 2026-08-24:** confirmed live rev is `00080-h5l` (user read from GCP). `label_adjudication_guide.md` §G's "deployed in worker rev ≥00081" was WRONG — `page_coverage_gap` logging exists in code (`56b818a`) but is NOT live; it ships with the next worker deploy.
 - Corpus fully re-ingested 2026-08-23: 201/201 pages, 1,379 chunks, `test-tenant`.
-- Git `main` = `c7b49f1`. **Last 3 commits (521289f, fd5e516, c7b49f1) are local-only — not yet pushed.** ~33 commits this session.
+- Git `main` = `7ec4e42`. **Last 5 commits (521289f, fd5e516, c7b49f1, 6fdf8b9, 7ec4e42) are local-only — not yet pushed.** ~35 commits this session.
 - User's outstanding personal items: push the local commits; confirm the `coco.md` deletion (uncommitted `D` in working tree); check the stalled GitHub Actions; CORS repo var before the CNAME lands; occasional frontend highlight eyeball.
 
 ## 10. Suggested first moves for the receiving agent
 
 1. Read `CONTEXT.md`, this file, `label_adjudication_guide.md`.
-2. Run the local suite (command in §7) to confirm 242-pass baseline — **still not done as of 2026-08-24**.
+2. Run the local suite (command in §7) to confirm 242-pass baseline — ✅ done 2026-08-24 (242 passed, 1 skipped, ~4:47).
 3. Start pipeline #2 (VLM chunking) — spec in §6. Local tests first; the one re-ingest + eval needs the user's explicit go-ahead (they always answer).
-4. Harden `scripts/answer_evidence_pass.py`: fetch failures are printed but NOT tallied — no `FETCH_FAILED` count / non-zero exit, so a failed doc can masquerade as page-disagreement flags (~15-line change + test).
-5. Verify the deployed worker rev (§9 discrepancy) — `page_coverage_gap` may not actually be live.
+4. ~~Harden `scripts/answer_evidence_pass.py`~~ ✅ done 2026-08-24 (`FETCH_FAILED` tally + non-zero exit; tests in `tests/test_answer_evidence_pass.py`).
+5. ~~Verify the deployed worker rev~~ ✅ done 2026-08-24 — live rev IS `00080-h5l`; `page_coverage_gap` is code-only, not deployed (see §9).
 6. When in doubt on intent, re-read §2 (the user's rules) — they were set explicitly and the user enforces them.
 
 ## 11. Reference documents (every MD file that matters)

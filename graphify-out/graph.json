@@ -4,15 +4,200 @@
   "graph": {},
   "nodes": [
     {
+      "label": "answer_evidence_pass.py",
+      "file_type": "code",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "scripts_answer_evidence_pass",
+      "community": 40,
+      "community_name": "eval_phase2.py",
+      "norm_label": "answer_evidence_pass.py"
+    },
+    {
+      "label": "needles()",
+      "file_type": "code",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L38",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "scripts_answer_evidence_pass_needles",
+      "community": 40,
+      "community_name": "eval_phase2.py",
+      "norm_label": "needles()"
+    },
+    {
+      "label": "text_tokens()",
+      "file_type": "code",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L47",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "scripts_answer_evidence_pass_text_tokens",
+      "community": 40,
+      "community_name": "eval_phase2.py",
+      "norm_label": "text_tokens()"
+    },
+    {
+      "label": "pdf_pages()",
+      "file_type": "code",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L59",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "scripts_answer_evidence_pass_pdf_pages",
+      "community": 40,
+      "community_name": "eval_phase2.py",
+      "norm_label": "pdf_pages()"
+    },
+    {
+      "label": "api_pages()",
+      "file_type": "code",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L70",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "scripts_answer_evidence_pass_api_pages",
+      "community": 40,
+      "community_name": "eval_phase2.py",
+      "norm_label": "api_pages()"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L95",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "scripts_answer_evidence_pass_main",
+      "community": 40,
+      "community_name": "eval_phase2.py",
+      "norm_label": "main()"
+    },
+    {
+      "label": "Full-corpus answer-evidence pass over ALL 50 golden queries (reviewer Q1). The\u2026",
+      "file_type": "rationale",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "scripts_answer_evidence_pass_rationale_1",
+      "community": 40,
+      "community_name": "eval_phase2.py",
+      "norm_label": "full-corpus answer-evidence pass over all 50 golden queries (reviewer q1). the..."
+    },
+    {
+      "label": "test_answer_evidence_pass.py",
+      "file_type": "code",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tests_test_answer_evidence_pass",
+      "community": 71,
+      "community_name": "_load_pass",
+      "norm_label": "test_answer_evidence_pass.py"
+    },
+    {
+      "label": "_load_pass()",
+      "file_type": "code",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L24",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_test_answer_evidence_pass_load_pass",
+      "community": 71,
+      "community_name": "_load_pass",
+      "norm_label": "_load_pass()"
+    },
+    {
+      "label": "MonkeyPatch",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "_origin": "ast",
+      "id": "monkeypatch",
+      "community": 71,
+      "community_name": "_load_pass",
+      "norm_label": "monkeypatch"
+    },
+    {
+      "label": "ModuleType",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "_origin": "ast",
+      "id": "moduletype",
+      "community": 71,
+      "community_name": "_load_pass",
+      "norm_label": "moduletype"
+    },
+    {
+      "label": "test_api_failure_is_tallied_and_exits_nonzero()",
+      "file_type": "code",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L41",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_test_answer_evidence_pass_test_api_failure_is_tallied_and_exits_nonzero",
+      "community": 71,
+      "community_name": "_load_pass",
+      "norm_label": "test_api_failure_is_tallied_and_exits_nonzero()"
+    },
+    {
+      "label": "test_pdf_failure_is_tallied()",
+      "file_type": "code",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L66",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_test_answer_evidence_pass_test_pdf_failure_is_tallied",
+      "community": 71,
+      "community_name": "_load_pass",
+      "norm_label": "test_pdf_failure_is_tallied()"
+    },
+    {
+      "label": "test_clean_run_exits_zero()",
+      "file_type": "code",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L90",
+      "_callable": true,
+      "_origin": "ast",
+      "id": "tests_test_answer_evidence_pass_test_clean_run_exits_zero",
+      "community": 71,
+      "community_name": "_load_pass",
+      "norm_label": "test_clean_run_exits_zero()"
+    },
+    {
+      "label": "Tests for the answer-evidence pass hardening. Verifies that evidence-fetch\u2026",
+      "file_type": "rationale",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tests_test_answer_evidence_pass_rationale_1",
+      "community": 71,
+      "community_name": "_load_pass",
+      "norm_label": "tests for the answer-evidence pass hardening. verifies that evidence-fetch..."
+    },
+    {
+      "label": "Load answer_evidence_pass with a fake requests module, offline-safe.",
+      "file_type": "rationale",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L25",
+      "_origin": "ast",
+      "id": "tests_test_answer_evidence_pass_rationale_25",
+      "community": 71,
+      "community_name": "_load_pass",
+      "norm_label": "load answer_evidence_pass with a fake requests module, offline-safe."
+    },
+    {
       "label": "handoff.md",
       "file_type": "document",
       "source_file": "handoff.md",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "handoff",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "handoff.md"
+      "norm_label": "handoff.md",
+      "id": "handoff"
     },
     {
       "label": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
@@ -20,10 +205,10 @@
       "source_file": "handoff.md",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "handoff.md \u2014 iris retrieval-quality workstream (full session handoff)"
+      "norm_label": "handoff.md \u2014 iris retrieval-quality workstream (full session handoff)",
+      "id": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff"
     },
     {
       "label": "1. What IRIS is (one paragraph)",
@@ -31,10 +216,10 @@
       "source_file": "handoff.md",
       "source_location": "L10",
       "_origin": "ast",
-      "id": "handoff_1_what_iris_is_one_paragraph",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "1. what iris is (one paragraph)"
+      "norm_label": "1. what iris is (one paragraph)",
+      "id": "handoff_1_what_iris_is_one_paragraph"
     },
     {
       "label": "2. Ground rules the user has set (NEVER violate)",
@@ -42,10 +227,10 @@
       "source_file": "handoff.md",
       "source_location": "L14",
       "_origin": "ast",
-      "id": "handoff_2_ground_rules_the_user_has_set_never_violate",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "2. ground rules the user has set (never violate)"
+      "norm_label": "2. ground rules the user has set (never violate)",
+      "id": "handoff_2_ground_rules_the_user_has_set_never_violate"
     },
     {
       "label": "3. Chronological record of this session (what happened and why)",
@@ -53,10 +238,10 @@
       "source_file": "handoff.md",
       "source_location": "L23",
       "_origin": "ast",
-      "id": "handoff_3_chronological_record_of_this_session_what_happened_and_why",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "3. chronological record of this session (what happened and why)"
+      "norm_label": "3. chronological record of this session (what happened and why)",
+      "id": "handoff_3_chronological_record_of_this_session_what_happened_and_why"
     },
     {
       "label": "Phase A \u2014 Analysis (discussion only)",
@@ -64,10 +249,10 @@
       "source_file": "handoff.md",
       "source_location": "L25",
       "_origin": "ast",
-      "id": "handoff_phase_a_analysis_discussion_only",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "phase a \u2014 analysis (discussion only)"
+      "norm_label": "phase a \u2014 analysis (discussion only)",
+      "id": "handoff_phase_a_analysis_discussion_only"
     },
     {
       "label": "Phase B \u2014 Approved plan (v2) and Stages 0\u20135",
@@ -75,10 +260,10 @@
       "source_file": "handoff.md",
       "source_location": "L28",
       "_origin": "ast",
-      "id": "handoff_phase_b_approved_plan_v2_and_stages_0_5",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "phase b \u2014 approved plan (v2) and stages 0\u20135"
+      "norm_label": "phase b \u2014 approved plan (v2) and stages 0\u20135",
+      "id": "handoff_phase_b_approved_plan_v2_and_stages_0_5"
     },
     {
       "label": "Phase C \u2014 GCP Rounds A/B/C (live)",
@@ -86,10 +271,10 @@
       "source_file": "handoff.md",
       "source_location": "L36",
       "_origin": "ast",
-      "id": "handoff_phase_c_gcp_rounds_a_b_c_live",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "phase c \u2014 gcp rounds a/b/c (live)"
+      "norm_label": "phase c \u2014 gcp rounds a/b/c (live)",
+      "id": "handoff_phase_c_gcp_rounds_a_b_c_live"
     },
     {
       "label": "Phase D \u2014 External-review exchanges (user relayed a reviewer; three rounds)",
@@ -97,10 +282,10 @@
       "source_file": "handoff.md",
       "source_location": "L41",
       "_origin": "ast",
-      "id": "handoff_phase_d_external_review_exchanges_user_relayed_a_reviewer_three_rounds",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "phase d \u2014 external-review exchanges (user relayed a reviewer; three rounds)"
+      "norm_label": "phase d \u2014 external-review exchanges (user relayed a reviewer; three rounds)",
+      "id": "handoff_phase_d_external_review_exchanges_user_relayed_a_reviewer_three_rounds"
     },
     {
       "label": "Phase E \u2014 Measurement overhaul",
@@ -108,10 +293,10 @@
       "source_file": "handoff.md",
       "source_location": "L44",
       "_origin": "ast",
-      "id": "handoff_phase_e_measurement_overhaul",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "phase e \u2014 measurement overhaul"
+      "norm_label": "phase e \u2014 measurement overhaul",
+      "id": "handoff_phase_e_measurement_overhaul"
     },
     {
       "label": "Phase F \u2014 Canary (observability)",
@@ -119,10 +304,10 @@
       "source_file": "handoff.md",
       "source_location": "L49",
       "_origin": "ast",
-      "id": "handoff_phase_f_canary_observability",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "phase f \u2014 canary (observability)"
+      "norm_label": "phase f \u2014 canary (observability)",
+      "id": "handoff_phase_f_canary_observability"
     },
     {
       "label": "Phase G \u2014 Corpus completion (pipeline #1)",
@@ -130,10 +315,10 @@
       "source_file": "handoff.md",
       "source_location": "L52",
       "_origin": "ast",
-      "id": "handoff_phase_g_corpus_completion_pipeline_1",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "phase g \u2014 corpus completion (pipeline #1)"
+      "norm_label": "phase g \u2014 corpus completion (pipeline #1)",
+      "id": "handoff_phase_g_corpus_completion_pipeline_1"
     },
     {
       "label": "Phase H \u2014 Language findings (empirical, live-tested)",
@@ -141,10 +326,10 @@
       "source_file": "handoff.md",
       "source_location": "L58",
       "_origin": "ast",
-      "id": "handoff_phase_h_language_findings_empirical_live_tested",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "phase h \u2014 language findings (empirical, live-tested)"
+      "norm_label": "phase h \u2014 language findings (empirical, live-tested)",
+      "id": "handoff_phase_h_language_findings_empirical_live_tested"
     },
     {
       "label": "Phase I \u2014 Answer-evidence pass + Round-3 label adjudication (2026-08-24, after handoff)",
@@ -152,10 +337,10 @@
       "source_file": "handoff.md",
       "source_location": "L61",
       "_origin": "ast",
-      "id": "handoff_phase_i_answer_evidence_pass_round_3_label_adjudication_2026_08_24_after_handoff",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "phase i \u2014 answer-evidence pass + round-3 label adjudication (2026-08-24, after handoff)"
+      "norm_label": "phase i \u2014 answer-evidence pass + round-3 label adjudication (2026-08-24, after handoff)",
+      "id": "handoff_phase_i_answer_evidence_pass_round_3_label_adjudication_2026_08_24_after_handoff"
     },
     {
       "label": "4. Latest benchmark (the number to beat)",
@@ -163,10 +348,10 @@
       "source_file": "handoff.md",
       "source_location": "L64",
       "_origin": "ast",
-      "id": "handoff_4_latest_benchmark_the_number_to_beat",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "4. latest benchmark (the number to beat)"
+      "norm_label": "4. latest benchmark (the number to beat)",
+      "id": "handoff_4_latest_benchmark_the_number_to_beat"
     },
     {
       "label": "5. Stage ledger + completion status",
@@ -174,10 +359,10 @@
       "source_file": "handoff.md",
       "source_location": "L80",
       "_origin": "ast",
-      "id": "handoff_5_stage_ledger_completion_status",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "5. stage ledger + completion status"
+      "norm_label": "5. stage ledger + completion status",
+      "id": "handoff_5_stage_ledger_completion_status"
     },
     {
       "label": "Completion at a glance",
@@ -185,10 +370,10 @@
       "source_file": "handoff.md",
       "source_location": "L82",
       "_origin": "ast",
-      "id": "handoff_completion_at_a_glance",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "completion at a glance"
+      "norm_label": "completion at a glance",
+      "id": "handoff_completion_at_a_glance"
     },
     {
       "label": "Detailed ledger",
@@ -196,10 +381,10 @@
       "source_file": "handoff.md",
       "source_location": "L91",
       "_origin": "ast",
-      "id": "handoff_detailed_ledger",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "detailed ledger"
+      "norm_label": "detailed ledger",
+      "id": "handoff_detailed_ledger"
     },
     {
       "label": "6. Remaining pipeline \u2014 exactly what to do",
@@ -207,10 +392,10 @@
       "source_file": "handoff.md",
       "source_location": "L98",
       "_origin": "ast",
-      "id": "handoff_6_remaining_pipeline_exactly_what_to_do",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "6. remaining pipeline \u2014 exactly what to do"
+      "norm_label": "6. remaining pipeline \u2014 exactly what to do",
+      "id": "handoff_6_remaining_pipeline_exactly_what_to_do"
     },
     {
       "label": "#2 VLM chunking (next; the page-precision lever)",
@@ -218,10 +403,10 @@
       "source_file": "handoff.md",
       "source_location": "L100",
       "_origin": "ast",
-      "id": "handoff_2_vlm_chunking_next_the_page_precision_lever",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "#2 vlm chunking (next; the page-precision lever)"
+      "norm_label": "#2 vlm chunking (next; the page-precision lever)",
+      "id": "handoff_2_vlm_chunking_next_the_page_precision_lever"
     },
     {
       "label": "#3 Cross-lingual dual-query",
@@ -229,10 +414,10 @@
       "source_file": "handoff.md",
       "source_location": "L103",
       "_origin": "ast",
-      "id": "handoff_3_cross_lingual_dual_query",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "#3 cross-lingual dual-query"
+      "norm_label": "#3 cross-lingual dual-query",
+      "id": "handoff_3_cross_lingual_dual_query"
     },
     {
       "label": "#4 Eval-set growth (stratified new 50; 50 tune / 50 held-out)",
@@ -240,10 +425,10 @@
       "source_file": "handoff.md",
       "source_location": "L106",
       "_origin": "ast",
-      "id": "handoff_4_eval_set_growth_stratified_new_50_50_tune_50_held_out",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "#4 eval-set growth (stratified new 50; 50 tune / 50 held-out)"
+      "norm_label": "#4 eval-set growth (stratified new 50; 50 tune / 50 held-out)",
+      "id": "handoff_4_eval_set_growth_stratified_new_50_50_tune_50_held_out"
     },
     {
       "label": "#5 S4 frontend highlight ladder (repo `D:\\iris-frontend`)",
@@ -251,10 +436,10 @@
       "source_file": "handoff.md",
       "source_location": "L109",
       "_origin": "ast",
-      "id": "handoff_5_s4_frontend_highlight_ladder_repo_d_iris_frontend",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "#5 s4 frontend highlight ladder (repo `d:\\iris-frontend`)"
+      "norm_label": "#5 s4 frontend highlight ladder (repo `d:\\iris-frontend`)",
+      "id": "handoff_5_s4_frontend_highlight_ladder_repo_d_iris_frontend"
     },
     {
       "label": "#6 S6 Phase 6.1\u20136.4 (ACTIONPLAN.md ~lines 425\u2013450)",
@@ -262,10 +447,10 @@
       "source_file": "handoff.md",
       "source_location": "L112",
       "_origin": "ast",
-      "id": "handoff_6_s6_phase_6_1_6_4_actionplan_md_lines_425_450",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "#6 s6 phase 6.1\u20136.4 (actionplan.md ~lines 425\u2013450)"
+      "norm_label": "#6 s6 phase 6.1\u20136.4 (actionplan.md ~lines 425\u2013450)",
+      "id": "handoff_6_s6_phase_6_1_6_4_actionplan_md_lines_425_450"
     },
     {
       "label": "7. Gotchas & caveats (hard-won \u2014 read twice)",
@@ -273,10 +458,10 @@
       "source_file": "handoff.md",
       "source_location": "L115",
       "_origin": "ast",
-      "id": "handoff_7_gotchas_caveats_hard_won_read_twice",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "7. gotchas & caveats (hard-won \u2014 read twice)"
+      "norm_label": "7. gotchas & caveats (hard-won \u2014 read twice)",
+      "id": "handoff_7_gotchas_caveats_hard_won_read_twice"
     },
     {
       "label": "8. Key files map (for the next agent)",
@@ -284,10 +469,10 @@
       "source_file": "handoff.md",
       "source_location": "L147",
       "_origin": "ast",
-      "id": "handoff_8_key_files_map_for_the_next_agent",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "8. key files map (for the next agent)"
+      "norm_label": "8. key files map (for the next agent)",
+      "id": "handoff_8_key_files_map_for_the_next_agent"
     },
     {
       "label": "9. Live state right now",
@@ -295,10 +480,10 @@
       "source_file": "handoff.md",
       "source_location": "L161",
       "_origin": "ast",
-      "id": "handoff_9_live_state_right_now",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "9. live state right now"
+      "norm_label": "9. live state right now",
+      "id": "handoff_9_live_state_right_now"
     },
     {
       "label": "10. Suggested first moves for the receiving agent",
@@ -306,10 +491,10 @@
       "source_file": "handoff.md",
       "source_location": "L169",
       "_origin": "ast",
-      "id": "handoff_10_suggested_first_moves_for_the_receiving_agent",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "10. suggested first moves for the receiving agent"
+      "norm_label": "10. suggested first moves for the receiving agent",
+      "id": "handoff_10_suggested_first_moves_for_the_receiving_agent"
     },
     {
       "label": "11. Reference documents (every MD file that matters)",
@@ -317,10 +502,10 @@
       "source_file": "handoff.md",
       "source_location": "L178",
       "_origin": "ast",
-      "id": "handoff_11_reference_documents_every_md_file_that_matters",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "11. reference documents (every md file that matters)"
+      "norm_label": "11. reference documents (every md file that matters)",
+      "id": "handoff_11_reference_documents_every_md_file_that_matters"
     },
     {
       "label": "Created this session",
@@ -328,10 +513,10 @@
       "source_file": "handoff.md",
       "source_location": "L180",
       "_origin": "ast",
-      "id": "handoff_created_this_session",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "created this session"
+      "norm_label": "created this session",
+      "id": "handoff_created_this_session"
     },
     {
       "label": "Pre-existing, updated this session",
@@ -339,10 +524,10 @@
       "source_file": "handoff.md",
       "source_location": "L189",
       "_origin": "ast",
-      "id": "handoff_pre_existing_updated_this_session",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "pre-existing, updated this session"
+      "norm_label": "pre-existing, updated this session",
+      "id": "handoff_pre_existing_updated_this_session"
     },
     {
       "label": "Pre-existing, unchanged (referenced by this handoff)",
@@ -350,10 +535,10 @@
       "source_file": "handoff.md",
       "source_location": "L195",
       "_origin": "ast",
-      "id": "handoff_pre_existing_unchanged_referenced_by_this_handoff",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "pre-existing, unchanged (referenced by this handoff)"
+      "norm_label": "pre-existing, unchanged (referenced by this handoff)",
+      "id": "handoff_pre_existing_unchanged_referenced_by_this_handoff"
     },
     {
       "label": "Non-MD reference artifacts (frequently needed)",
@@ -361,10 +546,10 @@
       "source_file": "handoff.md",
       "source_location": "L205",
       "_origin": "ast",
-      "id": "handoff_non_md_reference_artifacts_frequently_needed",
       "community": 7,
       "community_name": "HANDOFF.md \u2014 IRIS Retrieval-Quality Workstream (full session handoff)",
-      "norm_label": "non-md reference artifacts (frequently needed)"
+      "norm_label": "non-md reference artifacts (frequently needed)",
+      "id": "handoff_non_md_reference_artifacts_frequently_needed"
     },
     {
       "label": "label_adjudication_guide.md",
@@ -725,88 +910,6 @@
       "id": "context_6_open_questions"
     },
     {
-      "label": "answer_evidence_pass.py",
-      "file_type": "code",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L1",
-      "_origin": "ast",
-      "community": 40,
-      "community_name": "eval_phase2.py",
-      "norm_label": "answer_evidence_pass.py",
-      "id": "scripts_answer_evidence_pass"
-    },
-    {
-      "label": "needles()",
-      "file_type": "code",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L38",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 40,
-      "community_name": "eval_phase2.py",
-      "norm_label": "needles()",
-      "id": "scripts_answer_evidence_pass_needles"
-    },
-    {
-      "label": "text_tokens()",
-      "file_type": "code",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L47",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 40,
-      "community_name": "eval_phase2.py",
-      "norm_label": "text_tokens()",
-      "id": "scripts_answer_evidence_pass_text_tokens"
-    },
-    {
-      "label": "pdf_pages()",
-      "file_type": "code",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L58",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 40,
-      "community_name": "eval_phase2.py",
-      "norm_label": "pdf_pages()",
-      "id": "scripts_answer_evidence_pass_pdf_pages"
-    },
-    {
-      "label": "api_pages()",
-      "file_type": "code",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L68",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 40,
-      "community_name": "eval_phase2.py",
-      "norm_label": "api_pages()",
-      "id": "scripts_answer_evidence_pass_api_pages"
-    },
-    {
-      "label": "main()",
-      "file_type": "code",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L92",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 40,
-      "community_name": "eval_phase2.py",
-      "norm_label": "main()",
-      "id": "scripts_answer_evidence_pass_main"
-    },
-    {
-      "label": "Full-corpus answer-evidence pass over ALL 50 golden queries (reviewer Q1). The\u2026",
-      "file_type": "rationale",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L1",
-      "_origin": "ast",
-      "community": 40,
-      "community_name": "eval_phase2.py",
-      "norm_label": "full-corpus answer-evidence pass over all 50 golden queries (reviewer q1). the...",
-      "id": "scripts_answer_evidence_pass_rationale_1"
-    },
-    {
       "label": "canary/main.py",
       "file_type": "code",
       "source_file": "services/canary/main.py",
@@ -905,8 +1008,8 @@
       "source_file": "services/common/ingestion/main.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 78,
-      "community_name": "ingestion/models.py",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "ingestion/main.py",
       "id": "services_common_ingestion_main"
     },
@@ -965,7 +1068,7 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "community": 110,
+      "community": 101,
       "community_name": "Chunk",
       "norm_label": "chunk",
       "id": "chunk"
@@ -978,8 +1081,8 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 78,
-      "community_name": "ingestion/models.py",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "ingestresult",
       "id": "services_common_ingestion_main_ingestresult"
     },
@@ -1050,7 +1153,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "._default_router()",
       "id": "services_common_ingestion_main_ingestionpipeline_default_router"
     },
@@ -1108,8 +1211,8 @@
       "source_file": "services/common/ingestion/main.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 78,
-      "community_name": "ingestion/models.py",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "ingestion orchestrator (actionplan tasks 1.2-1.9). order: preflight -> download...",
       "id": "services_common_ingestion_main_rationale_1"
     },
@@ -1174,8 +1277,8 @@
       "source_file": "tests/test_ingestion_pipeline.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 78,
-      "community_name": "ingestion/models.py",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "test_ingestion_pipeline.py",
       "id": "tests_test_ingestion_pipeline"
     },
@@ -1342,8 +1445,8 @@
       "source_file": "tests/test_ingestion_pipeline.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 78,
-      "community_name": "ingestion/models.py",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "tier 1 integration tests \u2014 ingestionpipeline wiring with fakes. composes the...",
       "id": "tests_test_ingestion_pipeline_rationale_1"
     },
@@ -1919,8 +2022,8 @@
       "source_location": "L35",
       "_callable": true,
       "_origin": "ast",
-      "community": 92,
-      "community_name": "IngestionPipeline",
+      "community": 21,
+      "community_name": "VertexAIProvider",
       "norm_label": "_is_resource_exhausted()",
       "id": "services_common_models_vertex_is_resource_exhausted"
     },
@@ -2169,8 +2272,8 @@
       "source_file": "services/common/models/vertex.py",
       "source_location": "L36",
       "_origin": "ast",
-      "community": 92,
-      "community_name": "IngestionPipeline",
+      "community": 21,
+      "community_name": "VertexAIProvider",
       "norm_label": "return true if the exception is a vertex/api rate-limit condition.",
       "id": "services_common_models_vertex_rationale_36"
     },
@@ -2225,7 +2328,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 88,
-      "community_name": "base.py",
+      "community_name": "ModelProvider",
       "norm_label": "test_model_provider.py",
       "id": "tests_test_model_provider"
     },
@@ -2249,8 +2352,8 @@
       "source_location": "L12",
       "_callable": true,
       "_origin": "ast",
-      "community": 88,
-      "community_name": "base.py",
+      "community": 94,
+      "community_name": "MockModelProvider",
       "norm_label": ".test_mock_provider_factory()",
       "id": "tests_test_model_provider_testmodelproviderscaffold_test_mock_provider_factory"
     },
@@ -3491,8 +3594,8 @@
       "source_location": "L41",
       "_callable": true,
       "_origin": "ast",
-      "community": 110,
-      "community_name": "Chunk",
+      "community": 9,
+      "community_name": "ChunkStore",
       "norm_label": ".get_by_doc()",
       "id": "services_common_ingestion_store_chunkstore_get_by_doc"
     },
@@ -3576,7 +3679,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 68,
+      "community": 18,
       "community_name": "MemoryChunkStore",
       "norm_label": "memorychunkstore",
       "id": "services_common_ingestion_store_memorychunkstore"
@@ -3588,7 +3691,7 @@
       "source_location": "L100",
       "_callable": true,
       "_origin": "ast",
-      "community": 68,
+      "community": 18,
       "community_name": "MemoryChunkStore",
       "norm_label": ".__init__()",
       "id": "services_common_ingestion_store_memorychunkstore_init"
@@ -3600,7 +3703,7 @@
       "source_location": "L104",
       "_callable": true,
       "_origin": "ast",
-      "community": 110,
+      "community": 101,
       "community_name": "Chunk",
       "norm_label": ".upsert_batch()",
       "id": "services_common_ingestion_store_memorychunkstore_upsert_batch"
@@ -3612,7 +3715,7 @@
       "source_location": "L110",
       "_callable": true,
       "_origin": "ast",
-      "community": 110,
+      "community": 101,
       "community_name": "Chunk",
       "norm_label": ".get_by_doc()",
       "id": "services_common_ingestion_store_memorychunkstore_get_by_doc"
@@ -3624,7 +3727,7 @@
       "source_location": "L114",
       "_callable": true,
       "_origin": "ast",
-      "community": 68,
+      "community": 18,
       "community_name": "MemoryChunkStore",
       "norm_label": ".search_dense()",
       "id": "services_common_ingestion_store_memorychunkstore_search_dense"
@@ -3648,7 +3751,7 @@
       "source_location": "L167",
       "_callable": true,
       "_origin": "ast",
-      "community": 68,
+      "community": 18,
       "community_name": "MemoryChunkStore",
       "norm_label": ".delete_by_doc()",
       "id": "services_common_ingestion_store_memorychunkstore_delete_by_doc"
@@ -3660,7 +3763,7 @@
       "source_location": "L180",
       "_callable": true,
       "_origin": "ast",
-      "community": 110,
+      "community": 101,
       "community_name": "Chunk",
       "norm_label": ".get_by_ids()",
       "id": "services_common_ingestion_store_memorychunkstore_get_by_ids"
@@ -3672,8 +3775,8 @@
       "source_location": "L190",
       "_callable": true,
       "_origin": "ast",
-      "community": 110,
-      "community_name": "Chunk",
+      "community": 18,
+      "community_name": "MemoryChunkStore",
       "norm_label": ".get_by_doc_pages()",
       "id": "services_common_ingestion_store_memorychunkstore_get_by_doc_pages"
     },
@@ -3684,7 +3787,7 @@
       "source_location": "L200",
       "_callable": true,
       "_origin": "ast",
-      "community": 68,
+      "community": 18,
       "community_name": "MemoryChunkStore",
       "norm_label": ".delete_by_session()",
       "id": "services_common_ingestion_store_memorychunkstore_delete_by_session"
@@ -3698,7 +3801,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community_name": "Chunk",
       "norm_label": "qdrantchunkstore",
       "id": "services_common_ingestion_store_qdrantchunkstore"
     },
@@ -3710,7 +3813,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community_name": "Chunk",
       "norm_label": ".__init__()",
       "id": "services_common_ingestion_store_qdrantchunkstore_init"
     },
@@ -3722,7 +3825,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community_name": "Chunk",
       "norm_label": "._tenant_doc_filter()",
       "id": "services_common_ingestion_store_qdrantchunkstore_tenant_doc_filter"
     },
@@ -3733,8 +3836,8 @@
       "source_location": "L280",
       "_callable": true,
       "_origin": "ast",
-      "community": 64,
-      "community_name": "text_to_sparse",
+      "community": 101,
+      "community_name": "Chunk",
       "norm_label": ".upsert_batch()",
       "id": "services_common_ingestion_store_qdrantchunkstore_upsert_batch"
     },
@@ -3745,7 +3848,7 @@
       "source_location": "L314",
       "_callable": true,
       "_origin": "ast",
-      "community": 110,
+      "community": 101,
       "community_name": "Chunk",
       "norm_label": "._payload_to_chunk()",
       "id": "services_common_ingestion_store_qdrantchunkstore_payload_to_chunk"
@@ -3757,7 +3860,7 @@
       "source_location": "L338",
       "_callable": true,
       "_origin": "ast",
-      "community": 110,
+      "community": 101,
       "community_name": "Chunk",
       "norm_label": ".get_by_doc()",
       "id": "services_common_ingestion_store_qdrantchunkstore_get_by_doc"
@@ -3769,7 +3872,7 @@
       "source_location": "L370",
       "_callable": true,
       "_origin": "ast",
-      "community": 110,
+      "community": 101,
       "community_name": "Chunk",
       "norm_label": ".get_by_doc_pages()",
       "id": "services_common_ingestion_store_qdrantchunkstore_get_by_doc_pages"
@@ -3782,7 +3885,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community_name": "Chunk",
       "norm_label": ".search_dense()",
       "id": "services_common_ingestion_store_qdrantchunkstore_search_dense"
     },
@@ -3794,7 +3897,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community_name": "Chunk",
       "norm_label": ".search_sparse()",
       "id": "services_common_ingestion_store_qdrantchunkstore_search_sparse"
     },
@@ -3805,7 +3908,7 @@
       "source_location": "L459",
       "_callable": true,
       "_origin": "ast",
-      "community": 110,
+      "community": 101,
       "community_name": "Chunk",
       "norm_label": ".get_by_ids()",
       "id": "services_common_ingestion_store_qdrantchunkstore_get_by_ids"
@@ -3818,7 +3921,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community_name": "Chunk",
       "norm_label": ".delete_by_doc()",
       "id": "services_common_ingestion_store_qdrantchunkstore_delete_by_doc"
     },
@@ -3830,7 +3933,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community_name": "Chunk",
       "norm_label": ".delete_by_session()",
       "id": "services_common_ingestion_store_qdrantchunkstore_delete_by_session"
     },
@@ -3874,8 +3977,8 @@
       "source_file": "services/common/ingestion/store.py",
       "source_location": "L42",
       "_origin": "ast",
-      "community": 110,
-      "community_name": "Chunk",
+      "community": 9,
+      "community_name": "ChunkStore",
       "norm_label": "return all chunks for a document, enforcing tenant isolation.",
       "id": "services_common_ingestion_store_rationale_42"
     },
@@ -3951,7 +4054,7 @@
       "source_file": "services/common/ingestion/store.py",
       "source_location": "L98",
       "_origin": "ast",
-      "community": 68,
+      "community": 18,
       "community_name": "MemoryChunkStore",
       "norm_label": "in-memory store for dev/tests. thread-safe.",
       "id": "services_common_ingestion_store_rationale_98"
@@ -3963,7 +4066,7 @@
       "source_location": "L218",
       "_origin": "ast",
       "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community_name": "Chunk",
       "norm_label": "phase 2.0 qdrant store \u2014 v2 named-vector collection, hybrid search, cascading...",
       "id": "services_common_ingestion_store_rationale_218"
     },
@@ -4686,7 +4789,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": "testretrievalapi",
       "id": "tests_test_retrieval_api_testretrievalapi"
     },
@@ -4698,7 +4801,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".setupclass()",
       "id": "tests_test_retrieval_api_testretrievalapi_setupclass"
     },
@@ -4710,7 +4813,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".setup()",
       "id": "tests_test_retrieval_api_testretrievalapi_setup"
     },
@@ -4722,7 +4825,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".teardown()",
       "id": "tests_test_retrieval_api_testretrievalapi_teardown"
     },
@@ -4734,7 +4837,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".test_query_standard_with_tenant()",
       "id": "tests_test_retrieval_api_testretrievalapi_test_query_standard_with_tenant"
     },
@@ -4746,7 +4849,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".test_query_expands_to_parent_pages()",
       "id": "tests_test_retrieval_api_testretrievalapi_test_query_expands_to_parent_pages"
     },
@@ -4758,7 +4861,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".test_query_missing_token()",
       "id": "tests_test_retrieval_api_testretrievalapi_test_query_missing_token"
     },
@@ -4770,7 +4873,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".test_query_rerank_blend_env_wiring()",
       "id": "tests_test_retrieval_api_testretrievalapi_test_query_rerank_blend_env_wiring"
     },
@@ -4782,7 +4885,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".test_livez()",
       "id": "tests_test_retrieval_api_testretrievalapi_test_livez"
     },
@@ -4794,7 +4897,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".test_search_standard_missing_token()",
       "id": "tests_test_retrieval_api_testretrievalapi_test_search_standard_missing_token"
     },
@@ -4806,7 +4909,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".test_search_standard_with_tenant()",
       "id": "tests_test_retrieval_api_testretrievalapi_test_search_standard_with_tenant"
     },
@@ -4818,7 +4921,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".test_search_deep_with_tenant()",
       "id": "tests_test_retrieval_api_testretrievalapi_test_search_deep_with_tenant"
     },
@@ -4830,7 +4933,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".test_search_invalid_mode()",
       "id": "tests_test_retrieval_api_testretrievalapi_test_search_invalid_mode"
     },
@@ -4842,7 +4945,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".test_delete_document_missing_token()",
       "id": "tests_test_retrieval_api_testretrievalapi_test_delete_document_missing_token"
     },
@@ -4854,7 +4957,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".test_delete_document_with_tenant()",
       "id": "tests_test_retrieval_api_testretrievalapi_test_delete_document_with_tenant"
     },
@@ -4866,7 +4969,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".test_delete_session()",
       "id": "tests_test_retrieval_api_testretrievalapi_test_delete_session"
     },
@@ -4878,7 +4981,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 69,
-      "community_name": "Chunk",
+      "community_name": "mock_auth",
       "norm_label": ".test_delete_session_missing_token()",
       "id": "tests_test_retrieval_api_testretrievalapi_test_delete_session_missing_token"
     },
@@ -5151,8 +5254,8 @@
       "source_file": "services/common/ingestion/chunker.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 78,
-      "community_name": "ingestion/models.py",
+      "community": 90,
+      "community_name": "chunker.py",
       "norm_label": "chunker.py",
       "id": "services_common_ingestion_chunker"
     },
@@ -5175,8 +5278,8 @@
       "source_location": "L55",
       "_callable": true,
       "_origin": "ast",
-      "community": 106,
-      "community_name": "chunk_routed",
+      "community": 90,
+      "community_name": "chunker.py",
       "norm_label": "_page_level_metadata()",
       "id": "services_common_ingestion_chunker_page_level_metadata"
     },
@@ -5187,8 +5290,8 @@
       "source_location": "L63",
       "_callable": true,
       "_origin": "ast",
-      "community": 106,
-      "community_name": "chunk_routed",
+      "community": 90,
+      "community_name": "chunker.py",
       "norm_label": "_chunk_metadata()",
       "id": "services_common_ingestion_chunker_chunk_metadata"
     },
@@ -5198,8 +5301,8 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "community": 106,
-      "community_name": "chunk_routed",
+      "community": 90,
+      "community_name": "chunker.py",
       "norm_label": "routingresult",
       "id": "services_common_ingestion_chunker_py_routingresult"
     },
@@ -5210,8 +5313,8 @@
       "source_location": "L69",
       "_callable": true,
       "_origin": "ast",
-      "community": 106,
-      "community_name": "chunk_routed",
+      "community": 90,
+      "community_name": "chunker.py",
       "norm_label": "_standard_ocr_metadata()",
       "id": "services_common_ingestion_chunker_standard_ocr_metadata"
     },
@@ -5234,8 +5337,8 @@
       "source_location": "L151",
       "_callable": true,
       "_origin": "ast",
-      "community": 106,
-      "community_name": "chunk_routed",
+      "community": 90,
+      "community_name": "chunker.py",
       "norm_label": "_chunk_text()",
       "id": "services_common_ingestion_chunker_chunk_text"
     },
@@ -5245,8 +5348,8 @@
       "source_file": "services/common/ingestion/chunker.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 78,
-      "community_name": "ingestion/models.py",
+      "community": 90,
+      "community_name": "chunker.py",
       "norm_label": "sentence-boundary chunking (actionplan task 1.6). text elements -> chunks at...",
       "id": "services_common_ingestion_chunker_rationale_1"
     },
@@ -5267,8 +5370,8 @@
       "source_file": "services/common/ingestion/chunker.py",
       "source_location": "L70",
       "_origin": "ast",
-      "community": 106,
-      "community_name": "chunk_routed",
+      "community": 90,
+      "community_name": "chunker.py",
       "norm_label": "fix-011: tag chunks whose extraction quality is mid-tier (standard_ocr). pages...",
       "id": "services_common_ingestion_chunker_rationale_70"
     },
@@ -5725,7 +5828,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 88,
-      "community_name": "base.py",
+      "community_name": "ModelProvider",
       "norm_label": "base.py",
       "id": "services_common_models_base"
     },
@@ -5737,7 +5840,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "citation",
       "id": "services_common_models_base_citation"
@@ -5748,8 +5851,8 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": "basemodel",
       "id": "basemodel"
     },
@@ -5761,8 +5864,8 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": "structuredanswer",
       "id": "services_common_models_base_structuredanswer"
     },
@@ -5774,8 +5877,8 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "modelprovider",
       "id": "services_common_models_base_modelprovider"
     },
@@ -5786,8 +5889,8 @@
       "source_location": "L30",
       "_callable": true,
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": ".embed()",
       "id": "services_common_models_base_modelprovider_embed"
     },
@@ -5798,8 +5901,8 @@
       "source_location": "L37",
       "_callable": true,
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": ".embed_query()",
       "id": "services_common_models_base_modelprovider_embed_query"
     },
@@ -5810,8 +5913,8 @@
       "source_location": "L48",
       "_callable": true,
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": ".extract_table()",
       "id": "services_common_models_base_modelprovider_extract_table"
     },
@@ -5822,8 +5925,8 @@
       "source_location": "L56",
       "_callable": true,
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": ".ocr_page()",
       "id": "services_common_models_base_modelprovider_ocr_page"
     },
@@ -5834,8 +5937,8 @@
       "source_location": "L64",
       "_callable": true,
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": ".synthesize()",
       "id": "services_common_models_base_modelprovider_synthesize"
     },
@@ -5846,8 +5949,8 @@
       "source_location": "L81",
       "_callable": true,
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": ".rewrite_query()",
       "id": "services_common_models_base_modelprovider_rewrite_query"
     },
@@ -5858,8 +5961,8 @@
       "source_location": "L89",
       "_callable": true,
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": ".generate_hyde()",
       "id": "services_common_models_base_modelprovider_generate_hyde"
     },
@@ -5870,8 +5973,8 @@
       "source_location": "L96",
       "_callable": true,
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": ".rerank()",
       "id": "services_common_models_base_modelprovider_rerank"
     },
@@ -5882,7 +5985,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 88,
-      "community_name": "base.py",
+      "community_name": "ModelProvider",
       "norm_label": "modelprovider abstract base class for iris. all model inference calls...",
       "id": "services_common_models_base_rationale_1"
     },
@@ -5892,8 +5995,8 @@
       "source_file": "services/common/models/base.py",
       "source_location": "L27",
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "abstract model provider interface.",
       "id": "services_common_models_base_rationale_27"
     },
@@ -5903,8 +6006,8 @@
       "source_file": "services/common/models/base.py",
       "source_location": "L31",
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "generates a 768-dimensional vector embedding using the configured model...",
       "id": "services_common_models_base_rationale_31"
     },
@@ -5914,8 +6017,8 @@
       "source_file": "services/common/models/base.py",
       "source_location": "L38",
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "query-side embedding. text-embedding-004 is trained asymmetrically: retrieval...",
       "id": "services_common_models_base_rationale_38"
     },
@@ -5925,8 +6028,8 @@
       "source_file": "services/common/models/base.py",
       "source_location": "L49",
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "vision-language model (vlm) call on a cropped table/figure image region....",
       "id": "services_common_models_base_rationale_49"
     },
@@ -5936,8 +6039,8 @@
       "source_file": "services/common/models/base.py",
       "source_location": "L57",
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "vision-language model (vlm) full-page call for scanned or low-text pages (<150...",
       "id": "services_common_models_base_rationale_57"
     },
@@ -5947,8 +6050,8 @@
       "source_file": "services/common/models/base.py",
       "source_location": "L70",
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": "generates a grounded natural language answer with structured citations....",
       "id": "services_common_models_base_rationale_70"
     },
@@ -5958,8 +6061,8 @@
       "source_file": "services/common/models/base.py",
       "source_location": "L82",
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "slm-tier query rewriter. uses sliding window history (last n messages) to...",
       "id": "services_common_models_base_rationale_82"
     },
@@ -5969,8 +6072,8 @@
       "source_file": "services/common/models/base.py",
       "source_location": "L90",
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "hyde (hypothetical document embeddings) generator for deep search mode.",
       "id": "services_common_models_base_rationale_90"
     },
@@ -5980,8 +6083,8 @@
       "source_file": "services/common/models/base.py",
       "source_location": "L99",
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "cross-encoder reranking (phase 12.1): score a list of passages against the...",
       "id": "services_common_models_base_rationale_99"
     },
@@ -6350,8 +6453,8 @@
       "source_file": "tests/test_search_orchestrator.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 78,
-      "community_name": "ingestion/models.py",
+      "community": 16,
+      "community_name": "SearchOrchestrator",
       "norm_label": "test_search_orchestrator.py",
       "id": "tests_test_search_orchestrator"
     },
@@ -6554,8 +6657,8 @@
       "source_file": "tests/test_search_orchestrator.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 78,
-      "community_name": "ingestion/models.py",
+      "community": 16,
+      "community_name": "SearchOrchestrator",
       "norm_label": "phase 2.0 unit tests \u2014 searchorchestrator (standard + deep).",
       "id": "tests_test_search_orchestrator_rationale_1"
     },
@@ -7218,7 +7321,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "synthesis.py",
       "id": "services_common_retrieval_synthesis"
     },
@@ -7230,7 +7333,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "_expand_marker()",
       "id": "services_common_retrieval_synthesis_expand_marker"
     },
@@ -7242,7 +7345,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "normalize_answer_markers()",
       "id": "services_common_retrieval_synthesis_normalize_answer_markers"
     },
@@ -7253,7 +7356,7 @@
       "source_location": "",
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "scoredchunk",
       "id": "services_common_retrieval_synthesis_py_scoredchunk"
     },
@@ -7265,7 +7368,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "validate_citations()",
       "id": "services_common_retrieval_synthesis_validate_citations"
     },
@@ -7276,7 +7379,7 @@
       "source_location": "",
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "structuredanswer",
       "id": "services_common_retrieval_synthesis_py_structuredanswer"
     },
@@ -7287,7 +7390,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "server-side citation validation (phase 3.0 task 3.4 + phase 9.0 d/e). the llm's...",
       "id": "services_common_retrieval_synthesis_rationale_1"
     },
@@ -7298,7 +7401,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "expand a marker body like \"1\", \"2,3\", or \"1-3\" into a sorted int list. handles...",
       "id": "services_common_retrieval_synthesis_rationale_27"
     },
@@ -7309,7 +7412,7 @@
       "source_location": "L52",
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "split malformed citation markers and drop any ref not in `refs`. `refs` maps...",
       "id": "services_common_retrieval_synthesis_rationale_52"
     },
@@ -7320,7 +7423,7 @@
       "source_location": "L73",
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "drop hallucinated citations, overwrite valid ones with real metadata, and...",
       "id": "services_common_retrieval_synthesis_rationale_73"
     },
@@ -7342,7 +7445,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "test_synthesis.py",
       "id": "tests_test_synthesis"
     },
@@ -7354,7 +7457,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "_chunk()",
       "id": "tests_test_synthesis_chunk"
     },
@@ -7365,7 +7468,7 @@
       "source_location": "",
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "scoredchunk",
       "id": "tests_test_synthesis_py_scoredchunk"
     },
@@ -7378,7 +7481,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "testvalidatecitations",
       "id": "tests_test_synthesis_testvalidatecitations"
     },
@@ -7390,7 +7493,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": ".test_drops_hallucinated_chunk_ids()",
       "id": "tests_test_synthesis_testvalidatecitations_test_drops_hallucinated_chunk_ids"
     },
@@ -7402,7 +7505,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": ".test_overwrites_llm_coordinates_with_real_chunk()",
       "id": "tests_test_synthesis_testvalidatecitations_test_overwrites_llm_coordinates_with_real_chunk"
     },
@@ -7414,7 +7517,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": ".test_empty_retrieved_drops_all()",
       "id": "tests_test_synthesis_testvalidatecitations_test_empty_retrieved_drops_all"
     },
@@ -7426,7 +7529,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": ".test_no_citations_returns_unchanged_answer()",
       "id": "tests_test_synthesis_testvalidatecitations_test_no_citations_returns_unchanged_answer"
     },
@@ -7438,7 +7541,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": ".test_normalize_answer_markers_splits_arrays()",
       "id": "tests_test_synthesis_testvalidatecitations_test_normalize_answer_markers_splits_arrays"
     },
@@ -7450,7 +7553,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": ".test_normalize_answer_markers_expands_ranges()",
       "id": "tests_test_synthesis_testvalidatecitations_test_normalize_answer_markers_expands_ranges"
     },
@@ -7462,7 +7565,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": ".test_normalize_answer_markers_drops_unknown_refs()",
       "id": "tests_test_synthesis_testvalidatecitations_test_normalize_answer_markers_drops_unknown_refs"
     },
@@ -7473,7 +7576,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 1,
-      "community_name": "validate_citations",
+      "community_name": "Citation",
       "norm_label": "phase 3.0 task 3.4 \u2014 citation validation hallucination guard tests.",
       "id": "tests_test_synthesis_rationale_1"
     },
@@ -7495,7 +7598,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 88,
-      "community_name": "base.py",
+      "community_name": "ModelProvider",
       "norm_label": "gpu.py",
       "id": "services_common_models_gpu"
     },
@@ -7507,8 +7610,8 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": "selfhostedgpuprovider",
       "id": "services_common_models_gpu_selfhostedgpuprovider"
     },
@@ -7519,8 +7622,8 @@
       "source_location": "L24",
       "_callable": true,
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": ".embed()",
       "id": "services_common_models_gpu_selfhostedgpuprovider_embed"
     },
@@ -7531,8 +7634,8 @@
       "source_location": "L29",
       "_callable": true,
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": ".extract_table()",
       "id": "services_common_models_gpu_selfhostedgpuprovider_extract_table"
     },
@@ -7543,8 +7646,8 @@
       "source_location": "L34",
       "_callable": true,
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": ".ocr_page()",
       "id": "services_common_models_gpu_selfhostedgpuprovider_ocr_page"
     },
@@ -7555,8 +7658,8 @@
       "source_location": "L39",
       "_callable": true,
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": ".synthesize()",
       "id": "services_common_models_gpu_selfhostedgpuprovider_synthesize"
     },
@@ -7567,8 +7670,8 @@
       "source_location": "L49",
       "_callable": true,
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": ".rewrite_query()",
       "id": "services_common_models_gpu_selfhostedgpuprovider_rewrite_query"
     },
@@ -7579,8 +7682,8 @@
       "source_location": "L54",
       "_callable": true,
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": ".generate_hyde()",
       "id": "services_common_models_gpu_selfhostedgpuprovider_generate_hyde"
     },
@@ -7591,8 +7694,8 @@
       "source_location": "L59",
       "_callable": true,
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": ".rerank()",
       "id": "services_common_models_gpu_selfhostedgpuprovider_rerank"
     },
@@ -7603,7 +7706,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 88,
-      "community_name": "base.py",
+      "community_name": "ModelProvider",
       "norm_label": "self-hosted gpu model provider (phase 10.0). provides local gpu inference for...",
       "id": "services_common_models_gpu_rationale_1"
     },
@@ -7613,8 +7716,8 @@
       "source_file": "services/common/models/gpu.py",
       "source_location": "L22",
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": "dormant gpu provider stub. implemented in phase 10.0.",
       "id": "services_common_models_gpu_rationale_22"
     },
@@ -7624,8 +7727,8 @@
       "source_file": "services/common/models/mock.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 78,
-      "community_name": "ingestion/models.py",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "mock.py",
       "id": "services_common_models_mock"
     },
@@ -7697,8 +7800,8 @@
       "source_location": "L25",
       "_callable": true,
       "_origin": "ast",
-      "community": 118,
-      "community_name": "StructuredAnswer",
+      "community": 1,
+      "community_name": "Citation",
       "norm_label": ".synthesize()",
       "id": "services_common_models_mock_mockmodelprovider_synthesize"
     },
@@ -7744,8 +7847,8 @@
       "source_file": "services/common/models/mock.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 78,
-      "community_name": "ingestion/models.py",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "mock modelprovider implementation for zero-cost local testing and unit tests.",
       "id": "services_common_models_mock_rationale_1"
     },
@@ -7766,7 +7869,7 @@
       "source_file": "services/common/retrieval/models.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "retrieval/models.py",
       "id": "services_common_retrieval_models"
@@ -7779,7 +7882,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "scoredchunk",
       "id": "services_common_retrieval_models_scoredchunk"
@@ -7790,7 +7893,7 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "basemodel",
       "id": "services_common_retrieval_models_py_basemodel"
@@ -7803,7 +7906,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "searchrequest",
       "id": "services_common_retrieval_models_searchrequest"
@@ -7816,7 +7919,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "searchresponse",
       "id": "services_common_retrieval_models_searchresponse"
@@ -7829,7 +7932,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "queryrequest",
       "id": "services_common_retrieval_models_queryrequest"
@@ -7842,7 +7945,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "queryresponse",
       "id": "services_common_retrieval_models_queryresponse"
@@ -7855,7 +7958,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "deleteresponse",
       "id": "services_common_retrieval_models_deleteresponse"
@@ -7868,7 +7971,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "sessioncreaterequest",
       "id": "services_common_retrieval_models_sessioncreaterequest"
@@ -7881,7 +7984,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "sessionresponse",
       "id": "services_common_retrieval_models_sessionresponse"
@@ -7894,7 +7997,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "sessionlistresponse",
       "id": "services_common_retrieval_models_sessionlistresponse"
@@ -7907,7 +8010,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "viewurlresponse",
       "id": "services_common_retrieval_models_viewurlresponse"
@@ -7920,7 +8023,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "docstatusresponse",
       "id": "services_common_retrieval_models_docstatusresponse"
@@ -7933,7 +8036,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "uploadresponse",
       "id": "services_common_retrieval_models_uploadresponse"
@@ -7944,7 +8047,7 @@
       "source_file": "services/common/retrieval/models.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "phase 2.0 retrieval data models (phase 4.0: request-size guards).",
       "id": "services_common_retrieval_models_rationale_1"
@@ -7955,7 +8058,7 @@
       "source_file": "services/common/retrieval/models.py",
       "source_location": "L19",
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "a retrieved chunk with its fusion score.",
       "id": "services_common_retrieval_models_rationale_19"
@@ -8560,7 +8663,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": "testuploadapi",
       "id": "tests_test_upload_api_testuploadapi"
     },
@@ -8572,7 +8675,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": ".setupclass()",
       "id": "tests_test_upload_api_testuploadapi_setupclass"
     },
@@ -8584,7 +8687,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": ".setup()",
       "id": "tests_test_upload_api_testuploadapi_setup"
     },
@@ -8596,7 +8699,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": ".teardown()",
       "id": "tests_test_upload_api_testuploadapi_teardown"
     },
@@ -8608,7 +8711,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": "._fake_pdf()",
       "id": "tests_test_upload_api_testuploadapi_fake_pdf"
     },
@@ -8620,7 +8723,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": ".test_upload_missing_token()",
       "id": "tests_test_upload_api_testuploadapi_test_upload_missing_token"
     },
@@ -8632,7 +8735,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": ".test_upload_invalid_doc_id()",
       "id": "tests_test_upload_api_testuploadapi_test_upload_invalid_doc_id"
     },
@@ -8644,7 +8747,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": ".test_upload_wrong_content_type()",
       "id": "tests_test_upload_api_testuploadapi_test_upload_wrong_content_type"
     },
@@ -8656,7 +8759,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": ".test_upload_empty_file()",
       "id": "tests_test_upload_api_testuploadapi_test_upload_empty_file"
     },
@@ -8668,7 +8771,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": ".test_upload_oversized_file()",
       "id": "tests_test_upload_api_testuploadapi_test_upload_oversized_file"
     },
@@ -8680,7 +8783,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": ".test_upload_duplicate_doc_id_rejected()",
       "id": "tests_test_upload_api_testuploadapi_test_upload_duplicate_doc_id_rejected"
     },
@@ -8692,7 +8795,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": ".test_upload_happy_path()",
       "id": "tests_test_upload_api_testuploadapi_test_upload_happy_path"
     },
@@ -8704,7 +8807,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": ".test_upload_never_accepts_client_tenant()",
       "id": "tests_test_upload_api_testuploadapi_test_upload_never_accepts_client_tenant"
     },
@@ -10480,7 +10583,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 42,
-      "community_name": "mock_auth",
+      "community_name": "auth_headers",
       "norm_label": ".test_simple_authed_request_no_origin_no_cors_header()",
       "id": "tests_test_cors_testcorsmiddlewarewithauth_test_simple_authed_request_no_origin_no_cors_header"
     },
@@ -11525,7 +11628,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 18,
-      "community_name": "build_qa_response",
+      "community_name": "MemoryChunkStore",
       "norm_label": "build_qa_response()",
       "id": "services_common_ingestion_qa_view_build_qa_response"
     },
@@ -11570,7 +11673,7 @@
       "source_location": "L60",
       "_origin": "ast",
       "community": 18,
-      "community_name": "build_qa_response",
+      "community_name": "MemoryChunkStore",
       "norm_label": "return chunk overlay data for one page of a document. phase 4.0: requires a...",
       "id": "services_common_ingestion_qa_view_rationale_60"
     },
@@ -11937,7 +12040,7 @@
       "source_location": "L21",
       "_callable": true,
       "_origin": "ast",
-      "community": 42,
+      "community": 69,
       "community_name": "mock_auth",
       "norm_label": "mock_auth()",
       "id": "tests_auth_testing_mock_auth"
@@ -11949,7 +12052,7 @@
       "source_location": "L43",
       "_callable": true,
       "_origin": "ast",
-      "community": 37,
+      "community": 42,
       "community_name": "auth_headers",
       "norm_label": "auth_headers()",
       "id": "tests_auth_testing_auth_headers"
@@ -11971,7 +12074,7 @@
       "source_file": "tests/auth_testing.py",
       "source_location": "L22",
       "_origin": "ast",
-      "community": 42,
+      "community": 69,
       "community_name": "mock_auth",
       "norm_label": "patch the jwt verifier to return a fixed authcontext. the token string itself...",
       "id": "tests_auth_testing_rationale_22"
@@ -11982,7 +12085,7 @@
       "source_file": "tests/auth_testing.py",
       "source_location": "L44",
       "_origin": "ast",
-      "community": 37,
+      "community": 42,
       "community_name": "auth_headers",
       "norm_label": "headers for a request whose token maps to the given claims (mock-active).",
       "id": "tests_auth_testing_rationale_44"
@@ -11993,7 +12096,7 @@
       "source_file": "tests/test_auth.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "test_auth.py",
       "id": "tests_test_auth"
@@ -12185,7 +12288,7 @@
       "source_file": "tests/test_auth.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 90,
+      "community": 1,
       "community_name": "Citation",
       "norm_label": "phase 4.0 unit tests \u2014 auth dependency, tenant rewrite, id validation.",
       "id": "tests_test_auth_rationale_1"
@@ -12432,8 +12535,8 @@
       "source_file": "tests/test_ingestion_security.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 18,
-      "community_name": "build_qa_response",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "test_ingestion_security.py",
       "id": "tests_test_ingestion_security"
     },
@@ -12445,8 +12548,8 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 123,
-      "community_name": "TestDownloadLocalDevGate",
+      "community": 92,
+      "community_name": "IngestionPipeline",
       "norm_label": "testdownloadlocaldevgate",
       "id": "tests_test_ingestion_security_testdownloadlocaldevgate"
     },
@@ -12457,8 +12560,8 @@
       "source_location": "L25",
       "_callable": true,
       "_origin": "ast",
-      "community": 123,
-      "community_name": "TestDownloadLocalDevGate",
+      "community": 92,
+      "community_name": "IngestionPipeline",
       "norm_label": ".setup()",
       "id": "tests_test_ingestion_security_testdownloadlocaldevgate_setup"
     },
@@ -12469,8 +12572,8 @@
       "source_location": "L33",
       "_callable": true,
       "_origin": "ast",
-      "community": 123,
-      "community_name": "TestDownloadLocalDevGate",
+      "community": 92,
+      "community_name": "IngestionPipeline",
       "norm_label": ".teardown()",
       "id": "tests_test_ingestion_security_testdownloadlocaldevgate_teardown"
     },
@@ -12481,8 +12584,8 @@
       "source_location": "L36",
       "_callable": true,
       "_origin": "ast",
-      "community": 123,
-      "community_name": "TestDownloadLocalDevGate",
+      "community": 92,
+      "community_name": "IngestionPipeline",
       "norm_label": ".test_local_dev_allows_trueassort_path()",
       "id": "tests_test_ingestion_security_testdownloadlocaldevgate_test_local_dev_allows_trueassort_path"
     },
@@ -12493,8 +12596,8 @@
       "source_location": "L48",
       "_callable": true,
       "_origin": "ast",
-      "community": 123,
-      "community_name": "TestDownloadLocalDevGate",
+      "community": 92,
+      "community_name": "IngestionPipeline",
       "norm_label": ".test_local_dev_blocks_path_outside_trueassort()",
       "id": "tests_test_ingestion_security_testdownloadlocaldevgate_test_local_dev_blocks_path_outside_trueassort"
     },
@@ -12505,8 +12608,8 @@
       "source_location": "L56",
       "_callable": true,
       "_origin": "ast",
-      "community": 123,
-      "community_name": "TestDownloadLocalDevGate",
+      "community": 92,
+      "community_name": "IngestionPipeline",
       "norm_label": ".test_local_dev_blocks_parent_traversal()",
       "id": "tests_test_ingestion_security_testdownloadlocaldevgate_test_local_dev_blocks_parent_traversal"
     },
@@ -12517,8 +12620,8 @@
       "source_location": "L62",
       "_callable": true,
       "_origin": "ast",
-      "community": 123,
-      "community_name": "TestDownloadLocalDevGate",
+      "community": 92,
+      "community_name": "IngestionPipeline",
       "norm_label": ".test_local_dev_blocks_relative_path()",
       "id": "tests_test_ingestion_security_testdownloadlocaldevgate_test_local_dev_blocks_relative_path"
     },
@@ -12529,8 +12632,8 @@
       "source_location": "L67",
       "_callable": true,
       "_origin": "ast",
-      "community": 123,
-      "community_name": "TestDownloadLocalDevGate",
+      "community": 92,
+      "community_name": "IngestionPipeline",
       "norm_label": ".test_production_rejects_local_path()",
       "id": "tests_test_ingestion_security_testdownloadlocaldevgate_test_production_rejects_local_path"
     },
@@ -12541,8 +12644,8 @@
       "source_location": "L73",
       "_callable": true,
       "_origin": "ast",
-      "community": 123,
-      "community_name": "TestDownloadLocalDevGate",
+      "community": 92,
+      "community_name": "IngestionPipeline",
       "norm_label": ".test_production_accepts_valid_gcs_uri()",
       "id": "tests_test_ingestion_security_testdownloadlocaldevgate_test_production_accepts_valid_gcs_uri"
     },
@@ -12553,8 +12656,8 @@
       "source_location": "L80",
       "_callable": true,
       "_origin": "ast",
-      "community": 123,
-      "community_name": "TestDownloadLocalDevGate",
+      "community": 92,
+      "community_name": "IngestionPipeline",
       "norm_label": ".test_production_rejects_invalid_gcs_uri()",
       "id": "tests_test_ingestion_security_testdownloadlocaldevgate_test_production_rejects_invalid_gcs_uri"
     },
@@ -12628,7 +12731,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 18,
-      "community_name": "build_qa_response",
+      "community_name": "MemoryChunkStore",
       "norm_label": "testqaviewauthgate",
       "id": "tests_test_ingestion_security_testqaviewauthgate"
     },
@@ -12640,7 +12743,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 18,
-      "community_name": "build_qa_response",
+      "community_name": "MemoryChunkStore",
       "norm_label": ".setup()",
       "id": "tests_test_ingestion_security_testqaviewauthgate_setup"
     },
@@ -12652,7 +12755,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 18,
-      "community_name": "build_qa_response",
+      "community_name": "MemoryChunkStore",
       "norm_label": ".test_auth_bypassed_when_enforce_off()",
       "id": "tests_test_ingestion_security_testqaviewauthgate_test_auth_bypassed_when_enforce_off"
     },
@@ -12664,7 +12767,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 18,
-      "community_name": "build_qa_response",
+      "community_name": "MemoryChunkStore",
       "norm_label": ".test_auth_blocked_when_enforce_on_and_no_token()",
       "id": "tests_test_ingestion_security_testqaviewauthgate_test_auth_blocked_when_enforce_on_and_no_token"
     },
@@ -12676,7 +12779,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 18,
-      "community_name": "build_qa_response",
+      "community_name": "MemoryChunkStore",
       "norm_label": ".test_auth_blocked_with_non_admin_token()",
       "id": "tests_test_ingestion_security_testqaviewauthgate_test_auth_blocked_with_non_admin_token"
     },
@@ -12688,7 +12791,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 18,
-      "community_name": "build_qa_response",
+      "community_name": "MemoryChunkStore",
       "norm_label": ".test_auth_blocked_token_missing_tenant_claim()",
       "id": "tests_test_ingestion_security_testqaviewauthgate_test_auth_blocked_token_missing_tenant_claim"
     },
@@ -12700,7 +12803,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 18,
-      "community_name": "build_qa_response",
+      "community_name": "MemoryChunkStore",
       "norm_label": ".test_auth_passes_with_admin_token()",
       "id": "tests_test_ingestion_security_testqaviewauthgate_test_auth_passes_with_admin_token"
     },
@@ -12712,7 +12815,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 18,
-      "community_name": "build_qa_response",
+      "community_name": "MemoryChunkStore",
       "norm_label": ".test_verified_tenant_overrides_caller_tenant()",
       "id": "tests_test_ingestion_security_testqaviewauthgate_test_verified_tenant_overrides_caller_tenant"
     },
@@ -12724,7 +12827,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 18,
-      "community_name": "build_qa_response",
+      "community_name": "MemoryChunkStore",
       "norm_label": ".test_returns_400_without_tenant_id_when_enforce_off()",
       "id": "tests_test_ingestion_security_testqaviewauthgate_test_returns_400_without_tenant_id_when_enforce_off"
     },
@@ -12783,8 +12886,8 @@
       "source_file": "tests/test_ingestion_security.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 18,
-      "community_name": "build_qa_response",
+      "community": 88,
+      "community_name": "ModelProvider",
       "norm_label": "security hardening tests \u2014 findings 1-10 risk verification.",
       "id": "tests_test_ingestion_security_rationale_1"
     },
@@ -12794,8 +12897,8 @@
       "source_file": "tests/test_ingestion_security.py",
       "source_location": "L68",
       "_origin": "ast",
-      "community": 123,
-      "community_name": "TestDownloadLocalDevGate",
+      "community": 92,
+      "community_name": "IngestionPipeline",
       "norm_label": "without iris_local_dev, local paths must be rejected.",
       "id": "tests_test_ingestion_security_rationale_68"
     },
@@ -12806,7 +12909,7 @@
       "source_location": "L192",
       "_origin": "ast",
       "community": 18,
-      "community_name": "build_qa_response",
+      "community_name": "MemoryChunkStore",
       "norm_label": "jwt tenant is authoritative \u2014 caller-supplied tenant is ignored.",
       "id": "tests_test_ingestion_security_rationale_192"
     },
@@ -12997,7 +13100,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": "test_sessions_api.py",
       "id": "tests_test_sessions_api"
     },
@@ -13009,7 +13112,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": "_fake_firestore()",
       "id": "tests_test_sessions_api_fake_firestore"
     },
@@ -13022,7 +13125,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": "testsessionsapi",
       "id": "tests_test_sessions_api_testsessionsapi"
     },
@@ -13034,7 +13137,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".setupclass()",
       "id": "tests_test_sessions_api_testsessionsapi_setupclass"
     },
@@ -13046,7 +13149,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".setup()",
       "id": "tests_test_sessions_api_testsessionsapi_setup"
     },
@@ -13058,7 +13161,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".teardown()",
       "id": "tests_test_sessions_api_testsessionsapi_teardown"
     },
@@ -13070,7 +13173,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".test_create_session_requires_auth()",
       "id": "tests_test_sessions_api_testsessionsapi_test_create_session_requires_auth"
     },
@@ -13082,7 +13185,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".test_create_session_uses_jwt_tenant()",
       "id": "tests_test_sessions_api_testsessionsapi_test_create_session_uses_jwt_tenant"
     },
@@ -13094,7 +13197,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".test_create_session_rejects_traversal_doc_ids()",
       "id": "tests_test_sessions_api_testsessionsapi_test_create_session_rejects_traversal_doc_ids"
     },
@@ -13106,7 +13209,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".test_list_sessions_scoped_to_tenant()",
       "id": "tests_test_sessions_api_testsessionsapi_test_list_sessions_scoped_to_tenant"
     },
@@ -13118,7 +13221,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".test_delete_session_cascades()",
       "id": "tests_test_sessions_api_testsessionsapi_test_delete_session_cascades"
     },
@@ -13130,7 +13233,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".test_delete_document_removes_from_sessions()",
       "id": "tests_test_sessions_api_testsessionsapi_test_delete_document_removes_from_sessions"
     },
@@ -13143,7 +13246,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": "testviewurl",
       "id": "tests_test_sessions_api_testviewurl"
     },
@@ -13155,7 +13258,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".setupclass()",
       "id": "tests_test_sessions_api_testviewurl_setupclass"
     },
@@ -13167,7 +13270,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".setup()",
       "id": "tests_test_sessions_api_testviewurl_setup"
     },
@@ -13179,7 +13282,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".teardown()",
       "id": "tests_test_sessions_api_testviewurl_teardown"
     },
@@ -13191,7 +13294,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".test_view_url_requires_auth()",
       "id": "tests_test_sessions_api_testviewurl_test_view_url_requires_auth"
     },
@@ -13203,7 +13306,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".test_view_url_ownership_check_404()",
       "id": "tests_test_sessions_api_testviewurl_test_view_url_ownership_check_404"
     },
@@ -13215,7 +13318,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".test_view_url_signed_with_jwt_tenant_path()",
       "id": "tests_test_sessions_api_testviewurl_test_view_url_signed_with_jwt_tenant_path"
     },
@@ -13227,7 +13330,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": ".test_view_url_rejects_traversal()",
       "id": "tests_test_sessions_api_testviewurl_test_view_url_rejects_traversal"
     },
@@ -13238,7 +13341,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": "phase 4.0 tests \u2014 session crud endpoints + signed view url.",
       "id": "tests_test_sessions_api_rationale_1"
     },
@@ -13249,7 +13352,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "community": 37,
-      "community_name": "auth_headers",
+      "community_name": "TestSessionsApi",
       "norm_label": "firestore mock: document().get/set/update/delete tracked, collection stream...",
       "id": "tests_test_sessions_api_rationale_19"
     },
@@ -13520,8 +13623,8 @@
       "source_location": "L30",
       "_callable": true,
       "_origin": "ast",
-      "community": 71,
-      "community_name": "run_pipeline",
+      "community": 106,
+      "community_name": "chunk_routed",
       "norm_label": "run_pipeline()",
       "id": "tests_test_docling_large_run_pipeline"
     },
@@ -13531,8 +13634,8 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "community": 71,
-      "community_name": "run_pipeline",
+      "community": 106,
+      "community_name": "chunk_routed",
       "norm_label": "path",
       "id": "tests_test_docling_large_py_path"
     },
@@ -13542,8 +13645,8 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "community": 71,
-      "community_name": "run_pipeline",
+      "community": 106,
+      "community_name": "chunk_routed",
       "norm_label": "doclingparser",
       "id": "tests_test_docling_large_py_doclingparser"
     },
@@ -13553,8 +13656,8 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "community": 71,
-      "community_name": "run_pipeline",
+      "community": 106,
+      "community_name": "chunk_routed",
       "norm_label": "integration",
       "id": "tests_test_docling_large_py_integration"
     },
@@ -13566,8 +13669,8 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 71,
-      "community_name": "run_pipeline",
+      "community": 106,
+      "community_name": "chunk_routed",
       "norm_label": "testdoclinglargecpu",
       "id": "tests_test_docling_large_testdoclinglargecpu"
     },
@@ -13578,8 +13681,8 @@
       "source_location": "L70",
       "_callable": true,
       "_origin": "ast",
-      "community": 71,
-      "community_name": "run_pipeline",
+      "community": 106,
+      "community_name": "chunk_routed",
       "norm_label": ".setupclass()",
       "id": "tests_test_docling_large_testdoclinglargecpu_setupclass"
     },
@@ -13590,8 +13693,8 @@
       "source_location": "L75",
       "_callable": true,
       "_origin": "ast",
-      "community": 71,
-      "community_name": "run_pipeline",
+      "community": 106,
+      "community_name": "chunk_routed",
       "norm_label": ".test_all_trueassort_docs()",
       "id": "tests_test_docling_large_testdoclinglargecpu_test_all_trueassort_docs"
     },
@@ -13612,8 +13715,8 @@
       "source_file": "tests/test_docling_large.py",
       "source_location": "L67",
       "_origin": "ast",
-      "community": 71,
-      "community_name": "run_pipeline",
+      "community": 106,
+      "community_name": "chunk_routed",
       "norm_label": "parse the full 8-doc corpus on cpu and verify no doc is empty.",
       "id": "tests_test_docling_large_rationale_67"
     },
@@ -14389,8 +14492,8 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 78,
+      "community_name": "ingestion/models.py",
       "norm_label": "elementtype",
       "id": "services_common_ingestion_models_elementtype"
     },
@@ -14400,8 +14503,8 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 78,
+      "community_name": "ingestion/models.py",
       "norm_label": "str",
       "id": "str"
     },
@@ -14411,8 +14514,8 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 78,
+      "community_name": "ingestion/models.py",
       "norm_label": "enum",
       "id": "enum"
     },
@@ -14425,7 +14528,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "routedecision",
       "id": "services_common_ingestion_models_routedecision"
     },
@@ -14448,7 +14551,7 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "community": 69,
+      "community": 68,
       "community_name": "Chunk",
       "norm_label": "basemodel",
       "id": "services_common_ingestion_models_py_basemodel"
@@ -14473,7 +14576,7 @@
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
-      "community": 69,
+      "community": 68,
       "community_name": "Chunk",
       "norm_label": "chunk",
       "id": "services_common_ingestion_models_chunk"
@@ -14495,8 +14598,8 @@
       "source_file": "services/common/ingestion/models.py",
       "source_location": "L18",
       "_origin": "ast",
-      "community": 66,
-      "community_name": "ElementType",
+      "community": 78,
+      "community_name": "ingestion/models.py",
       "norm_label": "docling element labels, normalized for the pipeline.",
       "id": "services_common_ingestion_models_rationale_18"
     },
@@ -14507,7 +14610,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "page-wise vlm router outcome for a single element.",
       "id": "services_common_ingestion_models_rationale_32"
     },
@@ -14528,7 +14631,7 @@
       "source_file": "services/common/ingestion/models.py",
       "source_location": "L56",
       "_origin": "ast",
-      "community": 69,
+      "community": 68,
       "community_name": "Chunk",
       "norm_label": "a content unit ready to embed + store.",
       "id": "services_common_ingestion_models_rationale_56"
@@ -14800,7 +14903,7 @@
       "source_file": "services/common/ingestion/vlm_router.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "vlm_router.py",
       "id": "services_common_ingestion_vlm_router"
@@ -14812,7 +14915,7 @@
       "source_location": "L46",
       "_callable": true,
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "_vlm_cache_dir()",
       "id": "services_common_ingestion_vlm_router_vlm_cache_dir"
@@ -14823,7 +14926,7 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "path",
       "id": "services_common_ingestion_vlm_router_py_path"
@@ -14835,7 +14938,7 @@
       "source_location": "L51",
       "_callable": true,
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "_load_cached_vlm()",
       "id": "services_common_ingestion_vlm_router_load_cached_vlm"
@@ -14847,7 +14950,7 @@
       "source_location": "L61",
       "_callable": true,
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "_store_cached_vlm()",
       "id": "services_common_ingestion_vlm_router_store_cached_vlm"
@@ -14886,7 +14989,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "pagerenderer",
       "id": "services_common_ingestion_vlm_router_pagerenderer"
     },
@@ -14897,7 +15000,7 @@
       "source_location": "",
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "abc",
       "id": "services_common_ingestion_vlm_router_py_abc"
     },
@@ -14909,7 +15012,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": ".render_page()",
       "id": "services_common_ingestion_vlm_router_pagerenderer_render_page"
     },
@@ -14920,7 +15023,7 @@
       "source_location": "",
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "image",
       "id": "image"
     },
@@ -14933,7 +15036,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "fitzpagerenderer",
       "id": "services_common_ingestion_vlm_router_fitzpagerenderer"
     },
@@ -14945,7 +15048,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": ".render_page()",
       "id": "services_common_ingestion_vlm_router_fitzpagerenderer_render_page"
     },
@@ -14958,7 +15061,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "vlmrouter",
       "id": "services_common_ingestion_vlm_router_vlmrouter"
     },
@@ -14981,7 +15084,7 @@
       "source_location": "L111",
       "_callable": true,
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "_valid_word_ratio()",
       "id": "services_common_ingestion_vlm_router_valid_word_ratio"
@@ -14993,7 +15096,7 @@
       "source_location": "L139",
       "_callable": true,
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "_is_non_latin_dominant()",
       "id": "services_common_ingestion_vlm_router_is_non_latin_dominant"
@@ -15005,8 +15108,8 @@
       "source_location": "L154",
       "_callable": true,
       "_origin": "ast",
-      "community": 116,
-      "community_name": "vlm_router.py",
+      "community": 56,
+      "community_name": "ParsedElement",
       "norm_label": "_page_text_stats()",
       "id": "services_common_ingestion_vlm_router_page_text_stats"
     },
@@ -15019,7 +15122,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "routervlmrouter",
       "id": "services_common_ingestion_vlm_router_routervlmrouter"
     },
@@ -15031,7 +15134,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": ".__init__()",
       "id": "services_common_ingestion_vlm_router_routervlmrouter_init"
     },
@@ -15042,8 +15145,8 @@
       "source_location": "L184",
       "_callable": true,
       "_origin": "ast",
-      "community": 116,
-      "community_name": "vlm_router.py",
+      "community": 56,
+      "community_name": "ParsedElement",
       "norm_label": ".route()",
       "id": "services_common_ingestion_vlm_router_routervlmrouter_route"
     },
@@ -15054,7 +15157,7 @@
       "source_location": "L233",
       "_callable": true,
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "._cached_vlm_call()",
       "id": "services_common_ingestion_vlm_router_routervlmrouter_cached_vlm_call"
@@ -15066,7 +15169,7 @@
       "source_location": "L250",
       "_callable": true,
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "._route_element()",
       "id": "services_common_ingestion_vlm_router_routervlmrouter_route_element"
@@ -15078,8 +15181,8 @@
       "source_location": "L287",
       "_callable": true,
       "_origin": "ast",
-      "community": 116,
-      "community_name": "vlm_router.py",
+      "community": 56,
+      "community_name": "ParsedElement",
       "norm_label": "_crop_bbox()",
       "id": "services_common_ingestion_vlm_router_crop_bbox"
     },
@@ -15090,8 +15193,8 @@
       "source_location": "L302",
       "_callable": true,
       "_origin": "ast",
-      "community": 116,
-      "community_name": "vlm_router.py",
+      "community": 56,
+      "community_name": "ParsedElement",
       "norm_label": "_to_png_bytes()",
       "id": "services_common_ingestion_vlm_router_to_png_bytes"
     },
@@ -15138,7 +15241,7 @@
       "source_file": "services/common/ingestion/vlm_router.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "page-wise vlm router (actionplan task 1.5). per page, per element, decide the...",
       "id": "services_common_ingestion_vlm_router_rationale_1"
@@ -15161,7 +15264,7 @@
       "source_location": "L85",
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "renders pdf pages to images so the router can crop bbox regions.",
       "id": "services_common_ingestion_vlm_router_rationale_85"
     },
@@ -15172,7 +15275,7 @@
       "source_location": "L89",
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "return a pil.image of the given 1-based page at `scale`.",
       "id": "services_common_ingestion_vlm_router_rationale_89"
     },
@@ -15183,7 +15286,7 @@
       "source_location": "L93",
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "production page renderer backed by pymupdf (fitz).",
       "id": "services_common_ingestion_vlm_router_rationale_93"
     },
@@ -15204,7 +15307,7 @@
       "source_file": "services/common/ingestion/vlm_router.py",
       "source_location": "L112",
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "return fraction of characters from recognizable script categories. characters...",
       "id": "services_common_ingestion_vlm_router_rationale_112"
@@ -15215,7 +15318,7 @@
       "source_file": "services/common/ingestion/vlm_router.py",
       "source_location": "L140",
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "signal 5 (fix-008): true if >30% of letter chars are outside latin/extended-...",
       "id": "services_common_ingestion_vlm_router_rationale_140"
@@ -15226,8 +15329,8 @@
       "source_file": "services/common/ingestion/vlm_router.py",
       "source_location": "L155",
       "_origin": "ast",
-      "community": 116,
-      "community_name": "vlm_router.py",
+      "community": 56,
+      "community_name": "ParsedElement",
       "norm_label": "compute text area coverage ratio and total char count for text elements.",
       "id": "services_common_ingestion_vlm_router_rationale_155"
     },
@@ -15238,7 +15341,7 @@
       "source_location": "L169",
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "production router: crops bbox regions and calls the vlm via modelprovider.",
       "id": "services_common_ingestion_vlm_router_rationale_169"
     },
@@ -15248,8 +15351,8 @@
       "source_file": "services/common/ingestion/vlm_router.py",
       "source_location": "L288",
       "_origin": "ast",
-      "community": 116,
-      "community_name": "vlm_router.py",
+      "community": 56,
+      "community_name": "ParsedElement",
       "norm_label": "crop a normalized bbox [l,t,r,b] from a rendered page.",
       "id": "services_common_ingestion_vlm_router_rationale_288"
     },
@@ -15271,7 +15374,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 88,
-      "community_name": "base.py",
+      "community_name": "ModelProvider",
       "norm_label": "models/__init__.py",
       "id": "services_common_models_init"
     },
@@ -15282,7 +15385,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 88,
-      "community_name": "base.py",
+      "community_name": "ModelProvider",
       "norm_label": "package initialization for services.common.models.",
       "id": "services_common_models_init_rationale_1"
     },
@@ -15293,7 +15396,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 88,
-      "community_name": "base.py",
+      "community_name": "ModelProvider",
       "norm_label": "factory.py",
       "id": "services_common_models_factory"
     },
@@ -15305,7 +15408,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 88,
-      "community_name": "base.py",
+      "community_name": "ModelProvider",
       "norm_label": "get_model_provider()",
       "id": "services_common_models_factory_get_model_provider"
     },
@@ -15316,7 +15419,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 88,
-      "community_name": "base.py",
+      "community_name": "ModelProvider",
       "norm_label": "modelprovider factory for iris. reads model_backend env var from secret manager...",
       "id": "services_common_models_factory_rationale_1"
     },
@@ -15327,7 +15430,7 @@
       "source_location": "L14",
       "_origin": "ast",
       "community": 88,
-      "community_name": "base.py",
+      "community_name": "ModelProvider",
       "norm_label": "factory function returning the active modelprovider instance. model_backend...",
       "id": "services_common_models_factory_rationale_14"
     },
@@ -15619,8 +15722,8 @@
       "source_file": "tests/test_ground_truth_routing.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 83,
-      "community_name": "TestGroundTruthRouting",
+      "community": 66,
+      "community_name": "vlm_router.py",
       "norm_label": "test_ground_truth_routing.py",
       "id": "tests_test_ground_truth_routing"
     },
@@ -15631,8 +15734,8 @@
       "source_location": "L50",
       "_callable": true,
       "_origin": "ast",
-      "community": 83,
-      "community_name": "TestGroundTruthRouting",
+      "community": 66,
+      "community_name": "vlm_router.py",
       "norm_label": "_load_pages()",
       "id": "tests_test_ground_truth_routing_load_pages"
     },
@@ -15680,8 +15783,8 @@
       "source_location": "L92",
       "_callable": true,
       "_origin": "ast",
-      "community": 83,
-      "community_name": "TestGroundTruthRouting",
+      "community": 66,
+      "community_name": "vlm_router.py",
       "norm_label": ".setupclass()",
       "id": "tests_test_ground_truth_routing_testgroundtruthrouting_setupclass"
     },
@@ -15775,8 +15878,8 @@
       "source_file": "tests/test_ground_truth_routing.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 83,
-      "community_name": "TestGroundTruthRouting",
+      "community": 66,
+      "community_name": "vlm_router.py",
       "norm_label": "tier 0 unit tests \u2014 ground-truth routing verification against trueassort....",
       "id": "tests_test_ground_truth_routing_rationale_1"
     },
@@ -15874,8 +15977,8 @@
       "source_file": "tests/test_pipeline_layer2.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 78,
-      "community_name": "ingestion/models.py",
+      "community": 56,
+      "community_name": "ParsedElement",
       "norm_label": "test_pipeline_layer2.py",
       "id": "tests_test_pipeline_layer2"
     },
@@ -16019,8 +16122,8 @@
       "source_file": "tests/test_pipeline_layer2.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 78,
-      "community_name": "ingestion/models.py",
+      "community": 56,
+      "community_name": "ParsedElement",
       "norm_label": "layer 2 \u2014 local full-pipeline wiring test (zero network, zero cost). exercises...",
       "id": "tests_test_pipeline_layer2_rationale_1"
     },
@@ -16425,8 +16528,8 @@
       "source_file": "tests/test_qdrant_live.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community": 68,
+      "community_name": "Chunk",
       "norm_label": "test_qdrant_live.py",
       "id": "tests_test_qdrant_live"
     },
@@ -16437,8 +16540,8 @@
       "source_location": "L38",
       "_callable": true,
       "_origin": "ast",
-      "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community": 68,
+      "community_name": "Chunk",
       "norm_label": "_store()",
       "id": "tests_test_qdrant_live_store"
     },
@@ -16449,8 +16552,8 @@
       "source_location": "L42",
       "_callable": true,
       "_origin": "ast",
-      "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community": 68,
+      "community_name": "Chunk",
       "norm_label": "_chunk()",
       "id": "tests_test_qdrant_live_chunk"
     },
@@ -16461,8 +16564,8 @@
       "source_location": "L55",
       "_callable": true,
       "_origin": "ast",
-      "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community": 68,
+      "community_name": "Chunk",
       "norm_label": "test_collection_health()",
       "id": "tests_test_qdrant_live_test_collection_health"
     },
@@ -16473,8 +16576,8 @@
       "source_location": "L62",
       "_callable": true,
       "_origin": "ast",
-      "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community": 68,
+      "community_name": "Chunk",
       "norm_label": "test_roundtrip_upsert_search_delete()",
       "id": "tests_test_qdrant_live_test_roundtrip_upsert_search_delete"
     },
@@ -16484,8 +16587,8 @@
       "source_file": "tests/test_qdrant_live.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 101,
-      "community_name": "QdrantChunkStore",
+      "community": 68,
+      "community_name": "Chunk",
       "norm_label": "tier 2 live smoke tests \u2014 qdrant connectivity and read/write path. run only...",
       "id": "tests_test_qdrant_live_rationale_1"
     },
@@ -16496,7 +16599,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "test_router_signals.py",
       "id": "tests_test_router_signals"
     },
@@ -16533,7 +16636,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": ".setupclass()",
       "id": "tests_test_router_signals_testroutersignals_setupclass"
     },
@@ -16652,7 +16755,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 66,
-      "community_name": "ElementType",
+      "community_name": "vlm_router.py",
       "norm_label": "layer 1 unit tests \u2014 production vlm router signal logic. these exercise...",
       "id": "tests_test_router_signals_rationale_1"
     },
@@ -16739,7 +16842,7 @@
       "source_file": "tests/test_signal5.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "test_signal5.py",
       "id": "tests_test_signal5"
@@ -16751,7 +16854,7 @@
       "source_location": "L22",
       "_callable": true,
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "_reference_is_non_latin_dominant()",
       "id": "tests_test_signal5_reference_is_non_latin_dominant"
@@ -16859,7 +16962,7 @@
       "source_file": "tests/test_signal5.py",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "tier 0 unit tests \u2014 signal 5: non-latin script dominant detection (fix-008)....",
       "id": "tests_test_signal5_rationale_1"
@@ -16870,7 +16973,7 @@
       "source_file": "tests/test_signal5.py",
       "source_location": "L23",
       "_origin": "ast",
-      "community": 116,
+      "community": 66,
       "community_name": "vlm_router.py",
       "norm_label": "return true if >30% of letter characters are outside latin/extended-latin.",
       "id": "tests_test_signal5_rationale_23"
@@ -16970,7 +17073,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 68,
-      "community_name": "MemoryChunkStore",
+      "community_name": "Chunk",
       "norm_label": "test_store.py",
       "id": "tests_test_store"
     },
@@ -16982,7 +17085,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 68,
-      "community_name": "MemoryChunkStore",
+      "community_name": "Chunk",
       "norm_label": "_chunk()",
       "id": "tests_test_store_chunk"
     },
@@ -16995,7 +17098,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 68,
-      "community_name": "MemoryChunkStore",
+      "community_name": "Chunk",
       "norm_label": "testmemorychunkstore",
       "id": "tests_test_store_testmemorychunkstore"
     },
@@ -17007,7 +17110,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 68,
-      "community_name": "MemoryChunkStore",
+      "community_name": "Chunk",
       "norm_label": ".test_upsert_and_get_by_doc()",
       "id": "tests_test_store_testmemorychunkstore_test_upsert_and_get_by_doc"
     },
@@ -17019,7 +17122,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 68,
-      "community_name": "MemoryChunkStore",
+      "community_name": "Chunk",
       "norm_label": ".test_empty_batch()",
       "id": "tests_test_store_testmemorychunkstore_test_empty_batch"
     },
@@ -17032,7 +17135,7 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 68,
-      "community_name": "MemoryChunkStore",
+      "community_name": "Chunk",
       "norm_label": "teststorefactory",
       "id": "tests_test_store_teststorefactory"
     },
@@ -17044,7 +17147,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 68,
-      "community_name": "MemoryChunkStore",
+      "community_name": "Chunk",
       "norm_label": ".test_falls_back_to_memory_when_no_url()",
       "id": "tests_test_store_teststorefactory_test_falls_back_to_memory_when_no_url"
     },
@@ -17055,7 +17158,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "community": 68,
-      "community_name": "MemoryChunkStore",
+      "community_name": "Chunk",
       "norm_label": "phase 1.0 unit tests \u2014 chunk store (task 1.9). exercises the memorychunkstore...",
       "id": "tests_test_store_rationale_1"
     },
@@ -19049,13 +19152,325 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L70",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "scripts_answer_evidence_pass",
+      "target": "scripts_answer_evidence_pass_api_pages",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L95",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "scripts_answer_evidence_pass",
+      "target": "scripts_answer_evidence_pass_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L38",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "scripts_answer_evidence_pass",
+      "target": "scripts_answer_evidence_pass_needles",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L59",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "scripts_answer_evidence_pass",
+      "target": "scripts_answer_evidence_pass_pdf_pages",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L47",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "scripts_answer_evidence_pass",
+      "target": "scripts_answer_evidence_pass_text_tokens",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L33",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "scripts_answer_evidence_pass",
+      "target": "scripts_eval_phase2",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "scripts_answer_evidence_pass_rationale_1",
+      "target": "scripts_answer_evidence_pass",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L100",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "scripts_answer_evidence_pass_main",
+      "target": "scripts_answer_evidence_pass_needles",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L119",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "scripts_answer_evidence_pass_main",
+      "target": "scripts_answer_evidence_pass_text_tokens",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L113",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "scripts_answer_evidence_pass_main",
+      "target": "scripts_answer_evidence_pass_pdf_pages",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L79",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "scripts_answer_evidence_pass_api_pages",
+      "target": "scripts_eval_phase2_retrieval_headers"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L113",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "scripts_answer_evidence_pass_main",
+      "target": "scripts_answer_evidence_pass_api_pages",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "scripts/answer_evidence_pass.py",
+      "source_location": "L96",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "scripts_answer_evidence_pass_main",
+      "target": "scripts_eval_phase2_load_golden"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L24",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass",
+      "target": "tests_test_answer_evidence_pass_load_pass",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L41",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass",
+      "target": "tests_test_answer_evidence_pass_test_api_failure_is_tallied_and_exits_nonzero",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L90",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass",
+      "target": "tests_test_answer_evidence_pass_test_clean_run_exits_zero",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L66",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass",
+      "target": "tests_test_answer_evidence_pass_test_pdf_failure_is_tallied",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass_rationale_1",
+      "target": "tests_test_answer_evidence_pass",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "return_type",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L24",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass_load_pass",
+      "target": "moduletype",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L24",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass_load_pass",
+      "target": "monkeypatch",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L25",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass_rationale_25",
+      "target": "tests_test_answer_evidence_pass_load_pass",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L42",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass_test_api_failure_is_tallied_and_exits_nonzero",
+      "target": "tests_test_answer_evidence_pass_load_pass",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L91",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass_test_clean_run_exits_zero",
+      "target": "tests_test_answer_evidence_pass_load_pass",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L67",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass_test_pdf_failure_is_tallied",
+      "target": "tests_test_answer_evidence_pass_load_pass",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L41",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass_test_api_failure_is_tallied_and_exits_nonzero",
+      "target": "monkeypatch",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L90",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass_test_clean_run_exits_zero",
+      "target": "monkeypatch",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_answer_evidence_pass.py",
+      "source_location": "L66",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_answer_evidence_pass_test_pdf_failure_is_tallied",
+      "target": "monkeypatch",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "handoff.md",
       "source_location": "L1",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff",
-      "target": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff",
-      "confidence_score": 1.0
+      "target": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff"
     },
     {
       "relation": "contains",
@@ -19064,9 +19479,9 @@
       "source_location": "L169",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff",
-      "target": "handoff_10_suggested_first_moves_for_the_receiving_agent",
-      "confidence_score": 1.0
+      "target": "handoff_10_suggested_first_moves_for_the_receiving_agent"
     },
     {
       "relation": "contains",
@@ -19075,9 +19490,9 @@
       "source_location": "L178",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff",
-      "target": "handoff_11_reference_documents_every_md_file_that_matters",
-      "confidence_score": 1.0
+      "target": "handoff_11_reference_documents_every_md_file_that_matters"
     },
     {
       "relation": "contains",
@@ -19086,9 +19501,9 @@
       "source_location": "L10",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff",
-      "target": "handoff_1_what_iris_is_one_paragraph",
-      "confidence_score": 1.0
+      "target": "handoff_1_what_iris_is_one_paragraph"
     },
     {
       "relation": "contains",
@@ -19097,9 +19512,9 @@
       "source_location": "L14",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff",
-      "target": "handoff_2_ground_rules_the_user_has_set_never_violate",
-      "confidence_score": 1.0
+      "target": "handoff_2_ground_rules_the_user_has_set_never_violate"
     },
     {
       "relation": "contains",
@@ -19108,9 +19523,9 @@
       "source_location": "L23",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff",
-      "target": "handoff_3_chronological_record_of_this_session_what_happened_and_why",
-      "confidence_score": 1.0
+      "target": "handoff_3_chronological_record_of_this_session_what_happened_and_why"
     },
     {
       "relation": "contains",
@@ -19119,9 +19534,9 @@
       "source_location": "L64",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff",
-      "target": "handoff_4_latest_benchmark_the_number_to_beat",
-      "confidence_score": 1.0
+      "target": "handoff_4_latest_benchmark_the_number_to_beat"
     },
     {
       "relation": "contains",
@@ -19130,9 +19545,9 @@
       "source_location": "L80",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff",
-      "target": "handoff_5_stage_ledger_completion_status",
-      "confidence_score": 1.0
+      "target": "handoff_5_stage_ledger_completion_status"
     },
     {
       "relation": "contains",
@@ -19141,9 +19556,9 @@
       "source_location": "L98",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff",
-      "target": "handoff_6_remaining_pipeline_exactly_what_to_do",
-      "confidence_score": 1.0
+      "target": "handoff_6_remaining_pipeline_exactly_what_to_do"
     },
     {
       "relation": "contains",
@@ -19152,9 +19567,9 @@
       "source_location": "L115",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff",
-      "target": "handoff_7_gotchas_caveats_hard_won_read_twice",
-      "confidence_score": 1.0
+      "target": "handoff_7_gotchas_caveats_hard_won_read_twice"
     },
     {
       "relation": "contains",
@@ -19163,9 +19578,9 @@
       "source_location": "L147",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff",
-      "target": "handoff_8_key_files_map_for_the_next_agent",
-      "confidence_score": 1.0
+      "target": "handoff_8_key_files_map_for_the_next_agent"
     },
     {
       "relation": "contains",
@@ -19174,9 +19589,9 @@
       "source_location": "L161",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_handoff_md_iris_retrieval_quality_workstream_full_session_handoff",
-      "target": "handoff_9_live_state_right_now",
-      "confidence_score": 1.0
+      "target": "handoff_9_live_state_right_now"
     },
     {
       "relation": "contains",
@@ -19185,9 +19600,9 @@
       "source_location": "L25",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_3_chronological_record_of_this_session_what_happened_and_why",
-      "target": "handoff_phase_a_analysis_discussion_only",
-      "confidence_score": 1.0
+      "target": "handoff_phase_a_analysis_discussion_only"
     },
     {
       "relation": "contains",
@@ -19196,9 +19611,9 @@
       "source_location": "L28",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_3_chronological_record_of_this_session_what_happened_and_why",
-      "target": "handoff_phase_b_approved_plan_v2_and_stages_0_5",
-      "confidence_score": 1.0
+      "target": "handoff_phase_b_approved_plan_v2_and_stages_0_5"
     },
     {
       "relation": "contains",
@@ -19207,9 +19622,9 @@
       "source_location": "L36",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_3_chronological_record_of_this_session_what_happened_and_why",
-      "target": "handoff_phase_c_gcp_rounds_a_b_c_live",
-      "confidence_score": 1.0
+      "target": "handoff_phase_c_gcp_rounds_a_b_c_live"
     },
     {
       "relation": "contains",
@@ -19218,9 +19633,9 @@
       "source_location": "L41",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_3_chronological_record_of_this_session_what_happened_and_why",
-      "target": "handoff_phase_d_external_review_exchanges_user_relayed_a_reviewer_three_rounds",
-      "confidence_score": 1.0
+      "target": "handoff_phase_d_external_review_exchanges_user_relayed_a_reviewer_three_rounds"
     },
     {
       "relation": "contains",
@@ -19229,9 +19644,9 @@
       "source_location": "L44",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_3_chronological_record_of_this_session_what_happened_and_why",
-      "target": "handoff_phase_e_measurement_overhaul",
-      "confidence_score": 1.0
+      "target": "handoff_phase_e_measurement_overhaul"
     },
     {
       "relation": "contains",
@@ -19240,9 +19655,9 @@
       "source_location": "L49",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_3_chronological_record_of_this_session_what_happened_and_why",
-      "target": "handoff_phase_f_canary_observability",
-      "confidence_score": 1.0
+      "target": "handoff_phase_f_canary_observability"
     },
     {
       "relation": "contains",
@@ -19251,9 +19666,9 @@
       "source_location": "L52",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_3_chronological_record_of_this_session_what_happened_and_why",
-      "target": "handoff_phase_g_corpus_completion_pipeline_1",
-      "confidence_score": 1.0
+      "target": "handoff_phase_g_corpus_completion_pipeline_1"
     },
     {
       "relation": "contains",
@@ -19262,9 +19677,9 @@
       "source_location": "L58",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_3_chronological_record_of_this_session_what_happened_and_why",
-      "target": "handoff_phase_h_language_findings_empirical_live_tested",
-      "confidence_score": 1.0
+      "target": "handoff_phase_h_language_findings_empirical_live_tested"
     },
     {
       "relation": "contains",
@@ -19273,9 +19688,9 @@
       "source_location": "L61",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_3_chronological_record_of_this_session_what_happened_and_why",
-      "target": "handoff_phase_i_answer_evidence_pass_round_3_label_adjudication_2026_08_24_after_handoff",
-      "confidence_score": 1.0
+      "target": "handoff_phase_i_answer_evidence_pass_round_3_label_adjudication_2026_08_24_after_handoff"
     },
     {
       "relation": "contains",
@@ -19284,9 +19699,9 @@
       "source_location": "L82",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_5_stage_ledger_completion_status",
-      "target": "handoff_completion_at_a_glance",
-      "confidence_score": 1.0
+      "target": "handoff_completion_at_a_glance"
     },
     {
       "relation": "contains",
@@ -19295,9 +19710,9 @@
       "source_location": "L91",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_5_stage_ledger_completion_status",
-      "target": "handoff_detailed_ledger",
-      "confidence_score": 1.0
+      "target": "handoff_detailed_ledger"
     },
     {
       "relation": "contains",
@@ -19306,9 +19721,9 @@
       "source_location": "L100",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_6_remaining_pipeline_exactly_what_to_do",
-      "target": "handoff_2_vlm_chunking_next_the_page_precision_lever",
-      "confidence_score": 1.0
+      "target": "handoff_2_vlm_chunking_next_the_page_precision_lever"
     },
     {
       "relation": "contains",
@@ -19317,9 +19732,9 @@
       "source_location": "L103",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_6_remaining_pipeline_exactly_what_to_do",
-      "target": "handoff_3_cross_lingual_dual_query",
-      "confidence_score": 1.0
+      "target": "handoff_3_cross_lingual_dual_query"
     },
     {
       "relation": "contains",
@@ -19328,9 +19743,9 @@
       "source_location": "L106",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_6_remaining_pipeline_exactly_what_to_do",
-      "target": "handoff_4_eval_set_growth_stratified_new_50_50_tune_50_held_out",
-      "confidence_score": 1.0
+      "target": "handoff_4_eval_set_growth_stratified_new_50_50_tune_50_held_out"
     },
     {
       "relation": "contains",
@@ -19339,9 +19754,9 @@
       "source_location": "L109",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_6_remaining_pipeline_exactly_what_to_do",
-      "target": "handoff_5_s4_frontend_highlight_ladder_repo_d_iris_frontend",
-      "confidence_score": 1.0
+      "target": "handoff_5_s4_frontend_highlight_ladder_repo_d_iris_frontend"
     },
     {
       "relation": "contains",
@@ -19350,9 +19765,9 @@
       "source_location": "L112",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_6_remaining_pipeline_exactly_what_to_do",
-      "target": "handoff_6_s6_phase_6_1_6_4_actionplan_md_lines_425_450",
-      "confidence_score": 1.0
+      "target": "handoff_6_s6_phase_6_1_6_4_actionplan_md_lines_425_450"
     },
     {
       "relation": "contains",
@@ -19361,9 +19776,9 @@
       "source_location": "L180",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_11_reference_documents_every_md_file_that_matters",
-      "target": "handoff_created_this_session",
-      "confidence_score": 1.0
+      "target": "handoff_created_this_session"
     },
     {
       "relation": "contains",
@@ -19372,9 +19787,9 @@
       "source_location": "L205",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_11_reference_documents_every_md_file_that_matters",
-      "target": "handoff_non_md_reference_artifacts_frequently_needed",
-      "confidence_score": 1.0
+      "target": "handoff_non_md_reference_artifacts_frequently_needed"
     },
     {
       "relation": "contains",
@@ -19383,9 +19798,9 @@
       "source_location": "L195",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_11_reference_documents_every_md_file_that_matters",
-      "target": "handoff_pre_existing_unchanged_referenced_by_this_handoff",
-      "confidence_score": 1.0
+      "target": "handoff_pre_existing_unchanged_referenced_by_this_handoff"
     },
     {
       "relation": "contains",
@@ -19394,9 +19809,9 @@
       "source_location": "L189",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "handoff_11_reference_documents_every_md_file_that_matters",
-      "target": "handoff_pre_existing_updated_this_session",
-      "confidence_score": 1.0
+      "target": "handoff_pre_existing_updated_this_session"
     },
     {
       "relation": "contains",
@@ -19803,156 +20218,6 @@
       "confidence_score": 1.0,
       "source": "context_context_md_living_project_context_for_iris",
       "target": "context_6_open_questions"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L68",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "scripts_answer_evidence_pass",
-      "target": "scripts_answer_evidence_pass_api_pages"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L92",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "scripts_answer_evidence_pass",
-      "target": "scripts_answer_evidence_pass_main"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L38",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "scripts_answer_evidence_pass",
-      "target": "scripts_answer_evidence_pass_needles"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L58",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "scripts_answer_evidence_pass",
-      "target": "scripts_answer_evidence_pass_pdf_pages"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L47",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "scripts_answer_evidence_pass",
-      "target": "scripts_answer_evidence_pass_text_tokens"
-    },
-    {
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L33",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "scripts_answer_evidence_pass",
-      "target": "scripts_eval_phase2"
-    },
-    {
-      "relation": "rationale_for",
-      "confidence": "EXTRACTED",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L1",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "scripts_answer_evidence_pass_rationale_1",
-      "target": "scripts_answer_evidence_pass"
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L97",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "scripts_answer_evidence_pass_main",
-      "target": "scripts_answer_evidence_pass_needles"
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L116",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "scripts_answer_evidence_pass_main",
-      "target": "scripts_answer_evidence_pass_text_tokens"
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L110",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "scripts_answer_evidence_pass_main",
-      "target": "scripts_answer_evidence_pass_pdf_pages"
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L77",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "scripts_answer_evidence_pass_api_pages",
-      "target": "scripts_eval_phase2_retrieval_headers"
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L110",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "scripts_answer_evidence_pass_main",
-      "target": "scripts_answer_evidence_pass_api_pages"
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "scripts/answer_evidence_pass.py",
-      "source_location": "L93",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "scripts_answer_evidence_pass_main",
-      "target": "scripts_eval_phase2_load_golden"
     },
     {
       "relation": "contains",
@@ -50963,5 +51228,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "6fdf8b95835632d709051c7c7114075b31c12876"
+  "built_at_commit": "7ec4e42a2bbc96fbf696ec40cc59cf0b4f748b78"
 }

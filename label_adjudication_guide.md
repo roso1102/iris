@@ -79,7 +79,7 @@ q_006, q_013, q_028 — answer verified ON the labeled page (doc_007 pages 9/42,
 ## G. Standing integrity (2026-08-23)
 
 - `scripts/answer_evidence_pass.py` — rerunnable full-corpus answer verification.
-- Worker logs `page_coverage_gap` when chunks miss PDF pages (deployed in worker rev ≥00081).
+- Worker logs `page_coverage_gap` when chunks miss PDF pages (**NOT yet deployed** — code landed in `56b818a` but the live worker is still rev `00080-h5l`, which predates it; ships with the next deploy).
 - Canary assertion 6: sum of `/doc-status` pages across the 8 golden docs vs `EXPECTED_TOTAL_PAGES` (default **201**; the earlier "185" was our own mis-sum, caught by this very check on its first run).
 
 ## E. Already fixed (round 1)

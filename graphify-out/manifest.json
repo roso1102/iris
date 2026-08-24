@@ -750,8 +750,8 @@
     "semantic_hash": ""
   },
   "scripts/answer_evidence_pass.py": {
-    "mtime": 1787432383.6624866,
-    "ast_hash": "a9c47fb201d5d59f3304914b79194d41",
+    "mtime": 1787561162.7534018,
+    "ast_hash": "cbfef870e158ac15581e175c64052377",
     "semantic_hash": ""
   },
   "scripts/render_page_evidence.py": {
@@ -767,6 +767,11 @@
   "scripts/apply_round3_adjudication.py": {
     "mtime": 1787559496.6085322,
     "ast_hash": "4be70153d3fda4697909c1cdd5ea90e7",
+    "semantic_hash": ""
+  },
+  "tests/test_answer_evidence_pass.py": {
+    "mtime": 1787561178.055727,
+    "ast_hash": "6d417421d91ef5addb9695690fcde3ab",
     "semantic_hash": ""
   }
 }
