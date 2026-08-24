@@ -119,7 +119,7 @@ Journey from session start (broken instrument): PageRec 0.320→0.812, MRR 0.262
 
 **Original 8-stage plan:** S0 ✅ · S1 ✅ · S2 ✅ (built+swept; production-off by data) · S3 ✅ · S5 ✅ · S7 🔶 (CONTEXT.md current; ph6.md checkboxes not updated) · **S4 ❌ frontend ladder (= pipeline #5)** · **S6 ❌ Phase 6.1–6.4 (= pipeline #6)**.
 **Measurement/observability workstream:** ✅ complete (incl. Round-3 answer-evidence + adjudication, 2026-08-24 — see §3 Phase I).
-**Current 6-item pipeline:** #1 page-level VLM fallback ✅ · **#2 VLM chunking ✅ (deployed `00081-lt2`; eval confirms PageRec +0.072, MRR +0.113)** · **#2 reranker re-sweep ✅ (RERANK_BLEND=0.3 best balanced; latency cost identified)** · #3 cross-lingual dual-query ❌ · #4 eval-set growth ❌ · #5 S4 frontend ❌ · #6 S6 memory ❌.
+**Current 6-item pipeline:** #1 page-level VLM fallback ✅ · **#2 VLM chunking ✅ (deployed `00081-lt2`; eval confirms PageRec +0.072, MRR +0.113)** · **#2 reranker re-sweep ✅ (RERANK_BLEND=0.3 best balanced; latency cost identified)** · **#3 cross-lingual dual-query ✅ (deployed `00027-mcz`; Flash-Lite variant + multi_ranked_fusion; no re-ingest needed)** · #4 eval-set growth ❌ · #5 S4 frontend ❌ · #6 S6 memory ❌.
 **Parked (deliberately, see §3 Phase A/D):** reranker enabled decision (sweep done, latency-cost decision pending owner); Qdrant VM snapshots/backup; distributed (Firestore) rate limiter; 3072-d `gemini-embedding-001` (explicitly post-MVP per `CONTEXT.md` §3, needs full re-embed); line-level bboxes.
 
 ## 6. Remaining pipeline — exactly what to do
@@ -187,7 +187,7 @@ Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong c
 
 ## 9. Live state right now
 
-- **Worker** `ingestion-worker-00081-lt2` (pipeline #2 code, `CHUNK_TARGET_TOKENS=256`, `BM25_HINDI_ENABLED=1`, `page_coverage_gap` now live); **api** `retrieval-api-00026-dbv` (`RERANK_LOCATION=global`, **`RERANK_BLEND=0.3`** enabled, Hindi on). Canary live every 15 min, alert armed (user configured).
+- **Worker** `ingestion-worker-00081-lt2` (pipeline #2 code, `CHUNK_TARGET_TOKENS=256`, `BM25_HINDI_ENABLED=1`, `page_coverage_gap` now live); **api** `retrieval-api-00027-mcz` (`RERANK_LOCATION=global`, `RERANK_BLEND=0.3`, Hindi on, **pipeline #3 cross-lingual dual-query live**). Canary live every 15 min, alert armed (user configured).
 - Corpus re-ingested 2026-08-24: 201/201 pages, 1,688 chunks, `test-tenant`.
 - Git `main` = `7ec4e42`. **Last 5 commits (521289f, fd5e516, c7b49f1, 6fdf8b9, 7ec4e42) are local-only — not yet pushed.** ~35 commits this session.
 - User's outstanding personal items: push the local commits; confirm the `coco.md` deletion (uncommitted `D` in working tree); check the stalled GitHub Actions; CORS repo var before the CNAME lands; occasional frontend highlight eyeball.

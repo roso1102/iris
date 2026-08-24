@@ -1,30 +1,30 @@
 # Graph Report - iris  (2026-08-24)
 
 ## Corpus Check
-- 137 files · ~153,542 words
+- 138 files · ~154,750 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1680 nodes · 2854 edges · 128 communities (93 shown, 35 thin omitted)
-- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 132 edges (avg confidence: 0.52)
+- 1719 nodes · 2934 edges · 131 communities (91 shown, 40 thin omitted)
+- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 136 edges (avg confidence: 0.52)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `4ff4ed57`
+- Built from commit: `179be151`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - test_rate_limit.py
 - validate_citations
-- retrieval_api/app.py
+- ingestion/models.py
 - package.json
 - What You Must Do When Invoked
-- parser.py
-- validate_tenant_id
+- DoclingParser
+- needs_cross_lingual_boost
 - HANDOFF.md — IRIS Retrieval-Quality Workstream (full session handoff)
 - kill_switch
-- ChunkStore
+- diversity_penalty
 - create_iam_alert.sh
 - deploy.sh
 - setup_firebase.sh
@@ -53,7 +53,7 @@
 - IRIS Frontend Architecture & UI Specification (Phase 5.0 & Beyond)
 - TestSessionsApi
 - IRIS
-- upload_document
+- SelfHostedGPUProvider
 - eval_phase2.py
 - IRIS — Phased Action Plan
 - auth_headers
@@ -92,7 +92,7 @@
 - TestMemoryChunkStoreSearch
 - validate_table_markdown
 - provision_eval_user.py
-- ingestion/models.py
+- store.py
 - Phase 2.5 — Empirical Validation & Pipeline Hardening
 - test_delete_cascade.py
 - TestRouterSignals
@@ -101,15 +101,15 @@
 - Path
 - claims.py
 - IRIS Roadmap: Phase 6+ Execution Plan with Citation/Bbox/Rerank Fixes
-- create_session
-- Citation
+- RecordingProvider
+- retrieval_api/app.py
 - TestAuthDependency
 - ingestion/main.py
-- get
+- test_qdrant_live.py
 - MockModelProvider
-- ABC
-- ABC
-- reciprocal_rank_fusion
+- .embed
+- .extract_table
+- .generate_cross_lingual_variants
 - IRIS Retrieval Quality + Citation Correctness — Implementation Plan (v2)
 - get
 - post
@@ -121,18 +121,21 @@
 - chunk_routed
 - BaseModel
 - StructuredAnswer
-- base.py
-- test_docling_large.py
+- ModelProvider
+- parser.py
 - Exception
 - TestDeepSearch
 - Chunk
 - apply_round3_adjudication.py
 - test_cors.py
-- bm25.py
+- .generate_hyde
 - RoutingResult
 - TestHindiSparseWiring
+- .rerank
 - fix_golden_pages.py
-- query
+- .rewrite_query
+- ScoredChunk
+- StructuredAnswer
 - Chunk
 - Exception
 - canary/main.py
@@ -142,33 +145,33 @@
 - Path
 
 ## God Nodes (most connected - your core abstractions)
-1. `MemoryChunkStore` - 58 edges
-2. `auth_headers()` - 40 edges
-3. `chunk_routed()` - 39 edges
-4. `MockModelProvider` - 39 edges
+1. `MemoryChunkStore` - 59 edges
+2. `MockModelProvider` - 40 edges
+3. `auth_headers()` - 40 edges
+4. `chunk_routed()` - 39 edges
 5. `mock_auth()` - 39 edges
-6. `ParsedElement` - 33 edges
-7. `VertexAIProvider` - 31 edges
-8. `ElementType` - 30 edges
-9. `MockVlmRouter` - 30 edges
-10. `ModelProvider` - 29 edges
+6. `VertexAIProvider` - 34 edges
+7. `ParsedElement` - 33 edges
+8. `ModelProvider` - 32 edges
+9. `ElementType` - 30 edges
+10. `MockVlmRouter` - 30 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `TestModelProviderScaffold` --uses--> `VertexAIProvider`  [INFERRED]
-  tests/test_model_provider.py → services/common/models/vertex.py
+- `RecordingProvider` --uses--> `MemoryChunkStore`  [INFERRED]
+  tests/test_deep_search.py → services/common/ingestion/store.py
 - `TestDeepSearch` --uses--> `MemoryChunkStore`  [INFERRED]
   tests/test_deep_search.py → services/common/ingestion/store.py
 - `TestDoclingTrueassortCorpus` --uses--> `MemoryChunkStore`  [INFERRED]
   tests/test_docling_integration.py → services/common/ingestion/store.py
 - `TestDoclingLargeCPU` --uses--> `MemoryChunkStore`  [INFERRED]
   tests/test_docling_large.py → services/common/ingestion/store.py
-- `TestFullPipelineWiring` --uses--> `MemoryChunkStore`  [INFERRED]
-  tests/test_pipeline_layer2.py → services/common/ingestion/store.py
+- `TestDoclingPipelineTrueassort` --uses--> `MemoryChunkStore`  [INFERRED]
+  tests/test_docling_pipeline.py → services/common/ingestion/store.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (128 total, 35 thin omitted)
+## Communities (131 total, 40 thin omitted)
 
 ### Community 0 - "test_rate_limit.py"
 Cohesion: 0.11
@@ -178,9 +181,9 @@ Nodes (8): FixedWindowRateLimiter, Per-tenant in-memory rate limiting (Phase 4.0
 Cohesion: 0.16
 Nodes (13): _expand_marker(), normalize_answer_markers(), ScoredChunk, StructuredAnswer, Server-side citation validation (Phase 3.0 Task 3.4 + Phase 9.0 D/E). The LLM's…, Expand a marker body like "1", "2,3", or "1-3" into a sorted int list. Handles…, Split malformed citation markers and drop any ref not in `refs`. `refs` maps…, Drop hallucinated citations, overwrite valid ones with real metadata, and… (+5 more)
 
-### Community 2 - "retrieval_api/app.py"
-Cohesion: 0.23
-Nodes (15): delete, delete_document(), _delete_firestore_doc(), _delete_firestore_session(), _delete_gcs_blob(), delete_session(), _get_gcs_client(), IRIS — Retrieval API (Cloud Run). Phase 2.0: FastAPI service with /search… (+7 more)
+### Community 2 - "ingestion/models.py"
+Cohesion: 0.15
+Nodes (16): Enum, ElementType, Shared data model for the IRIS ingestion pipeline. A `Chunk` is the unit…, Docling element labels, normalized for the pipeline., Page-Wise VLM Router outcome for a single element., RouteDecision, str, Tier 1 integration tests — Deep Search HyDE/rewrite path. Verifies that… (+8 more)
 
 ### Community 3 - "package.json"
 Cohesion: 0.12
@@ -190,13 +193,13 @@ Nodes (15): firebase, @firebase/rules-unit-testing, firebase-tools, description,
 Cohesion: 0.07
 Nodes (26): For /graphify add and --watch, For /graphify query, For the commit hook and native CLAUDE.md integration, For --update and --cluster-only, /graphify, Honesty Rules, Interpreter guard for subcommands, Part A - Structural extraction for code files (+18 more)
 
-### Community 5 - "parser.py"
+### Community 5 - "DoclingParser"
 Cohesion: 0.07
-Nodes (35): ABC, Page, ParsedElement, Path, grouped_variants(), highlight(), main(), needles() (+27 more)
+Nodes (34): ABC, Page, ParsedElement, Path, grouped_variants(), highlight(), main(), needles() (+26 more)
 
-### Community 6 - "validate_tenant_id"
-Cohesion: 0.23
-Nodes (13): SearchRequest, ID validation + request-size guards (Phase 4.0). Prevents path traversal, NoSQL…, Truncate history to the sliding window instead of rejecting it., _reject(), validate_doc_id(), validate_history(), validate_query(), validate_session_id() (+5 more)
+### Community 6 - "needs_cross_lingual_boost"
+Cohesion: 0.16
+Nodes (10): contains_devanagari(), is_romanized_hindi(), needs_cross_lingual_boost(), Hindi-aware preprocessing for the BM25 sparse encoder (Stage 5). FastEmbed's…, True if Latin-script text contains romanized Hindi content words., Gate: should we generate Hindi variant(s) for this query? Decision tree: 1. No…, Pipeline #3: Cross-lingual detection unit tests., TestDevanagariDetection (+2 more)
 
 ### Community 7 - "HANDOFF.md — IRIS Retrieval-Quality Workstream (full session handoff)"
 Cohesion: 0.06
@@ -206,13 +209,13 @@ Nodes (33): 10. Suggested first moves for the receiving agent, 11. Reference doc
 Cohesion: 0.47
 Nodes (5): cloud_event, _kill_ingestion(), kill_switch(), Set pushConfig to empty on the subscription (pull-only)., _should_kill()
 
-### Community 9 - "ChunkStore"
+### Community 9 - "diversity_penalty"
 Cohesion: 0.22
-Nodes (5): ChunkStore, Dense cosine vector search with tenant + optional doc filters. Returns…, BM25 sparse vector search with tenant + optional doc filters. Returns…, Delete all chunks for a document. Returns count deleted., Delete all chunks for a session. Returns count deleted.
+Nodes (8): diversity_penalty(), ScoredChunk, Diversity / dedup pass — prevents single-page flooding. Applies a configurable…, Apply penalty to duplicate (doc, page) sources in the top-K window. For each…, ScoredChunk, Phase 2.0 unit tests — diversity / dedup pass., _scored(), TestDiversity
 
 ### Community 13 - "TestSignal5"
-Cohesion: 0.10
-Nodes (12): Tier 0 unit tests — Signal 5: Non-Latin Script Dominant Detection (FIX-008).…, Return True if >30% of letter characters are outside Latin/Extended-Latin., Verify FIX-008 Signal 5 non-Latin detection fires on Hindi, not English., Hindi page (valid_word_ratio ~0.82–0.87) must trigger Signal 5., Clean English text must never trigger Signal 5., English text with numerals/punctuation stays Latin-dominant., A short Hindi clause still exceeds the 30% letter threshold., Empty and ASCII-only inputs never trigger Signal 5. (+4 more)
+Cohesion: 0.12
+Nodes (9): Verify FIX-008 Signal 5 non-Latin detection fires on Hindi, not English., Hindi page (valid_word_ratio ~0.82–0.87) must trigger Signal 5., Clean English text must never trigger Signal 5., English text with numerals/punctuation stays Latin-dominant., A short Hindi clause still exceeds the 30% letter threshold., Empty and ASCII-only inputs never trigger Signal 5., A page that is exactly 30% non-Latin does NOT trigger (strict >)., Punctuation-only (no letters) never triggers Signal 5. (+1 more)
 
 ### Community 14 - "Phase 4.0 — Authentication & Multi-Tenant Security ✅ COMPLETE"
 Cohesion: 0.29
@@ -223,16 +226,16 @@ Cohesion: 0.33
 Nodes (6): Benchmarks & Testing, Exit Criteria, Phase 7.0 — Trial / Freemium & Rate Limiting, Scope, Services Touched, Tasks
 
 ### Community 16 - "SearchOrchestrator"
-Cohesion: 0.08
-Nodes (19): diversity_penalty(), ScoredChunk, Diversity / dedup pass — prevents single-page flooding. Applies a configurable…, Apply penalty to duplicate (doc, page) sources in the top-K window. For each…, _needs_rewrite(), ScoredChunk, Deep Search with async SLM rewrite, HyDE generation, and fusion., Resolve RRF-fused (chunk_id, score) into full ScoredChunk objects. (+11 more)
+Cohesion: 0.06
+Nodes (27): ScoredChunk, fuse_rerank_scores(), multi_ranked_fusion(), Reciprocal Rank Fusion — merges two score-incompatible ranked lists. RRF is…, Merge dense and sparse ranked lists via RRF. Args: dense_results: [(chunk_id,…, Fuse hybrid RRF scores with cross-encoder reranker scores, rank-based. The…, Generalized RRF merging N ranked lists. Each list is [(chunk_id, score), ...]…, reciprocal_rank_fusion() (+19 more)
 
 ### Community 17 - "Phase 12.0 — Neural Reranking Upgrade & Precision Engineering"
 Cohesion: 0.33
 Nodes (6): Benchmarks & Testing, Exit Criteria, Phase 12.0 — Neural Reranking Upgrade & Precision Engineering, Scope, Services Touched, Tasks
 
 ### Community 18 - "MemoryChunkStore"
-Cohesion: 0.07
-Nodes (20): Pre-ingestion payload scanner (ACTIONPLAN Task 1.2). Rejects payloads BEFORE…, MemoryChunkStore, In-memory store for dev/tests. Thread-safe., MockModelProvider that records every embed/rewrite/HyDE call., RecordingProvider, Docling pipeline integration tests — run against trueassort/ golden corpus.…, DoclingParser, integration (+12 more)
+Cohesion: 0.14
+Nodes (11): MemoryChunkStore, In-memory store for dev/tests. Thread-safe., _load_labels(), integration, Phase 1.0/2.5 integration tests — run against trueassort/ golden corpus. Covers…, Every trueassort PDF passes preflight and matches CSV page counts., Test1B_OversizedRejection, Test1C_CorruptRejection (+3 more)
 
 ### Community 19 - "bm25_cache"
 Cohesion: 0.40
@@ -240,7 +243,7 @@ Nodes (4): fixture, bm25_cache(), Shared pytest fixtures. Bakes the FastEmbed Qd
 
 ### Community 21 - "VertexAIProvider"
 Cohesion: 0.07
-Nodes (20): _is_resource_exhausted(), VertexAIProvider wrapping Google Cloud Vertex AI SDK. Uses text-embedding-004…, Cached TextEmbeddingModel — from_pretrained per call re-resolves the endpoint…, Cross-encoder reranking via the Vertex AI Ranking API (Phase 12.1). POST…, Return True if the exception is a Vertex/API rate-limit condition., Valid ADC access token for the discoveryengine endpoint, cached., Production Vertex AI implementation for GCP Cloud Run. Embeddings run in-region…, _sanitize_context() (+12 more)
+Nodes (19): _is_resource_exhausted(), Cached TextEmbeddingModel — from_pretrained per call re-resolves the endpoint…, Cross-encoder reranking via the Vertex AI Ranking API (Phase 12.1). POST…, Return True if the exception is a Vertex/API rate-limit condition., Translate Latin-script query to Hindi via Flash-Lite. Handles both translation…, Valid ADC access token for the discoveryengine endpoint, cached., Production Vertex AI implementation for GCP Cloud Run. Embeddings run in-region…, _sanitize_context() (+11 more)
 
 ### Community 22 - "graphify reference: extra exports and benchmark"
 Cohesion: 0.22
@@ -294,10 +297,6 @@ Nodes (5): _fake_firestore(), Phase 4.0 tests — session CRUD endpoints + signe
 Cohesion: 0.15
 Nodes (12): 1. What This System Does, 2. Core Design Principles, 3. Technology Stack, 4. High-Level Architecture, 5. Getting Started (Once Implementation Begins), 6. Repository Structure (Target), 7. Key Documents, 8. Guiding Constraints (Do Not Violate) (+4 more)
 
-### Community 39 - "upload_document"
-Cohesion: 0.22
-Nodes (8): post, Call ingestion-worker /ingest to preflight + split + fan out to Pub/Sub.…, Upload a PDF and trigger ingestion (Task 5.0b). Flow: validate doc_id + file ->…, _trigger_ingestion(), upload_document(), Task 5.0b unit tests — POST /documents/upload (retrieval-api). Covers the full…, The trigger must mint an ID token via IAM generateIdToken, not use…, UploadFile
-
 ### Community 40 - "eval_phase2.py"
 Cohesion: 0.06
 Nodes (69): api_pages(), main(), needles(), pdf_pages(), Full-corpus answer-evidence pass over ALL 50 golden queries (reviewer Q1). The…, text_tokens(), check_tenant_isolation(), compute_mrr() (+61 more)
@@ -307,8 +306,8 @@ Cohesion: 0.15
 Nodes (12): Benchmarks & Testing, Deployment & Containerization Strategy, Exit Criteria, How per-phase checkpointing still works without per-phase containers, IRIS — Phased Action Plan, 🏁 MVP LAUNCH BOUNDARY, Phase 13.0 — Context Compression, Scope (+4 more)
 
 ### Community 42 - "auth_headers"
-Cohesion: 0.22
-Nodes (3): auth_headers(), Headers for a request whose token maps to the given claims (mock-active)., TestUploadApi
+Cohesion: 0.18
+Nodes (4): auth_headers(), Headers for a request whose token maps to the given claims (mock-active)., The trigger must mint an ID token via IAM generateIdToken, not use…, TestUploadApi
 
 ### Community 43 - "Phase 0.0 — Foundations & Safety Nets"
 Cohesion: 0.29
@@ -339,8 +338,8 @@ Cohesion: 0.29
 Nodes (7): Benchmarks & Testing, Deliverables, Exit Criteria, Phase 0.1 — Model Provider Abstraction Scaffold, Scope, Services Touched, Tasks
 
 ### Community 50 - "MockVlmRouter"
-Cohesion: 0.23
-Nodes (8): MockVlmRouter, Deterministic router for tests: routes but never calls a real VLM., _el(), Phase 1.0 unit tests — Page-Wise VLM Router (Task 1.5). Covers Test 1-D (table…, Test 1-F: clean text pages never trigger a VLM call., Test 1-D: table element -> VLM table route, markdown output., Test 1-E: low-text element (<150 chars) -> full-page VLM., TestVlmRouter
+Cohesion: 0.26
+Nodes (7): MockVlmRouter, Deterministic router for tests: routes but never calls a real VLM., _el(), Test 1-F: clean text pages never trigger a VLM call., Test 1-D: table element -> VLM table route, markdown output., Test 1-E: low-text element (<150 chars) -> full-page VLM., TestVlmRouter
 
 ### Community 51 - "Phase 6.0 — Conversational Memory + SLM-Based Query Rewrite ("Supermemory-Lite")"
 Cohesion: 0.33
@@ -363,8 +362,8 @@ Cohesion: 0.33
 Nodes (6): Benchmarks & Testing, Exit Criteria, Phase 11.0 — Graph-Aware Retrieval (Query the Graph & Semantic Relationships), Scope, Services Touched, Tasks
 
 ### Community 56 - "ParsedElement"
-Cohesion: 0.13
-Nodes (13): ParsedElement, BaseModel, One element extracted by Docling, normalized for the router., Apply the routing table to a parsed document., A routed element: either Docling text or a VLM call output., RoutingResult, _char_count_for_coverage(), Derive a plausible element char_count from page coverage + route. The CSV's… (+5 more)
+Cohesion: 0.19
+Nodes (8): ParsedElement, One element extracted by Docling, normalized for the router., Apply the routing table to a parsed document., A routed element: either Docling text or a VLM call output., RoutingResult, FIX-005 wiring: page_number_override reaches every stored chunk., Parser -> router -> chunker -> embedder -> MemoryChunkStore., TestFullPipelineWiring
 
 ### Community 57 - "Phase 14.0 — Mixture of Agents (MoA) Synthesis"
 Cohesion: 0.33
@@ -387,20 +386,20 @@ Cohesion: 0.40
 Nodes (5): Benchmarks & Testing, Exit Criteria, Phase 16.0 — Enterprise Scale Hardening, Scope, Tasks
 
 ### Community 64 - "text_to_sparse"
-Cohesion: 0.18
-Nodes (8): Convert to Qdrant SparseVector-compatible (indices, values) pair., Return the term indices encoded for `text` (for tests/debugging). FastEmbed's…, Encode text into {term_index: raw_term_count} via Qdrant/bm25. When…, sparse_to_qdrant_indices_values(), text_to_sparse(), tokenize(), Phase 3.0 Task 3.5 — FastEmbed BM25 sparse tokenizer tests. Validates that the…, TestFastEmbedBM25
+Cohesion: 0.14
+Nodes (13): _get_model(), BM25 sparse vector tokenizer backed by FastEmbed's Qdrant/bm25 model. Replaces…, Convert to Qdrant SparseVector-compatible (indices, values) pair., Return the term indices encoded for `text` (for tests/debugging). FastEmbed's…, Return the model cache dir, preferring the explicitly-set path. Resolution…, Lazily initialize the singleton FastEmbed Bm25 model (thread-safe). Loads…, Encode text into {term_index: raw_term_count} via Qdrant/bm25. When…, _resolve_cache_dir() (+5 more)
 
 ### Community 66 - "vlm_router.py"
-Cohesion: 0.06
-Nodes (34): Image, _crop_bbox(), FitzPageRenderer, _is_non_latin_dominant(), _load_cached_vlm(), _page_text_stats(), PageRenderer, ABC (+26 more)
+Cohesion: 0.09
+Nodes (27): Image, _crop_bbox(), FitzPageRenderer, _is_non_latin_dominant(), _load_cached_vlm(), _page_text_stats(), PageRenderer, ABC (+19 more)
 
 ### Community 67 - "rules.test.js"
 Cohesion: 0.25
 Nodes (4): fs, { initializeTestEnvironment, assertFails, assertSucceeds }, path, RULES_PATH
 
 ### Community 68 - "preprocess"
-Cohesion: 0.22
-Nodes (7): contains_devanagari(), preprocess(), Hindi-aware preprocessing for the BM25 sparse encoder (Stage 5). FastEmbed's…, Drop Hindi stopwords and lightly stem Devanagari tokens. Non-Devanagari tokens…, _stem(), Stage 5 — Devanagari stopword/stemming preprocessing (pure logic)., TestHindiPreprocess
+Cohesion: 0.27
+Nodes (5): preprocess(), Drop Hindi stopwords and lightly stem Devanagari tokens. Non-Devanagari tokens…, _stem(), Stage 5 — Devanagari stopword/stemming preprocessing (pure logic)., TestHindiPreprocess
 
 ### Community 69 - "mock_auth"
 Cohesion: 0.15
@@ -423,7 +422,7 @@ Cohesion: 0.33
 Nodes (6): Deliverables, Exit Criteria, Phase 16.0 — Enterprise Hardening & Zero-Trust Infrastructure, Scope, Services Touched, Tasks
 
 ### Community 74 - "Chunk"
-Cohesion: 0.15
+Cohesion: 0.14
 Nodes (5): Chunk, Persist chunks; returns the number written., Return all chunks for a document, enforcing tenant isolation., Return chunks by their IDs, scoped to the given tenant. Missing IDs and cross-…, Return all chunks of a document on the given pages, tenant-scoped. Stage 3c…
 
 ### Community 76 - "validate_table_markdown"
@@ -434,9 +433,9 @@ Nodes (5): Phase 2.5 — VLM table markdown validation. Validates that VLM-extra
 Cohesion: 0.47
 Nodes (5): _create_user_if_missing(), _credentials(), main(), Build Firebase Admin credentials from a token, or fall back to ADC., Return the user UID, creating the account first if needed.
 
-### Community 78 - "ingestion/models.py"
+### Community 78 - "store.py"
 Cohesion: 0.09
-Nodes (32): Enum, get_cached_chunks(), Document hash cache for ingestion deduplication. If a PDF has been previously…, Check if doc SHA256 has been previously stored. Returns list of Chunks if…, Chunk, ElementType, Shared data model for the IRIS ingestion pipeline. A `Chunk` is the unit…, Docling element labels, normalized for the pipeline. (+24 more)
+Nodes (20): get_cached_chunks(), Document hash cache for ingestion deduplication. If a PDF has been previously…, Check if doc SHA256 has been previously stored. Returns list of Chunks if…, Chunk, BaseModel, A content unit ready to embed + store., ChunkStore, get_chunk_store() (+12 more)
 
 ### Community 79 - "Phase 2.5 — Empirical Validation & Pipeline Hardening"
 Cohesion: 0.33
@@ -451,72 +450,64 @@ Cohesion: 0.21
 Nodes (9): _el(), Verify the production `_route_element` signal table directly., fast_text tier: high word ratio + enough chars -> zero API cost., Signal 4: low-total-text page -> full-page OCR (page-level check)., Signal 4 is page-level: a short footer/heading on a text-rich page must NOT…, Signal 2: garbled OCR / unmapped encoding -> full-page OCR., Signal 3 case A: coverage < 0.15 and few chars., A sparse but valid text page (coverage 0.20) stays fast_text today. This… (+1 more)
 
 ### Community 83 - "TestGroundTruthRouting"
-Cohesion: 0.20
-Nodes (7): 127 pages: high ratio + high coverage -> zero VLM cost., 58 pages: tables (Signal 1) or low-coverage sparse -> VLM., 5 pages (Hindi/Devanagari): Signal 5 must fire despite high ratio., 11 pages: 0.75-0.88 ratio -> DOCLING_TEXT (or VLM_TABLE if has_table)., Aggregate: every labeled page matches ground truth (no regressions)., Every labeled page in the CSV must route as the ground truth says., TestGroundTruthRouting
+Cohesion: 0.17
+Nodes (8): _load_pages(), 127 pages: high ratio + high coverage -> zero VLM cost., 58 pages: tables (Signal 1) or low-coverage sparse -> VLM., 5 pages (Hindi/Devanagari): Signal 5 must fire despite high ratio., 11 pages: 0.75-0.88 ratio -> DOCLING_TEXT (or VLM_TABLE if has_table)., Aggregate: every labeled page matches ground truth (no regressions)., Every labeled page in the CSV must route as the ground truth says., TestGroundTruthRouting
 
 ### Community 87 - "IRIS Roadmap: Phase 6+ Execution Plan with Citation/Bbox/Rerank Fixes"
 Cohesion: 0.13
 Nodes (14): Background (verified facts), Current ACTIONPLAN phase map (post-Phase 5), Execution plan (phase by phase), Files to touch, Goal, IRIS Roadmap: Phase 6+ Execution Plan with Citation/Bbox/Rerank Fixes, Open decision, Phase 10.0 → 11.0 — Graph layers (stay in place, after 9.0) (+6 more)
 
-### Community 88 - "create_session"
-Cohesion: 0.22
-Nodes (11): AuthContext, _create_document_record(), create_session(), _get_firestore_client(), list_sessions(), Lazy-initialize Firestore client., Create the Firestore ownership record so view-url/delete work. The record also…, Create a named workspace session scoped to the verified tenant. (+3 more)
+### Community 88 - "RecordingProvider"
+Cohesion: 0.25
+Nodes (3): _chunk(), MockModelProvider that records every embed/rewrite/HyDE call., RecordingProvider
 
-### Community 90 - "Citation"
-Cohesion: 0.26
-Nodes (17): Citation, DeleteResponse, DocStatusResponse, BaseModel, QueryRequest, QueryResponse, Phase 2.0 retrieval data models (Phase 4.0: request-size guards)., A retrieved chunk with its fusion score. (+9 more)
+### Community 90 - "retrieval_api/app.py"
+Cohesion: 0.05
+Nodes (82): AuthContext, BaseModel, delete, get, post, QueryRequest, SearchRequest, ID validation + request-size guards (Phase 4.0). Prevents path traversal, NoSQL… (+74 more)
 
 ### Community 92 - "ingestion/main.py"
 Cohesion: 0.07
-Nodes (27): Exception, ModelProvider, IngestionPipeline, IngestResult, Ingestion orchestrator (ACTIONPLAN Tasks 1.2-1.9). Order: preflight -> download…, Full pipeline for one uploaded document or single-page blob., Payload must be rejected forever (never queued / straight to DLQ)., Transient failure; Pub/Sub should redeliver (up to 3 attempts). (+19 more)
+Nodes (28): ChunkStore, Exception, ModelProvider, IngestionPipeline, IngestResult, Ingestion orchestrator (ACTIONPLAN Tasks 1.2-1.9). Order: preflight -> download…, Full pipeline for one uploaded document or single-page blob., Payload must be rejected forever (never queued / straight to DLQ). (+20 more)
 
-### Community 93 - "get"
-Cohesion: 0.18
-Nodes (12): get, _cors_origins(), _document_exists(), _env_rerank_blend(), livez(), FR-5.4: purge doc_id from every session's document_ids array., Ownership pre-check before signing a GCS URL (prevents arbitrary signing)., Comma-separated browser origins from CORS_ALLOWED_ORIGINS (trimmed). (+4 more)
+### Community 93 - "test_qdrant_live.py"
+Cohesion: 0.53
+Nodes (5): _chunk(), Tier 2 live smoke tests — Qdrant connectivity and read/write path. Run only…, _store(), test_collection_health(), test_roundtrip_upsert_search_delete()
 
 ### Community 94 - "MockModelProvider"
-Cohesion: 0.15
+Cohesion: 0.13
 Nodes (5): get_model_provider(), Factory function returning the active ModelProvider instance. MODEL_BACKEND…, MockModelProvider, Mock implementation returning deterministic outputs for local testing., TestModelProviderScaffold
-
-### Community 97 - "reciprocal_rank_fusion"
-Cohesion: 0.15
-Nodes (9): fuse_rerank_scores(), Reciprocal Rank Fusion — merges two score-incompatible ranked lists. RRF is…, Merge dense and sparse ranked lists via RRF. Args: dense_results: [(chunk_id,…, Fuse hybrid RRF scores with cross-encoder reranker scores, rank-based. The…, reciprocal_rank_fusion(), Phase 2.0 unit tests — RRF fusion., Phase 12.1 weighted rank fusion — scale-free reranker blending., TestFuseRerankScores (+1 more)
 
 ### Community 98 - "IRIS Retrieval Quality + Citation Correctness — Implementation Plan (v2)"
 Cohesion: 0.17
 Nodes (11): Deferred (post-MVP, unchanged), IRIS Retrieval Quality + Citation Correctness — Implementation Plan (v2), Key risks, Stage 0 — Land the in-flight Phase 6/9 work + one bbox fix, Stage 1 — Free retrieval wins (fully local, no re-ingest), Stage 2 — Real reranker, wired into `/query`, Stage 3 — Re-ingest batch: small-to-big chunking + page-level citations, Stage 4 — Frontend highlight degradation ladder (`D:\iris-frontend`) (+3 more)
+
+### Community 101 - "QdrantChunkStore"
+Cohesion: 0.27
+Nodes (3): QdrantChunkStore, Phase 2.0 Qdrant store — v2 named-vector collection, hybrid search, cascading…, Probe: BM25 search for Devanagari character 'क' — returns True if any results…
 
 ### Community 102 - "IRIS Retrieval Quality + Citation Correctness — Implementation Plan (v2)"
 Cohesion: 0.17
 Nodes (11): Deferred (post-MVP, unchanged), IRIS Retrieval Quality + Citation Correctness — Implementation Plan (v2), Key risks, Stage 0 — Land the in-flight Phase 6/9 work + one bbox fix, Stage 1 — Free retrieval wins (fully local, no re-ingest), Stage 2 — Real reranker, wired into `/query`, Stage 3 — Re-ingest batch: small-to-big chunking + page-level citations, Stage 4 — Frontend highlight degradation ladder (`D:\iris-frontend`) (+3 more)
 
 ### Community 103 - "build_qa_response"
-Cohesion: 0.05
-Nodes (31): ChunkStore, AuthContext, AuthError, _get_app(), InvalidTokenError, MissingTenantClaimError, MissingTokenError, Exception (+23 more)
+Cohesion: 0.06
+Nodes (30): AuthContext, AuthError, _get_app(), InvalidTokenError, MissingTenantClaimError, MissingTokenError, Exception, Firebase JWT verification + FastAPI auth dependency (Phase 4.0). The verified… (+22 more)
 
 ### Community 106 - "chunk_routed"
 Cohesion: 0.09
 Nodes (27): ElementType, RouteDecision, _chunk_metadata(), chunk_routed(), _chunk_text(), _chunk_vlm_table(), _env_target_tokens(), _page_level_metadata() (+19 more)
 
-### Community 109 - "base.py"
-Cohesion: 0.12
-Nodes (10): BaseModel, ModelProvider Abstract Base Class for IRIS. All model inference calls…, Generates a grounded natural language answer with structured citations.…, StructuredAnswer, ModelProvider Factory for IRIS. Reads MODEL_BACKEND env var from Secret Manager…, Self-hosted GPU model provider (Phase 10.0). Provides local GPU inference for…, Dormant GPU provider stub. Implemented in Phase 10.0., SelfHostedGPUProvider (+2 more)
+### Community 109 - "ModelProvider"
+Cohesion: 0.16
+Nodes (13): ModelProvider, ABC, ModelProvider Abstract Base Class for IRIS. All model inference calls…, Abstract Model Provider Interface., Vision-Language Model (VLM) full-page call for scanned or low-text pages (<150…, Generates a grounded natural language answer with structured citations.…, StructuredAnswer, ModelProvider Factory for IRIS. Reads MODEL_BACKEND env var from Secret Manager… (+5 more)
 
-### Community 110 - "test_docling_large.py"
-Cohesion: 0.24
-Nodes (7): DoclingParser, integration, Path, Docling CPU pipeline tests — run the full trueassort/ corpus on CPU. Run:…, Parse the full 8-doc corpus on CPU and verify no doc is empty., run_pipeline(), TestDoclingLargeCPU
+### Community 110 - "parser.py"
+Cohesion: 0.10
+Nodes (17): Docling layout-aware parsing (ACTIONPLAN Task 1.4). Wraps Docling v2 and…, Pre-ingestion payload scanner (ACTIONPLAN Task 1.2). Rejects payloads BEFORE…, Docling pipeline integration tests — run against trueassort/ golden corpus.…, DoclingParser, integration, Path, Docling CPU pipeline tests — run the full trueassort/ corpus on CPU. Run:…, Parse the full 8-doc corpus on CPU and verify no doc is empty. (+9 more)
 
 ### Community 115 - "test_cors.py"
 Cohesion: 0.18
 Nodes (9): FastAPI, add_cors_middleware(), Register CORSMiddleware for the configured browser origins. No-op when…, _cors_app(), FastAPI, Phase 5.0a tests — CORS middleware on retrieval_api/app. Tests build a…, CORS header on a real authenticated request through the shared app., TestCorsMiddleware (+1 more)
-
-### Community 116 - "bm25.py"
-Cohesion: 0.40
-Nodes (5): _get_model(), BM25 sparse vector tokenizer backed by FastEmbed's Qdrant/bm25 model. Replaces…, Return the model cache dir, preferring the explicitly-set path. Resolution…, Lazily initialize the singleton FastEmbed Bm25 model (thread-safe). Loads…, _resolve_cache_dir()
-
-### Community 121 - "query"
-Cohesion: 0.29
-Nodes (8): QueryRequest, ScoredChunk, _build_synthesis_context(), _expand_to_parent_pages(), query(), Retrieve -> synthesize -> grounded structured answer., Small-to-big (Stage 3c): append same-page siblings of the top chunks. Retrieval…, Build the source-chunk context and the source_chunks list for grounding.…
 
 ### Community 127 - "canary/main.py"
 Cohesion: 0.39
@@ -526,6 +517,10 @@ Nodes (7): _firebase_token(), _post(), _probe_ranking_api(), IRIS retrieval cana
 Cohesion: 0.36
 Nodes (3): _load_worker_module(), FIX-005 — page_number must survive the Pub/Sub push envelope., TestPubSubEnvelopeDecode
 
+### Community 129 - "auth_testing.py"
+Cohesion: 0.33
+Nodes (3): Shared test helper for Phase 4.0 auth (local component tests). Patches…, Phase 2.0 unit tests — Retrieval API endpoints (FastAPI TestClient). Phase 4.0:…, Task 5.0b unit tests — POST /documents/upload (retrieval-api). Covers the full…
+
 ### Community 131 - "Golden-Set Adjudication Guide"
 Cohesion: 0.22
 Nodes (8): A. How to verify a label (method + worked example), B. Items needing your eyes (5 items, ~10 minutes), C. NOT label questions — explained by the un-indexed-pages bug (no action for you), D. Confirmed genuine retrieval failures (no action), E. Already fixed (round 1), F. Round 3 (2026-08-23): answer-evidence pass — 11 page-placement items, G. Standing integrity (2026-08-23), Golden-Set Adjudication Guide
@@ -533,17 +528,17 @@ Nodes (8): A. How to verify a label (method + worked example), B. Items needing 
 ## Knowledge Gaps
 - **361 isolated node(s):** `1. What IRIS is (one paragraph)`, `2. Ground rules the user has set (NEVER violate)`, `Phase A — Analysis (discussion only)`, `Phase B — Approved plan (v2) and Stages 0–5`, `Phase C — GCP Rounds A/B/C (live)` (+356 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **35 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **40 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `MockModelProvider` connect `MockModelProvider` to `TestPubSubEnvelopeDecode`, `vlm_router.py`, `build_qa_response`, `base.py`, `ingestion/models.py`, `TestDeepSearch`, `TestRouterSignals`, `MemoryChunkStore`, `TestGroundTruthRouting`, `SearchOrchestrator`, `ParsedElement`, `Citation`, `ingestion/main.py`?**
-  _High betweenness centrality (0.042) - this node is a cross-community bridge._
-- **Why does `MemoryChunkStore` connect `MemoryChunkStore` to `text_to_sparse`, `TestPubSubEnvelopeDecode`, `check_pdf`, `build_qa_response`, `ChunkStore`, `Chunk`, `TestMemoryChunkStoreSearch`, `ingestion/models.py`, `test_docling_large.py`, `TestDeepSearch`, `test_delete_cascade.py`, `SearchOrchestrator`, `ParsedElement`, `ingestion/main.py`?**
-  _High betweenness centrality (0.033) - this node is a cross-community bridge._
-- **Why does `VertexAIProvider` connect `VertexAIProvider` to `ingestion/main.py`, `base.py`, `MockModelProvider`?**
-  _High betweenness centrality (0.032) - this node is a cross-community bridge._
+- **Why does `ModelProvider` connect `ModelProvider` to `.extract_table`, `.generate_cross_lingual_variants`, `vlm_router.py`, `SelfHostedGPUProvider`, `SearchOrchestrator`, `MockVlmRouter`, `.generate_hyde`, `VertexAIProvider`, `.rerank`, `ParsedElement`, `.rewrite_query`, `MockModelProvider`, `.embed`?**
+  _High betweenness centrality (0.043) - this node is a cross-community bridge._
+- **Why does `MemoryChunkStore` connect `MemoryChunkStore` to `text_to_sparse`, `TestPubSubEnvelopeDecode`, `ingestion/models.py`, `needs_cross_lingual_boost`, `check_pdf`, `build_qa_response`, `Chunk`, `TestMemoryChunkStoreSearch`, `store.py`, `parser.py`, `TestDeepSearch`, `test_delete_cascade.py`, `SearchOrchestrator`, `RecordingProvider`, `ParsedElement`, `ingestion/main.py`?**
+  _High betweenness centrality (0.040) - this node is a cross-community bridge._
+- **Why does `MockModelProvider` connect `MockModelProvider` to `TestPubSubEnvelopeDecode`, `ingestion/models.py`, `ParsedElement`, `vlm_router.py`, `build_qa_response`, `ModelProvider`, `TestDeepSearch`, `TestRouterSignals`, `SearchOrchestrator`, `TestGroundTruthRouting`, `RecordingProvider`, `retrieval_api/app.py`, `ingestion/main.py`?**
+  _High betweenness centrality (0.040) - this node is a cross-community bridge._
 - **Are the 14 inferred relationships involving `MemoryChunkStore` (e.g. with `RecordingProvider` and `TestDeepSearch`) actually correct?**
   _`MemoryChunkStore` has 14 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 9 inferred relationships involving `MockModelProvider` (e.g. with `Citation` and `ModelProvider`) actually correct?**
