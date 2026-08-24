@@ -1,11 +1,11 @@
 """Apply owner's Round-3 adjudication to goldendataset.json.
 
-Owner decisions (2026-08-23) on the 11 answer-evidence page-placement
+Owner decisions (2026-08-23/24) on the 11 answer-evidence page-placement
 flags from label_adjudication_guide.md section F:
   q_009 4->5, q_010 3->[3,14], q_018 [3,3]->[1,3], q_043 drop p7,
-  q_044 19->20, q_046 26->24, q_049 9->10.
+  q_044 19->20, q_046 26->24, q_049 9->10, q_011 [3,2]->[2,1]
+  (doc_001 p2 = S.2(g) definition; doc_002 p1 = Rule 3 rank mandate).
 Dismissed (labels already correct): q_031, q_036, q_048.
-Still pending owner: q_011.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ BACKUP = ROOT / "goldendataset.pre-round3-backup.json"
 RULINGS: dict[str, list[int] | None] = {
     "q_009": [5],
     "q_010": [3, 14],
+    "q_011": [2, 1],
     "q_018": [1, 3],
     "q_043": [3, 4, 5, 6],
     "q_044": [20],
