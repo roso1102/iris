@@ -187,7 +187,7 @@ Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong c
 
 ## 9. Live state right now
 
-- **Worker** `ingestion-worker-00081-lt2` (pipeline #2 code, `CHUNK_TARGET_TOKENS=256`, `BM25_HINDI_ENABLED=1`, `page_coverage_gap` now live); **api** `retrieval-api-00025-42s` (`RERANK_LOCATION=global`, `RERANK_BLEND` unset, Hindi on). Canary live every 15 min, alert armed (user configured).
+- **Worker** `ingestion-worker-00081-lt2` (pipeline #2 code, `CHUNK_TARGET_TOKENS=256`, `BM25_HINDI_ENABLED=1`, `page_coverage_gap` now live); **api** `retrieval-api-00026-dbv` (`RERANK_LOCATION=global`, **`RERANK_BLEND=0.3`** enabled, Hindi on). Canary live every 15 min, alert armed (user configured).
 - Corpus re-ingested 2026-08-24: 201/201 pages, 1,688 chunks, `test-tenant`.
 - Git `main` = `7ec4e42`. **Last 5 commits (521289f, fd5e516, c7b49f1, 6fdf8b9, 7ec4e42) are local-only — not yet pushed.** ~35 commits this session.
 - User's outstanding personal items: push the local commits; confirm the `coco.md` deletion (uncommitted `D` in working tree); check the stalled GitHub Actions; CORS repo var before the CNAME lands; occasional frontend highlight eyeball.

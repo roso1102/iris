@@ -735,8 +735,8 @@
     "semantic_hash": ""
   },
   "label_adjudication_guide.md": {
-    "mtime": 1787561481.551991,
-    "ast_hash": "c7801a5be6087bf311c9d0d0ae7e855c",
+    "mtime": 1787582929.6020193,
+    "ast_hash": "e9375e1f6e76d724326479547f89c5e4",
     "semantic_hash": ""
   },
   "services/canary/requirements.txt": {
@@ -745,8 +745,8 @@
     "semantic_hash": ""
   },
   "handoff.md": {
-    "mtime": 1787569097.4625535,
-    "ast_hash": "2b7b7cbc45f967dbbfdc6d5e15e295bd",
+    "mtime": 1787582996.4814727,
+    "ast_hash": "49538181f82c8e0f11a5d2a0c9e50ae7",
     "semantic_hash": ""
   },
   "scripts/answer_evidence_pass.py": {
