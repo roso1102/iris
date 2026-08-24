@@ -112,45 +112,34 @@ class SearchOrchestrator:
         """
         t0 = time.time()
 
-        # ── Phase 1: Rewrite (existing) + Cross-lingual detection ────
+        # ── Phase 1: Rewrite (existing) ──────────────────────────────
         if _needs_rewrite(query, history):
             query = await asyncio.to_thread(
                 self.provider.rewrite_query, query, history or []
             )
 
-        has_dev = self._has_devanagari_corpus(tenant_id)
-        needs_xling = _needs_cross_lingual(query, has_dev)
+        # ── Phase 2: Original embedding + transliteration leg ────────
+        # Pipeline #3 revision: ONLY fire for romanized Hindi content
+        # words (zero latency for English queries; no LLM call).
+        embedding = await asyncio.to_thread(self.provider.embed_query, query)
 
-        # ── Phase 2: Original embedding + variant generation (parallel) ──
-        orig_embed_task = asyncio.to_thread(self.provider.embed_query, query)
-        variant_task = (
-            asyncio.to_thread(self.provider.generate_cross_lingual_variants, query)
-            if needs_xling
-            else asyncio.sleep(0, result=[])
+        from services.common.retrieval.hindi import (
+            is_romanized_hindi,
+            transliterate_romanized_hindi,
         )
-        orig_embedding, hindi_variants = await asyncio.gather(
-            orig_embed_task, variant_task
+
+        translit_query = transliterate_romanized_hindi(query)
+        needs_translit = (
+            translit_query != query
+            and self._has_devanagari_corpus(tenant_id)
+            and is_romanized_hindi(query)
         )
-        hindi_variants = hindi_variants or []
 
-        # ── Phase 3: Embed Hindi variants (parallel) ─────────────────
-        if hindi_variants:
-            variant_embeddings = list(
-                await asyncio.gather(
-                    *[
-                        asyncio.to_thread(self.provider.embed_query, v)
-                        for v in hindi_variants
-                    ]
-                )
-            )
-        else:
-            variant_embeddings = []
-
-        # ── Phase 4: All store searches in parallel ──────────────────
+        # ── Phase 3: All store searches in parallel ──────────────────
         search_tasks = [
             asyncio.to_thread(
                 self.store.search_dense,
-                orig_embedding,
+                embedding,
                 tenant_id,
                 doc_ids,
                 limit=top_k * 3,
@@ -163,20 +152,13 @@ class SearchOrchestrator:
                 limit=top_k * 3,
             ),
         ]
-        for variant, v_emb in zip(hindi_variants, variant_embeddings):
-            search_tasks.append(
-                asyncio.to_thread(
-                    self.store.search_dense,
-                    v_emb,
-                    tenant_id,
-                    doc_ids,
-                    limit=top_k * 3,
-                )
-            )
+        if needs_translit:
+            # Sparse search on the Devanagari-transliterated query —
+            # BM25 hits Hindi doc passages directly without LLM cost.
             search_tasks.append(
                 asyncio.to_thread(
                     self.store.search_sparse,
-                    variant,
+                    translit_query,
                     tenant_id,
                     doc_ids,
                     limit=top_k * 3,
@@ -225,8 +207,7 @@ class SearchOrchestrator:
                 "top_score": results[0].score if results else 0.0,
                 "tenant_id": tenant_id,
                 "num_results": len(results),
-                "cross_lingual": bool(hindi_variants),
-                "hindi_variants_count": len(hindi_variants),
+                "transliteration": needs_translit,
             },
         )
         return results
@@ -246,17 +227,18 @@ class SearchOrchestrator:
             self.provider.rewrite_query, query, history or []
         )
 
-        # ── Cross-lingual on the REWRITTEN query ─────────────────────
-        has_dev = self._has_devanagari_corpus(tenant_id)
-        needs_xling = _needs_cross_lingual(rewritten, has_dev)
+        # ── Transliteration on the REWRITTEN query ────────────────────
+        from services.common.retrieval.hindi import (
+            is_romanized_hindi,
+            transliterate_romanized_hindi,
+        )
 
-        if needs_xling:
-            hindi_variants = await asyncio.to_thread(
-                self.provider.generate_cross_lingual_variants, rewritten
-            )
-        else:
-            hindi_variants = []
-        hindi_variants = hindi_variants or []
+        translit_query = transliterate_romanized_hindi(rewritten)
+        needs_translit = (
+            translit_query != rewritten
+            and self._has_devanagari_corpus(tenant_id)
+            and is_romanized_hindi(rewritten)
+        )
 
         # ── HyDE for original query (unchanged) ──────────────────────
         try:
@@ -265,19 +247,6 @@ class SearchOrchestrator:
             hyde = rewritten
 
         hyde_embedding = await asyncio.to_thread(self.provider.embed, hyde)
-
-        # ── Embed Hindi variants ─────────────────────────────────────
-        if hindi_variants:
-            variant_embeddings = list(
-                await asyncio.gather(
-                    *[
-                        asyncio.to_thread(self.provider.embed_query, v)
-                        for v in hindi_variants
-                    ]
-                )
-            )
-        else:
-            variant_embeddings = []
 
         # ── All store searches in parallel ───────────────────────────
         search_tasks = [
@@ -296,20 +265,11 @@ class SearchOrchestrator:
                 limit=top_k * 3,
             ),
         ]
-        for variant, v_emb in zip(hindi_variants, variant_embeddings):
-            search_tasks.append(
-                asyncio.to_thread(
-                    self.store.search_dense,
-                    v_emb,
-                    tenant_id,
-                    doc_ids,
-                    limit=top_k * 3,
-                )
-            )
+        if needs_translit:
             search_tasks.append(
                 asyncio.to_thread(
                     self.store.search_sparse,
-                    variant,
+                    translit_query,
                     tenant_id,
                     doc_ids,
                     limit=top_k * 3,
@@ -340,7 +300,7 @@ class SearchOrchestrator:
                 "top_score": results[0].score if results else 0.0,
                 "tenant_id": tenant_id,
                 "num_results": len(results),
-                "cross_lingual": bool(hindi_variants),
+                "transliteration": needs_translit,
             },
         )
         return results

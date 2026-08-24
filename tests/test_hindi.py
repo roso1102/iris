@@ -1,4 +1,4 @@
-"""Pipeline #3: Cross-lingual detection unit tests."""
+"""Pipeline #3: Cross-lingual detection + transliteration unit tests."""
 
 import unittest
 
@@ -6,6 +6,8 @@ from services.common.retrieval.hindi import (
     contains_devanagari,
     is_romanized_hindi,
     needs_cross_lingual_boost,
+    transliterate_romanized_hindi,
+    ROMANIZED_TO_DEVANAGARI,
 )
 
 
@@ -44,6 +46,34 @@ class TestNeedsCrossLingualBoost(unittest.TestCase):
         self.assertTrue(needs_cross_lingual_boost("committee funding", True))
         self.assertTrue(needs_cross_lingual_boost("pashupalan", True))
         self.assertTrue(needs_cross_lingual_boost("pashupalan funding", True))
+
+
+class TestTransliteration(unittest.TestCase):
+    """Pipeline #3 revision: dictionary-first transliteration."""
+
+    def test_known_words_transliterate(self):
+        result = transliterate_romanized_hindi("pashupalan kanoon")
+        self.assertIn(ROMANIZED_TO_DEVANAGARI["pashupalan"], result)
+        self.assertIn(ROMANIZED_TO_DEVANAGARI["kanoon"], result)
+
+    def test_mixed_english_hindi(self):
+        """English tokens stay as-is, Hindi tokens get transliterated."""
+        result = transliterate_romanized_hindi("committee pashupalan kanoon scheme")
+        self.assertIn("committee", result)
+        self.assertIn("scheme", result)
+        self.assertIn(ROMANIZED_TO_DEVANAGARI["pashupalan"], result)
+
+    def test_pure_english_unchanged(self):
+        """No romanized Hindi tokens → output same as input."""
+        result = transliterate_romanized_hindi("committee funding policy")
+        self.assertEqual(result, "committee funding policy")
+
+    def test_already_devanagari_unchanged(self):
+        result = transliterate_romanized_hindi("समिति कोष")
+        self.assertEqual(result, "समिति कोष")
+
+    def test_empty_input(self):
+        self.assertEqual(transliterate_romanized_hindi(""), "")
 
 
 if __name__ == "__main__":

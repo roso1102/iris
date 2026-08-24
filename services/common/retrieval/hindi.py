@@ -136,3 +136,55 @@ def needs_cross_lingual_boost(
     if contains_devanagari(query):
         return False
     return True
+
+
+# ── Pipeline #3 revision: dictionary-first transliteration ──────────
+
+ROMANIZED_TO_DEVANAGARI: dict[str, str] = {
+    "kanoon": "कानून", "vidhik": "विधिक", "nyay": "न्याय",
+    "adalat": "अदालत", "samvidhan": "संविधान", "anuched": "अनुच्छेद",
+    "dhara": "धारा", "prakaran": "प्रकरण", "sansad": "संसद",
+    "mantri": "मंत्री", "adhikari": "अधिकारी", "niyam": "नियम",
+    "prativedan": "प्रतिवेदन", "rajya": "राज्य", "sarkar": "सरकार",
+    "karmachari": "कर्मचारी", "lokpal": "लोकपाल",
+    "lokayukta": "लोकायुक्त", "nyayalaya": "न्यायालय",
+    "vakil": "वकील", "mukadama": "मुकदमा",
+    "pashupalan": "पशुपालन", "krishi": "कृषि", "kisan": "किसान",
+    "fasal": "फसल", "sinchai": "सिंचाई", "gaon": "गाँव",
+    "panchayat": "पंचायत", "grameen": "ग्रामीण",
+    "bijli": "बिजली", "upbhokta": "उपभोकta",
+}
+
+
+def transliterate_romanized_hindi(text: str) -> str:
+    """Transliterate romanized Hindi tokens to Devanagari.
+
+    Dictionary-first for known legal/content words (deterministic),
+    fallback to indic-transliteration library for unknown tokens.
+    English tokens pass through untouched.
+    """
+    try:
+        from indic_transliteration import sanscript as _sanscript
+
+        def _fallback(token: str) -> str:
+            return _sanscript.transliterate(token, _sanscript.HK, _sanscript.DEVANAGARI)
+
+    except ImportError:
+
+        def _fallback(token: str) -> str:
+            return token
+
+    tokens = re.split(r"(\s+)", text.strip())
+    out: list[str] = []
+    for tok in tokens:
+        if not tok.strip():
+            out.append(tok)
+            continue
+        lower = tok.lower()
+        if lower in ROMANIZED_TO_DEVANAGARI:
+            out.append(ROMANIZED_TO_DEVANAGARI[lower])
+        elif is_romanized_hindi(tok):
+            out.append(_fallback(tok))
+        else:
+            out.append(tok)
+    return "".join(out)
