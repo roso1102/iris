@@ -1,11 +1,11 @@
 # Golden-Set Adjudication Guide
 
-**Created:** 2026-08-22 · **Owner:** Rohit · **Status:** ✅ RESOLVED 2026-08-22 (owner adjudicated section B; applied to goldendataset.json)
+**Created:** 2026-08-22 · **Owner:** Rohit · **Status:** ✅ RESOLVED (rounds 1–3; last adjudication 2026-08-24 — Round-3 section F applied to goldendataset.json via `scripts/apply_round3_adjudication.py`; q_011 still pending)
 **Page-number convention (settled):** the pipeline, citations, frontend viewer, and this golden set all use **PDF physical sequence, 1-based** ("viewer" numbering). The ORIGINAL labels were authored against the documents' PRINTED page numbers, whose offset from physical sequence varies per document (doc_007: printed = viewer + 9; most others: printed = viewer − 1) — that is the root cause of the original off-by-one plague. Any future label must be read off the PDF viewer, not the printed page.
-**Final metrics with fully-adjudicated labels:** Recall@5 0.880 · Page-Recall@5 0.626 · MRR 0.555.
+**Metrics snapshot (historical — pre-final-eval):** Recall@5 0.880 · Page-Recall@5 0.626 · MRR 0.555 (as of 2026-08-22). The 2026-08-23 final eval with the full corpus measured 1.000 / 0.740 / 0.667; labels changed again 2026-08-24 (Round 3), so re-run the eval to re-derive authoritative numbers.
 **Rules attached to this sheet:**
-1. Current corrected metrics are **floors, not finals**: Page-Recall@5 ≥ 0.539, MRR ≥ 0.455. Do not quote them as exact in any doc until this sheet is cleared.
-2. **q_003 / q_010 (and q_020) are HELD OUT** of any "corrected" number — they are suspected label errors awaiting your verdict.
+1. Current corrected metrics are **floors, not finals** — historical as of 2026-08-22 (Page-Recall@5 ≥ 0.539, MRR ≥ 0.455). Superseded by the 2026-08-23 final eval (1.000/0.740/0.667) and the 2026-08-24 Round-3 label application; re-run the eval for authoritative numbers.
+2. ~~q_003 / q_010 / q_020 held out~~ — RESOLVED: q_010 adjudicated [3,14] this round; q_003/q_020 (doc_007 p32) were NOT re-flagged by the Round-3 answer-evidence pass (not in the 11), so they stand as labeled. No active holdout remains except q_011.
 3. Never quote `scanned_lookup` 0.143 without the caveat: doc_001/doc_002 are partially un-indexed (see section C) — that number measures a broken index, not only retrieval.
 
 ---
@@ -60,17 +60,17 @@ q_006, q_013, q_028 — answer verified ON the labeled page (doc_007 pages 9/42,
 
 | # | Query (short) | Label | Best evidence | Note |
 |---|---|---|---|---|
-| q_009 | S.9 penalty term | 4 | **p5** (0.77 vs 0.31) | you adjudicated p4 (vision: S.9 ON p4); p5 may restate — check both |
-| q_010 | Ex-Gratia grievous injury | 3 | **p14** (0.50, label 0.00) | doc_008; verify |
-| q_011 | records officer alignment | [2,3] | **p1** (0.61) | doc_001/002; p1 may quote definitions |
-| q_018 | 'public records' definition | [3,3] | **p1** (0.50) | same pattern |
-| q_031 | scanned: SDRF item | 4 | **p3** (1.00, label 0.00) | doc_002 |
-| q_036 | Hindi: कृषि उत्पाद विपणन नीति | 3 | **p1** (1.00, label 0.00) | doc_004 |
-| q_043 | short_ambiguous | [3–7] | **p1** (0.55) | |
-| q_044 | short_ambiguous | 19 | **p20** (0.89 vs 0.39) | adjacent |
-| q_046 | short_ambiguous | 26 | **p24** (0.79 vs 0.43) | |
-| q_048 | "when does the act come into force" | 1 | **p5** (0.64, label 0.00) | doc_001 |
-| q_049 | cattle compensation (dead cow) | 9 | **p10** (0.93 vs 0.21) | adjacent; note q_045 (same content) = p7 |
+| q_009 | S.9 penalty term | 4 | **p5** (0.77 vs 0.31) | ✅ **ADJUDICATED: label 4→5** (owner; renders show S.9 verbatim on p5; p4 has S.7 only) |
+| q_010 | Ex-Gratia grievous injury | 3 | **p14** (0.50, label 0.00) | ✅ **ADJUDICATED: both pages correct; label [3,14]** — combined answer must cite both separately |
+| q_011 | records officer alignment | [2,3] | **p1** (0.61) | ⏳ pending owner |
+| q_018 | 'public records' definition | [3,3] | **p1** (0.50) | ✅ **ADJUDICATED: p1 AND p3 relevant in BOTH doc_001 and doc_002; label [1,3]** |
+| q_031 | scanned: SDRF item | 4 | **p3** (1.00, label 0.00) | ✅ **ADJUDICATED: p3 wrong, p4 correct — label already right; dismissed** |
+| q_036 | Hindi: कृषि उत्पाद विपणन नीति | 3 | **p1** (1.00, label 0.00) | ✅ **ADJUDICATED: doc_004 p3 correct (owner, typo corrected); dismissed** |
+| q_043 | short_ambiguous | [3–7] | **p1** (0.55) | ✅ **ADJUDICATED: Forms 1–9 live on p3–p6; label [3,4,5,6]** (p7 dropped) |
+| q_044 | short_ambiguous | 19 | **p20** (0.89 vs 0.39) | ✅ **ADJUDICATED: label 19→20** |
+| q_046 | short_ambiguous | 26 | **p24** (0.79 vs 0.43) | ✅ **ADJUDICATED: label 26→24** |
+| q_048 | "when does the act come into force" | 1 | **p5** (0.64, label 0.00) | ✅ **ADJUDICATED: label p1 correct; dismissed** |
+| q_049 | cattle compensation (dead cow) | 9 | **p10** (0.93 vs 0.21) | ✅ **ADJUDICATED: label 9→10** (note q_045 same content = p7) |
 
 *Pattern worth noting: five "best evidence p1" flags (q_011/q_018/q_036/q_043 + others) — first pages of gazettes are often summary/notification pages that quote the same content; decide whether the summary page or the substantive page is the "right" citation target (recommendation: substantive page; treat p1-summary hits as correct-but-not-preferred).*
 

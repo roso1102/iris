@@ -669,11 +669,6 @@
     "ast_hash": "8319e529acf8cd3a3f031d7968812cf3",
     "semantic_hash": ""
   },
-  "coco.md": {
-    "mtime": 1787335983.8861372,
-    "ast_hash": "44f832b00b6f7a144df6addb29624178",
-    "semantic_hash": ""
-  },
   "coco2.md": {
     "mtime": 1787340937.7728257,
     "ast_hash": "1c5fe16b4fdb46ffcbe64418fad3e7dd",
@@ -740,8 +735,8 @@
     "semantic_hash": ""
   },
   "label_adjudication_guide.md": {
-    "mtime": 1787410018.1064003,
-    "ast_hash": "e574229fcf4dd323965aa7f87c738433",
+    "mtime": 1787508833.8755436,
+    "ast_hash": "60acb60d5af8db768ad53a15dcc4d92d",
     "semantic_hash": ""
   },
   "services/canary/requirements.txt": {
@@ -757,6 +752,11 @@
   "scripts/answer_evidence_pass.py": {
     "mtime": 1787432383.6624866,
     "ast_hash": "a9c47fb201d5d59f3304914b79194d41",
+    "semantic_hash": ""
+  },
+  "scripts/render_page_evidence.py": {
+    "mtime": 1787508211.337047,
+    "ast_hash": "4946636979822507ab21ef25deba26c4",
     "semantic_hash": ""
   }
 }
