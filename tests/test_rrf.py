@@ -2,7 +2,7 @@
 
 import unittest
 
-from services.common.retrieval.rrf import fuse_rerank_scores, reciprocal_rank_fusion
+from services.common.retrieval.rrf import fuse_rerank_scores, multi_ranked_fusion, reciprocal_rank_fusion
 
 
 class TestRRF(unittest.TestCase):
@@ -76,6 +76,37 @@ class TestFuseRerankScores(unittest.TestCase):
         # The unranked tail keeps a hybrid-only (zero at blend=1) score.
         self.assertEqual(out[1], 0.0)
         self.assertEqual(out[2], 0.0)
+
+
+class TestMultiRankedFusion(unittest.TestCase):
+    """Pipeline #3: generalized N-list RRF for cross-lingual dual-query."""
+
+    def test_empty_lists(self):
+        self.assertEqual(multi_ranked_fusion([]), [])
+        self.assertEqual(multi_ranked_fusion([[], []]), [])
+
+    def test_single_list_passthrough(self):
+        inp = [("a", 1.0), ("b", 0.5)]
+        result = multi_ranked_fusion([inp])
+        ids = [cid for cid, _ in result]
+        self.assertEqual(ids, ["a", "b"])
+
+    def test_two_lists_matches_reciprocal_rank_fusion(self):
+        dense = [("a", 0.9), ("b", 0.7), ("c", 0.5)]
+        sparse = [("b", 3.0), ("a", 2.0), ("d", 1.0)]
+        legacy = reciprocal_rank_fusion(dense, sparse)
+        new = multi_ranked_fusion([dense, sparse])
+        self.assertEqual([cid for cid, _ in legacy], [cid for cid, _ in new])
+
+    def test_four_lists_merges_correctly(self):
+        dense_orig = [("a", 0.9), ("b", 0.7), ("c", 0.5)]
+        sparse_orig = [("b", 3.0), ("a", 2.0), ("d", 1.0)]
+        dense_hindi = [("c", 0.8), ("a", 0.6), ("e", 0.4)]
+        sparse_hindi = [("c", 2.5), ("e", 1.5), ("a", 0.5)]
+        result = multi_ranked_fusion([dense_orig, sparse_orig, dense_hindi, sparse_hindi])
+        ids = [cid for cid, _ in result]
+        self.assertIn("a", ids[:3])
+        self.assertIn("c", ids[:3])
 
 
 if __name__ == "__main__":

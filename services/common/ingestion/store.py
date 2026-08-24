@@ -93,6 +93,14 @@ class ChunkStore(ABC):
     def delete_by_session(self, session_id: str, tenant_id: str) -> int:
         """Delete all chunks for a session. Returns count deleted."""
 
+    @abstractmethod
+    def has_devanagari_content(self, tenant_id: str) -> bool:
+        """True if any chunk for this tenant contains Devanagari text.
+
+        Used by the cross-lingual gate to avoid unnecessary translation
+        for English-only tenants.
+        """
+
 
 class MemoryChunkStore(ChunkStore):
     """In-memory store for dev/tests. Thread-safe."""
@@ -212,6 +220,16 @@ class MemoryChunkStore(ChunkStore):
                 else:
                     del self._by_doc[doc_id]
         return deleted
+
+    def has_devanagari_content(self, tenant_id: str) -> bool:
+        from services.common.retrieval.hindi import contains_devanagari
+
+        with self._lock:
+            for chunks in self._by_doc.values():
+                for c in chunks:
+                    if c.tenant_id == tenant_id and contains_devanagari(c.text):
+                        return True
+        return False
 
 
 class QdrantChunkStore(ChunkStore):
@@ -525,6 +543,15 @@ class QdrantChunkStore(ChunkStore):
             return getattr(result, "points_count", 0) or 0
         except Exception:
             return 0
+
+    def has_devanagari_content(self, tenant_id: str) -> bool:
+        """Probe: BM25 search for Devanagari character 'क' — returns True if
+        any results exist, meaning Hindi content is indexed for this tenant."""
+        try:
+            results = self.search_sparse("क", tenant_id, limit=1)
+            return len(results) > 0
+        except Exception:
+            return False
 
 
 def get_chunk_store() -> ChunkStore:

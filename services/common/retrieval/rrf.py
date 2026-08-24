@@ -73,3 +73,24 @@ def fuse_rerank_scores(
     return [
         (1.0 - blend) * h + b for h, b in zip(hybrid_scores, bump)
     ]
+
+
+def multi_ranked_fusion(
+    ranked_lists: List[List[Tuple[str, float]]],
+    k: int = 60,
+) -> List[Tuple[str, float]]:
+    """Generalized RRF merging N ranked lists.
+
+    Each list is [(chunk_id, score), ...] in rank order. Score values
+    are ignored — only rank position matters (standard RRF semantics).
+    Empty lists are silently skipped.
+
+    Used by cross-lingual dual-query to merge original + Hindi-variant
+    search results (typically 4 lists: dense_orig, sparse_orig,
+    dense_hindi, sparse_hindi).
+    """
+    rrf_scores: dict[str, float] = {}
+    for ranked in ranked_lists:
+        for rank, (chunk_id, _) in enumerate(ranked, start=1):
+            rrf_scores[chunk_id] = rrf_scores.get(chunk_id, 0.0) + 1.0 / (k + rank)
+    return sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)

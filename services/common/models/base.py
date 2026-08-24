@@ -107,3 +107,17 @@ class ModelProvider(ABC):
         `services.common.retrieval.rrf.fuse_rerank_scores`.
         """
         pass
+
+    @abstractmethod
+    def generate_cross_lingual_variants(
+        self,
+        query: str,
+        num_variants: int = 1,
+    ) -> List[str]:
+        """Generate Hindi (Devanagari) search query variants.
+
+        Translates Latin-script queries into Hindi and transliterates
+        romanized Hindi into Devanagari. Returns empty list on failure
+        (caller falls back to original-only search).
+        """
+        pass

@@ -15,6 +15,11 @@ Deep Search Mode (Task 2.4b):
   5. RRF fusion
   6. Diversity / dedup pass
   7. Return top-K
+
+Pipeline #3 — Cross-lingual dual-query: when the query is Latin-script
+and the tenant has Devanagari (Hindi) content, Flash-Lite generates a
+Hindi variant; original + variant are each searched (dense+sparse) and
+all ranked lists are merged via multi_ranked_fusion (4 lists total).
 """
 
 from __future__ import annotations
@@ -30,7 +35,11 @@ from services.common.ingestion.store import ChunkStore
 from services.common.models.base import ModelProvider
 from services.common.retrieval.diversity import diversity_penalty
 from services.common.retrieval.models import ScoredChunk
-from services.common.retrieval.rrf import fuse_rerank_scores, reciprocal_rank_fusion
+from services.common.retrieval.rrf import (
+    fuse_rerank_scores,
+    multi_ranked_fusion,
+    reciprocal_rank_fusion,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +62,32 @@ def _needs_rewrite(query: str, history: Optional[List[dict]]) -> bool:
     return bool(_AMBIGUOUS_REFERENCE_RE.search(query))
 
 
+def _needs_cross_lingual(query: str, has_devanagari_corpus: bool) -> bool:
+    """Pipeline #3 gate: true when the query would benefit from a Hindi variant.
+
+    Uses ``hindi.needs_cross_lingual_boost`` for the detection logic.
+    Called AFTER ``_needs_rewrite`` so pronoun resolution happens first.
+    """
+    from services.common.retrieval.hindi import needs_cross_lingual_boost
+
+    return needs_cross_lingual_boost(query, has_devanagari_corpus)
+
+
 class SearchOrchestrator:
     """Orchestrates Standard + Deep search over the chunk store."""
 
     def __init__(self, store: ChunkStore, provider: ModelProvider) -> None:
         self.store = store
         self.provider = provider
+        self._devanagari_cache: Dict[str, bool] = {}
+
+    def _has_devanagari_corpus(self, tenant_id: str) -> bool:
+        """Check if tenant has Devanagari content. Cached after first call."""
+        if tenant_id not in self._devanagari_cache:
+            self._devanagari_cache[tenant_id] = self.store.has_devanagari_content(
+                tenant_id
+            )
+        return self._devanagari_cache[tenant_id]
 
     async def standard_search(
         self,
@@ -83,24 +112,84 @@ class SearchOrchestrator:
         """
         t0 = time.time()
 
+        # ── Phase 1: Rewrite (existing) + Cross-lingual detection ────
         if _needs_rewrite(query, history):
             query = await asyncio.to_thread(
                 self.provider.rewrite_query, query, history or []
             )
 
-        # Query-side embedding uses task_type=RETRIEVAL_QUERY (Stage 1a):
-        # text-embedding-004 is asymmetric and doc-task queries rank worse.
-        embedding = await asyncio.to_thread(self.provider.embed_query, query)
+        has_dev = self._has_devanagari_corpus(tenant_id)
+        needs_xling = _needs_cross_lingual(query, has_dev)
 
-        dense_future = asyncio.to_thread(
-            self.store.search_dense, embedding, tenant_id, doc_ids, limit=top_k * 3
+        # ── Phase 2: Original embedding + variant generation (parallel) ──
+        orig_embed_task = asyncio.to_thread(self.provider.embed_query, query)
+        variant_task = (
+            asyncio.to_thread(self.provider.generate_cross_lingual_variants, query)
+            if needs_xling
+            else asyncio.sleep(0, result=[])
         )
-        sparse_future = asyncio.to_thread(
-            self.store.search_sparse, query, tenant_id, doc_ids, limit=top_k * 3
+        orig_embedding, hindi_variants = await asyncio.gather(
+            orig_embed_task, variant_task
         )
-        dense, sparse = await asyncio.gather(dense_future, sparse_future)
+        hindi_variants = hindi_variants or []
 
-        fused = reciprocal_rank_fusion(dense, sparse)
+        # ── Phase 3: Embed Hindi variants (parallel) ─────────────────
+        if hindi_variants:
+            variant_embeddings = list(
+                await asyncio.gather(
+                    *[
+                        asyncio.to_thread(self.provider.embed_query, v)
+                        for v in hindi_variants
+                    ]
+                )
+            )
+        else:
+            variant_embeddings = []
+
+        # ── Phase 4: All store searches in parallel ──────────────────
+        search_tasks = [
+            asyncio.to_thread(
+                self.store.search_dense,
+                orig_embedding,
+                tenant_id,
+                doc_ids,
+                limit=top_k * 3,
+            ),
+            asyncio.to_thread(
+                self.store.search_sparse,
+                query,
+                tenant_id,
+                doc_ids,
+                limit=top_k * 3,
+            ),
+        ]
+        for variant, v_emb in zip(hindi_variants, variant_embeddings):
+            search_tasks.append(
+                asyncio.to_thread(
+                    self.store.search_dense,
+                    v_emb,
+                    tenant_id,
+                    doc_ids,
+                    limit=top_k * 3,
+                )
+            )
+            search_tasks.append(
+                asyncio.to_thread(
+                    self.store.search_sparse,
+                    variant,
+                    tenant_id,
+                    doc_ids,
+                    limit=top_k * 3,
+                )
+            )
+
+        all_ranked = list(await asyncio.gather(*search_tasks))
+
+        # ── Phase 5: Multi-list RRF or standard 2-list RRF ──────────
+        if len(all_ranked) > 2:
+            fused = multi_ranked_fusion(all_ranked)
+        else:
+            fused = reciprocal_rank_fusion(all_ranked[0], all_ranked[1])
 
         scored = await asyncio.to_thread(
             self._resolve_chunks, fused, top_k * 3, tenant_id
@@ -136,6 +225,8 @@ class SearchOrchestrator:
                 "top_score": results[0].score if results else 0.0,
                 "tenant_id": tenant_id,
                 "num_results": len(results),
+                "cross_lingual": bool(hindi_variants),
+                "hindi_variants_count": len(hindi_variants),
             },
         )
         return results
@@ -154,24 +245,83 @@ class SearchOrchestrator:
         rewritten = await asyncio.to_thread(
             self.provider.rewrite_query, query, history or []
         )
-        try:
-            hyde = await asyncio.to_thread(
-                self.provider.generate_hyde, rewritten
+
+        # ── Cross-lingual on the REWRITTEN query ─────────────────────
+        has_dev = self._has_devanagari_corpus(tenant_id)
+        needs_xling = _needs_cross_lingual(rewritten, has_dev)
+
+        if needs_xling:
+            hindi_variants = await asyncio.to_thread(
+                self.provider.generate_cross_lingual_variants, rewritten
             )
+        else:
+            hindi_variants = []
+        hindi_variants = hindi_variants or []
+
+        # ── HyDE for original query (unchanged) ──────────────────────
+        try:
+            hyde = await asyncio.to_thread(self.provider.generate_hyde, rewritten)
         except Exception:
             hyde = rewritten
 
-        embedding = await asyncio.to_thread(self.provider.embed, hyde)
+        hyde_embedding = await asyncio.to_thread(self.provider.embed, hyde)
 
-        dense_future = asyncio.to_thread(
-            self.store.search_dense, embedding, tenant_id, doc_ids, limit=top_k * 3
-        )
-        sparse_future = asyncio.to_thread(
-            self.store.search_sparse, rewritten, tenant_id, doc_ids, limit=top_k * 3
-        )
-        dense, sparse = await asyncio.gather(dense_future, sparse_future)
+        # ── Embed Hindi variants ─────────────────────────────────────
+        if hindi_variants:
+            variant_embeddings = list(
+                await asyncio.gather(
+                    *[
+                        asyncio.to_thread(self.provider.embed_query, v)
+                        for v in hindi_variants
+                    ]
+                )
+            )
+        else:
+            variant_embeddings = []
 
-        fused = reciprocal_rank_fusion(dense, sparse)
+        # ── All store searches in parallel ───────────────────────────
+        search_tasks = [
+            asyncio.to_thread(
+                self.store.search_dense,
+                hyde_embedding,
+                tenant_id,
+                doc_ids,
+                limit=top_k * 3,
+            ),
+            asyncio.to_thread(
+                self.store.search_sparse,
+                rewritten,
+                tenant_id,
+                doc_ids,
+                limit=top_k * 3,
+            ),
+        ]
+        for variant, v_emb in zip(hindi_variants, variant_embeddings):
+            search_tasks.append(
+                asyncio.to_thread(
+                    self.store.search_dense,
+                    v_emb,
+                    tenant_id,
+                    doc_ids,
+                    limit=top_k * 3,
+                )
+            )
+            search_tasks.append(
+                asyncio.to_thread(
+                    self.store.search_sparse,
+                    variant,
+                    tenant_id,
+                    doc_ids,
+                    limit=top_k * 3,
+                )
+            )
+
+        all_ranked = list(await asyncio.gather(*search_tasks))
+
+        if len(all_ranked) > 2:
+            fused = multi_ranked_fusion(all_ranked)
+        else:
+            fused = reciprocal_rank_fusion(all_ranked[0], all_ranked[1])
 
         scored = await asyncio.to_thread(
             self._resolve_chunks, fused, top_k * 3, tenant_id
@@ -190,6 +340,7 @@ class SearchOrchestrator:
                 "top_score": results[0].score if results else 0.0,
                 "tenant_id": tenant_id,
                 "num_results": len(results),
+                "cross_lingual": bool(hindi_variants),
             },
         )
         return results

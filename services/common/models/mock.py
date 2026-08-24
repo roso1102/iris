@@ -55,3 +55,8 @@ class MockModelProvider(ModelProvider):
         # passage ranks highest. Pure rerank therefore flips the original hybrid
         # ranking, letting tests assert the reranker leg reorders results.
         return [float(i) / max(len(passages), 1) for i in range(len(passages))]
+
+    def generate_cross_lingual_variants(
+        self, query: str, num_variants: int = 1
+    ) -> List[str]:
+        return [f"हिन्दी {query}"] if num_variants > 0 else []

@@ -415,6 +415,45 @@ class VertexAIProvider(ModelProvider):
             # Equal scores keep the hybrid ranking intact in rank fusion.
             return [1.0] * len(capped)
 
+    def generate_cross_lingual_variants(
+        self,
+        query: str,
+        num_variants: int = 1,
+    ) -> List[str]:
+        """Translate Latin-script query to Hindi via Flash-Lite.
+
+        Handles both translation (English→Hindi) and transliteration
+        (romanized Hindi→Devanagari). Returns [] on failure.
+        """
+        self._ensure_init()
+        from vertexai.generative_models import GenerativeModel
+
+        safe_query = _sanitize_context(query)
+        model = GenerativeModel(self.lite_model_name)
+        prompt = (
+            "Translate the following English search query into Hindi "
+            "(Devanagari script). If the query is already Hindi written "
+            "in English letters (Romanized/Hinglish), transliterate it "
+            "into Devanagari script.\n\n"
+            "Output ONLY the Hindi/Devanagari translation, nothing else.\n\n"
+            "Rules:\n"
+            "- Use search-optimized Hindi: keywords and short phrases, "
+            "not full sentences.\n"
+            "- Preserve proper nouns, acronyms, and legal section "
+            "numbers as-is.\n"
+            "- If unsure about a term, transliterate it into Devanagari.\n\n"
+            f"Query: {safe_query}\n\n"
+            "Hindi translation:"
+        )
+        try:
+            result = self._safe_generate(model, prompt)
+            result = result.strip().strip('"').strip("'").strip("`")
+            if not result or result.lower() == safe_query.lower():
+                return []
+            return [result][:num_variants]
+        except RuntimeError:
+            return []
+
     def _ranking_token(self) -> str:
         """Valid ADC access token for the discoveryengine endpoint, cached."""
         import google.auth

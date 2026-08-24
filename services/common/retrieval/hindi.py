@@ -82,3 +82,57 @@ def preprocess(text: str) -> str:
             continue
         kept.append(_stem(token))
     return " ".join(kept)
+
+
+# ── Pipeline #3: cross-lingual detection ───────────────────────────
+
+# Romanized Hindi content words. Conservative set: content words only,
+# no function words ("ka", "ki") which would false-positive on English.
+# Missing a word → variant generation still happens (harmless extra
+# search); false positive → one unnecessary Flash-Lite call (~300ms).
+_ROMANIZED_HINDI_CONTENT_WORDS = frozenset({
+    "kanoon", "vidhik", "nyay", "adalat", "samvidhan", "anuched",
+    "dhara", "prakaran", "sansad", "mantri", "adhikari", "niyam",
+    "prativedan", "rajya", "sarkar", "karmachari", "lokpal",
+    "lokayukta", "nyayalaya", "vakil", "mukadama",
+    "pashupalan", "krishi", "kisan", "fasal", "sinchai", "gaon",
+    "panchayat", "grameen",
+    "bijli", "upbhokta",
+})
+
+# Fast pre-check regex (avoids set-intersection for short queries)
+_ROMANIZED_HINDI_RE = re.compile(
+    r"\b(?:kanoon|vidhik|nyay|samvidhan|anuched|dhara|prakaran|"
+    r"sansad|mantri|adhikari|niyam|pashupalan|krishi|kisan|fasal|"
+    r"panchayat|grameen|bijli|upbhokta|lokpal|nyayalaya|mukadama|"
+    r"sinchai)\b",
+    re.IGNORECASE,
+)
+
+
+def is_romanized_hindi(text: str) -> bool:
+    """True if Latin-script text contains romanized Hindi content words."""
+    return bool(_ROMANIZED_HINDI_RE.search(text))
+
+
+def needs_cross_lingual_boost(
+    query: str,
+    has_devanagari_corpus: bool,
+) -> bool:
+    """Gate: should we generate Hindi variant(s) for this query?
+
+    Decision tree:
+      1. No Devanagari docs in corpus  → False  (pure-English tenant)
+      2. Query already has Devanagari  → False  (already Hindi-compatible)
+      3. Latin script + Devanagari doc → True   (cross-lingual search)
+
+    Case 3 fires for ALL Latin queries (English, romanized Hindi, Hinglish)
+    because we cannot distinguish intent at query time. The RRF merge
+    ensures no degradation: if no Hindi doc is relevant, its RRF score
+    stays low and English results rank higher.
+    """
+    if not has_devanagari_corpus:
+        return False
+    if contains_devanagari(query):
+        return False
+    return True

@@ -60,3 +60,10 @@ class SelfHostedGPUProvider(ModelProvider):
         raise NotImplementedError(
             "Self-hosted GPU reranking not implemented. See Phase 10.0."
         )
+
+    def generate_cross_lingual_variants(
+        self, query: str, num_variants: int = 1
+    ) -> List[str]:
+        raise NotImplementedError(
+            "Self-hosted GPU cross-lingual not implemented. See Phase 10.0."
+        )
