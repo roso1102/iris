@@ -137,16 +137,13 @@ class SearchOrchestrator:
         )
 
         # ── Phase 2b: Cross-lingual gate (English→Hindi variant) ────
-        # Fires for English queries on mixed-Devanagari tenants where
-        # transliteration didn't already handle it. Flash-Lite generates
-        # a Hindi variant; the reranker filters noise after fusion.
-        has_dev = self._has_devanagari_corpus(tenant_id)
-        needs_xling = (
-            has_dev
-            and not needs_translit
-            and not is_romanized_hindi(query)
-            and not contains_devanagari(query)
-        )
+        # DISABLED: reranker-filtered cross-lingual path causes -0.056
+        # Recall, -0.095 MRR, and 12× latency regression (5.3s P95).
+        # The Hindi variant is noise the reranker can't fully filter.
+        # Keep infrastructure for future re-activation with better gating.
+        needs_xling = False
+        xling_variant = None
+        xling_variant_embedding = None
 
         # ── Phase 3: All store searches in parallel ──────────────────
         # Core: dense_orig + sparse_orig (always).
@@ -297,26 +294,10 @@ class SearchOrchestrator:
         )
 
         # ── Cross-lingual gate (English→Hindi variant) ──────────────
-        has_dev = self._has_devanagari_corpus(tenant_id)
-        needs_xling = (
-            has_dev
-            and not needs_translit
-            and not is_romanized_hindi(rewritten)
-            and not contains_devanagari(rewritten)
-        )
+        # DISABLED: see standard_search comment — regression + latency.
+        needs_xling = False
         xling_variant = None
         xling_variant_embedding = None
-
-        if needs_xling:
-            variant_task = asyncio.to_thread(
-                self.provider.generate_cross_lingual_variants, rewritten
-            )
-            _, variants = await asyncio.gather(asyncio.sleep(0), variant_task)
-            xling_variant = variants[0] if variants else None
-            if xling_variant:
-                xling_variant_embedding = await asyncio.to_thread(
-                    self.provider.embed_query, xling_variant
-                )
 
         # ── HyDE for original query (unchanged) ──────────────────────
         try:
