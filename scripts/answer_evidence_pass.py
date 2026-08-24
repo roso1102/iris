@@ -53,6 +53,7 @@ def text_tokens(text: str) -> set:
 
 _pdf: dict = {}
 _api: dict = {}
+_failures: list[tuple[str, str, str]] = []  # (source, doc, detail)
 
 
 def pdf_pages(doc: str) -> dict:
@@ -60,8 +61,9 @@ def pdf_pages(doc: str) -> dict:
         try:
             r = PdfReader(str(ROOT / "trueassort" / f"{doc}.pdf"))
             _pdf[doc] = {i: (p.extract_text() or "") for i, p in enumerate(r.pages, 1)}
-        except Exception:
+        except Exception as exc:
             _pdf[doc] = {}
+            _failures.append(("pdf", doc, repr(exc)))
     return _pdf[doc]
 
 
@@ -85,6 +87,7 @@ def api_pages(doc: str) -> dict:
                 break
             except Exception as exc:
                 print(f"  [evidence fetch failed for {doc}: {exc}]")
+                _failures.append(("api", doc, repr(exc)))
         _api[doc] = {p: " ".join(t) for p, t in by_page.items()}
     return _api[doc]
 
@@ -130,9 +133,21 @@ def main() -> None:
             flagged.append((g["query_id"], g["type"], "ANSWER_WEAK",
                             f"best overlap anywhere {best[0]:.2f} @p{best[1]}, labels {sorted(labels)}"))
 
+    if _failures:
+        counts["FETCH_FAILED"] = len(_failures)
+
     print("Counts:", counts, "of", len(golden))
     for qid, qtype, verdict, detail in flagged:
         print(f"  {qid:6s} [{qtype:20s}] {verdict:16s} {detail}")
+
+    if _failures:
+        print("Fetch failures:", len(_failures))
+        for src, doc, detail in _failures:
+            print(f"  [{src}] {doc}: {detail}")
+        print("RESULT: fetch failures present — evidence may be incomplete; treat flags as suspect.")
+        raise SystemExit(1)
+    else:
+        print("RESULT: 0 fetch failures — evidence complete.")
 
 
 if __name__ == "__main__":
