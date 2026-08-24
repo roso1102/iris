@@ -3,8 +3,10 @@
 Text elements -> chunks at ~256 tokens (CHUNK_TARGET_TOKENS env; Stage 3a
 small-to-big: fine units rank pages precisely, /query expands to parent
 pages for synthesis context), split on sentence boundaries.
-VLM outputs (tables, figures, scanned pages) -> single chunks carrying the
-source element's bbox.
+VLM tables split at ROW-GROUP boundaries with the header row (+ caption)
+repeated in every sub-chunk (pipeline #2 — rows without their header lose
+column meaning); full-page OCR and picture captions are prose and split at
+sentence boundaries. Every VLM chunk keeps the source element's bbox.
 """
 
 from __future__ import annotations
@@ -31,8 +33,7 @@ TARGET_TOKENS = 256
 CHARS_PER_TOKEN = 4.0
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
-_VLM_SINGLE_CHUNK = (RouteDecision.VLM_TABLE, RouteDecision.VLM_PICTURE,
-                     RouteDecision.VLM_FULL_PAGE)
+_VLM_SINGLE_CHUNK = (RouteDecision.VLM_PICTURE,)
 
 # A bbox covering >=70% of the page (VLM full-page OCR chunks) is a
 # page-level citation: the frontend jumps to the page instead of drawing a
@@ -109,7 +110,24 @@ def chunk_routed(
     for page in sorted(by_page):
         page_elements = by_page[page]
         for rr in page_elements:
-            if rr.decision in _VLM_SINGLE_CHUNK:
+            if rr.decision == RouteDecision.VLM_TABLE:
+                table_chunks = _chunk_vlm_table(
+                    rr,
+                    tenant_id,
+                    doc_id,
+                    target_tokens=target_tokens,
+                    page_number_override=page_number_override,
+                )
+                if table_chunks:
+                    chunks.extend(table_chunks)
+                else:
+                    empty_elements += 1
+                    logger.warning(
+                        "Empty VLM output dropped: doc=%s page=%s type=%s decision=%s",
+                        doc_id, rr.element.page_number,
+                        rr.element.element_type, rr.decision,
+                    )
+            elif rr.decision in _VLM_SINGLE_CHUNK:
                 if rr.text.strip():
                     chunks.append(
                         Chunk(
@@ -196,3 +214,123 @@ def _chunk_text(
 
     flush()
     return chunks
+
+
+# ── Pipeline #2: VLM table row-group splitting ──────────────────────────────
+
+# Markdown table row: starts with an optional leading "|" ... trailing "|".
+_MD_ROW = re.compile(r"^\s*\|.*\|\s*$")
+# Separator row between header and body: | --- | :---: | --- |
+_MD_SEP = re.compile(r"^\s*\|[\s:\-|]+\|\s*$")
+
+
+def _split_markdown_table(text: str) -> tuple[list[str], list[str]]:
+    """Split markdown table text into (header_lines, body_lines).
+
+    header_lines = caption lines (before the table) + header row + separator
+    row; body_lines = the data rows (plus any trailing non-table prose, kept
+    adjacent to the rows it follows). Without a separator row the first
+    table line is treated as the header.
+    """
+    lines = text.splitlines()
+    header: list[str] = []
+    body: list[str] = []
+    in_table = False
+    seen_sep = False
+    for line in lines:
+        if in_table and not seen_sep and _MD_SEP.match(line):
+            header.append(line)
+            seen_sep = True
+        elif not seen_sep and _MD_ROW.match(line):
+            in_table = True
+            header.append(line)
+        else:
+            (body if seen_sep else header).append(line)
+    if not seen_sep:
+        # No separator row: treat the first table line as the header.
+        table_idxs = [i for i, ln in enumerate(header) if _MD_ROW.match(ln)]
+        if len(table_idxs) > 1:
+            cut = table_idxs[0] + 1
+            body = header[cut:] + body
+            header = header[:cut]
+    return header, body
+
+
+def _chunk_vlm_table(
+    rr: RoutingResult,
+    tenant_id: str,
+    doc_id: str,
+    target_tokens: int,
+    page_number_override: Optional[int] = None,
+) -> List[Chunk]:
+    """Split a VLM table at ROW-GROUP boundaries sized to the token budget.
+
+    The header row + caption are repeated in every sub-chunk (settled spec:
+    rows without their header lose column meaning). Rows are never split.
+    A table that fits the budget stays a single chunk, byte-identical to
+    the pre-pipeline-#2 output.
+    """
+    text = rr.text.strip()
+    if not text:
+        return []
+
+    header_lines, body_rows = _split_markdown_table(text)
+    header_text = "\n".join(header_lines).strip()
+    header_len = len(header_text) + 1 if header_text else 0
+
+    # Oversized header (pathological): emit as its own chunk, no body rows
+    # would ever fit with it. Still better than dropping the table.
+    if header_len > int(target_tokens * CHARS_PER_TOKEN):
+        return [Chunk(
+            tenant_id=tenant_id,
+            doc_id=doc_id,
+            page_number=page_number_override or rr.element.page_number,
+            element_type=rr.element.element_type,
+            text=header_text,
+            bbox=rr.element.bbox,
+            source=rr.decision,
+            metadata=_chunk_metadata(rr),
+        )]
+
+    def make_chunk(rows: list[str]) -> Chunk:
+        body_text = "\n".join(rows).strip()
+        combined = f"{header_text}\n{body_text}" if header_text and body_text else (header_text or body_text)
+        return Chunk(
+            tenant_id=tenant_id,
+            doc_id=doc_id,
+            page_number=page_number_override or rr.element.page_number,
+            element_type=rr.element.element_type,
+            text=combined,
+            bbox=rr.element.bbox,
+            source=rr.decision,
+            metadata=_chunk_metadata(rr),
+        )
+
+    groups: list[list[str]] = []
+    current: list[str] = []
+    current_len = header_len
+    for row in body_rows:
+        row_len = len(row) + 1
+        if current_len + row_len > int(target_tokens * CHARS_PER_TOKEN) and current:
+            groups.append(current)
+            current = []
+            current_len = header_len
+        current.append(row)
+        current_len += row_len
+    if current:
+        groups.append(current)
+
+    if len(groups) <= 1:
+        # Fits the budget: keep the original text byte-identical.
+        return [Chunk(
+            tenant_id=tenant_id,
+            doc_id=doc_id,
+            page_number=page_number_override or rr.element.page_number,
+            element_type=rr.element.element_type,
+            text=text,
+            bbox=rr.element.bbox,
+            source=rr.decision,
+            metadata=_chunk_metadata(rr),
+        )]
+
+    return [make_chunk(rows) for rows in groups]
