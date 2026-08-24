@@ -430,8 +430,8 @@
     "semantic_hash": ""
   },
   "goldendataset.json": {
-    "mtime": 1787559142.0449958,
-    "ast_hash": "60f50bb27450d4544eedb26b7da290b6",
+    "mtime": 1787559628.2995806,
+    "ast_hash": "6c09e7e11110a968d577d8f724a8d716",
     "semantic_hash": ""
   },
   "scripts/eval_phase2.py": {
@@ -735,8 +735,8 @@
     "semantic_hash": ""
   },
   "label_adjudication_guide.md": {
-    "mtime": 1787559223.0203316,
-    "ast_hash": "c2148c3ea03a18d7587da46cec1e5a48",
+    "mtime": 1787559658.6250172,
+    "ast_hash": "a3c01d728e35a1e42cd556e3370921f1",
     "semantic_hash": ""
   },
   "services/canary/requirements.txt": {
@@ -765,8 +765,8 @@
     "semantic_hash": ""
   },
   "scripts/apply_round3_adjudication.py": {
-    "mtime": 1787559132.9767785,
-    "ast_hash": "288e736c436f1d0897d0fd77e32d265e",
+    "mtime": 1787559496.6085322,
+    "ast_hash": "4be70153d3fda4697909c1cdd5ea90e7",
     "semantic_hash": ""
   }
 }

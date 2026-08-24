@@ -1,9 +1,9 @@
 # HANDOFF.md — IRIS Retrieval-Quality Workstream (full session handoff)
 
-**Written:** 2026-08-23 · **Branch:** `main` @ `f0a5a6c` · **Working tree:** clean (everything pushed)
+**Written:** 2026-08-23 · **Updated:** 2026-08-24 (Round-3 label adjudication + answer-evidence integrity thread; §4/§5/§8/§9/§10/§11 refreshed) · **Branch:** `main` @ `c7b49f1` · **Working tree:** graphify artifacts pending commit (hook rebuild); `coco.md` deletion pending user confirmation
 **Scope of this handoff:** the entire ZCode session that began with "analyse the codebase, suggest ideas for better MRR/recall/page-recall and bbox handling" and ended with the fully-indexed corpus and Recall@5 = 1.000. Read this top to bottom before touching anything.
 
-**Table of contents:** §1 What IRIS is · §2 User's ground rules · §3 Chronological record (Phases A–H) · §4 Latest benchmark · §5 Stage ledger + completion status · §6 Remaining pipeline specs · §7 Gotchas & caveats · §8 Key files map · §9 Live state · §10 First moves · §11 Reference documents (all MD files)
+**Table of contents:** §1 What IRIS is · §2 User's ground rules · §3 Chronological record (Phases A–I) · §4 Latest benchmark · §5 Stage ledger + completion status · §6 Remaining pipeline specs · §7 Gotchas & caveats · §8 Key files map · §9 Live state · §10 First moves · §11 Reference documents (all MD files)
 
 ---
 
@@ -16,7 +16,7 @@ IRIS is a multi-tenant, spatially-grounded document Q&A platform on GCP (`nature
 1. **Local-first verification:** every change = implement → local `pytest` → only then GCP. **Always ask before any GCP action** (deploy, re-ingest, live eval, live API calls). The user answers promptly; don't assume.
 2. **Report at every stage** what was done — the user reads everything.
 3. **Discussion honesty:** push back with reasons when the user or an external reviewer is wrong (they explicitly value this); never silently comply.
-4. **Metrics discipline:** corrected numbers are **floors-not-finals** until every label question is adjudicated (now done — labels are final as of 2026-08-23). Never quote a metric without its caveat (e.g. per-type n sizes: hindi_lookup n=3, scanned_lookup n=7).
+4. **Metrics discipline:** corrected numbers are **floors-not-finals** until every label question is adjudicated (labels are FINAL: adjudication rounds 1–3 complete as of 2026-08-24 — see `label_adjudication_guide.md` §F; all 50 queries resolved). Never quote a metric without its caveat (e.g. per-type n sizes: hindi_lookup n=3, scanned_lookup n=7).
 5. **Eval-set authoring:** new golden queries are written by the human from the raw PDFs, NOT by the agent (selection bias). The agent builds tooling and verifies labels against ground truth (PDF text layer / vision), never against retrieval output ("don't grade your own homework").
 6. **Page-number convention (settled):** everything uses **PDF physical sequence, 1-based** ("viewer" numbering) — pipeline, citations, frontend, golden labels. The documents' *printed* page numbers differ per-doc and NON-uniformly (doc_008: printed = viewer + 2; doc_006: +1; doc_007: MIXED, not a constant offset) — this caused the entire label corruption saga.
 
@@ -58,6 +58,9 @@ Key outcomes adopted: observability as a prerequisite (canary), eval-set validit
 ### Phase H — Language findings (empirical, live-tested)
 Hindi query → Hindi doc: **works** (top-3). English query → Hindi doc: **fails** (doc_004 absent from top-5, even though the doc contains English glosses). Hinglish with English keywords: partial (rank 3, carried by English tokens). Pure romanized Hindi ("pashupalan…"): **fails**. Cause: BM25 can't cross scripts; text-embedding-004 empirically doesn't bridge; romanized matches neither script. Synthesis (Gemini) is fine cross-lingually — retrieval is the bottleneck. Fix queued: dual-query generation.
 
+### Phase I — Answer-evidence pass + Round-3 label adjudication (2026-08-24, after handoff)
+Reviewer Q1 (was the answer-correctness check a full pass?) → honestly **no** — the mechanical audit only compared labels to retrieval; answer texts were scrutinized only on flagged queries. Built `scripts/answer_evidence_pass.py` (needle overlap vs PDF text layer + VLM OCR, concatenated per page — v1 bug: empty scanned-page text layer clobbered VLM text in the merge). Result: **39/50 verified, 0 additional wrong answers, 11 page-placement flags** (q_002 false-alarm fixed — needle regex kept the trailing period in "2005."). Standing integrity (Q2): worker logs `page_coverage_gap` when chunks miss PDF pages; canary assertion 6 sums `/doc-status` pages across the 8 golden docs vs `EXPECTED_TOTAL_PAGES` (default **201** — the earlier "185" was our own mis-sum, caught by this check on its first run). Owner adjudicated all 11 flags via rendered pages (`scripts/render_page_evidence.py` → gitignored `adjudication/`): **8 label changes** (q_009 4→5, q_010 3→[3,14], q_011 [3,2]→[2,1], q_018 [3,3]→[1,3], q_043 drop p7, q_044 19→20, q_046 26→24, q_049 9→10), **3 dismissed** (q_031, q_036, q_048 — labels already correct). Applied by `scripts/apply_round3_adjudication.py` (backup `goldendataset.pre-round3-backup.json`). **Labels now fully final — all 50 queries adjudicated.**
+
 ## 4. Latest benchmark (the number to beat)
 
 | Metric | Value | Notes |
@@ -70,6 +73,8 @@ Hindi query → Hindi doc: **works** (top-3). English query → Hindi doc: **fai
 
 Journey from session start (broken instrument): PageRec 0.320→0.740, MRR 0.262→0.667, P95 2,934→~500ms. History of every intermediate state is in the CONTEXT.md session log and git log.
 
+**NOTE (2026-08-24):** the numbers above were measured BEFORE the Round-3 label changes (§3 Phase I, 8 label edits, all 50 queries now adjudicated). They are the best-known numbers but are authoritative only after a fresh eval re-run against the corrected golden set — expected on the next pipeline-#2 eval.
+
 **Weak cells now = page-level precision**: short_ambiguous 0.47, hindi 0.67, multi_hop 0.63 — all three point at VLM mega-chunks (pipeline #2) as the next lever.
 
 ## 5. Stage ledger + completion status
@@ -79,14 +84,14 @@ Journey from session start (broken instrument): PageRec 0.320→0.740, MRR 0.262
 | Workstream | Items | Done | % |
 |---|---|---|---|
 | Original 8-stage quality plan (S0–S7) | 8 | 5 complete + S7 partial (docs current, ph6.md checkboxes pending) | **~65%** |
-| Measurement & observability workstream | label audit ×2 rounds, canary deploy+alert, CI parity, pushes | all complete | **100%** |
+| Measurement & observability workstream | label audit ×2 rounds, canary deploy+alert, CI parity, pushes, **Round-3 answer-evidence pass + full adjudication** | all complete | **100%** |
 | Current 6-item pipeline (§6) | 6 | #1 fallback done; #2–#6 pending | **1/6 ≈ 17%** |
 | **Overall session scope** (plan + measurement + pipeline) | ~15 major items | ~10 | **~65–70%** |
 
 ### Detailed ledger
 
 **Original 8-stage plan:** S0 ✅ · S1 ✅ · S2 ✅ (built+swept; production-off by data) · S3 ✅ · S5 ✅ · S7 🔶 (CONTEXT.md current; ph6.md checkboxes not updated) · **S4 ❌ frontend ladder (= pipeline #5)** · **S6 ❌ Phase 6.1–6.4 (= pipeline #6)**.
-**Measurement/observability workstream:** ✅ complete.
+**Measurement/observability workstream:** ✅ complete (incl. Round-3 answer-evidence + adjudication, 2026-08-24 — see §3 Phase I).
 **Current 6-item pipeline:** #1 page-level VLM fallback ✅ · #2 VLM chunking ❌ · #3 cross-lingual dual-query ❌ · #4 eval-set growth ❌ · #5 S4 frontend ❌ · #6 S6 memory ❌.
 **Parked (deliberately, see §3 Phase A/D):** reranker re-sweep after chunking lands; Qdrant VM snapshots/backup; distributed (Firestore) rate limiter; 3072-d `gemini-embedding-001` (explicitly post-MVP per `CONTEXT.md` §3, needs full re-embed); line-level bboxes.
 
@@ -99,7 +104,7 @@ Split VLM single-chunks (the 131K table, multi-K full-page OCRs) at sensible bou
 Gate: detect script mismatch (Latin query + Devanagari-dominant corpus, and romanized-Hindi detection). Flash-Lite emits Hindi + English variants; run 2–3 searches; merge via existing RRF. Files: `services/common/retrieval/search.py` (next to `_needs_rewrite`), new method on `ModelProvider` mirroring `rewrite_query` (`models/base.py`, `vertex.py`, `mock.py`), `retrieval/hindi.py` (`contains_devanagari`). Cheap; can precede #2 if desired.
 
 ### #4 Eval-set growth (stratified new 50; 50 tune / 50 held-out)
-Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong cells 10–15 each; **stratify the split too**. Rules in `label_adjudication_guide.md` (human authors from raw PDFs; labels read off the PDF viewer; LLM may VERIFY answers but never AUTHOR queries; `golden_heldout.json` kept out of repo until validation milestone; harness gets `--split` flag so held-out is never glanced at). Tooling to build: labeling worksheet (show page text, record query+labels). Existing verification tools: `scripts/label_audit.py`, `scripts/examine_flags.py`. Deliberately LAST among retrieval items so queries are authored against a settled corpus.
+Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong cells 10–15 each; **stratify the split too**. Rules in `label_adjudication_guide.md` (human authors from raw PDFs; labels read off the PDF viewer; LLM may VERIFY answers but never AUTHOR queries; `golden_heldout.json` kept out of repo until validation milestone; harness gets `--split` flag so held-out is never glanced at). Tooling to build: labeling worksheet (show page text, record query+labels). Existing verification tools: `scripts/label_audit.py`, `scripts/examine_flags.py`, `scripts/answer_evidence_pass.py`. Deliberately LAST among retrieval items so queries are authored against a settled corpus.
 
 ### #5 S4 frontend highlight ladder (repo `D:\iris-frontend`)
 `bboxToViewportRect()` in `lib/pdf/client.ts` (denormalize against `page.view` CropBox → `viewport.convertToViewportRectangle()` — fixes rotation + CropBox drift in one util; replaces the naive `bbox × canvas` math in `BboxOverlay.tsx`); `findTextQuads()` from `getTextContent()` item transforms; ladder in `PdfPanel.tsx`: (1) `page_level` metadata → page jump only, (2) bbox AND text-quads intersect → bbox overlay, (3) bbox misses text → render text quads instead, (4) no match → page jump + note; zero-citation footer in ChatPanel/MessageBubble; `page_level` in `lib/api/schemas.ts` Citation type. Local: vitest (add if absent) + Playwright. NOTE: `page_level` is already emitted by the backend for full-page chunks — the frontend just doesn't consume it yet.
@@ -136,7 +141,7 @@ Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong c
 - VLM outputs (tables/pictures/full-page OCR) are **single chunks by frozen design** and bypass `CHUNK_TARGET_TOKENS` — that's why 256-token chunking barely moved corpus stats and why VLM chunking is pipeline #2.
 - Chunk-length reality (live): `docling_text` ≤996 chars; `vlm_full_page` ≤3,831 (median 1,614); `vlm_table` ≤131K (median 1,909); `vlm_picture` ≤1,505.
 - Corpus: 8 golden docs in `trueassort/` (doc_001/002/008 + parts of others are scanned; doc_003/006/007 digital with text layers; doc_007 is the 84-page XBRL gazette with non-uniform printed page numbers).
-- Golden set history: pre-audit backup at `goldendataset.pre-audit-backup.json`; conventions + the printed-vs-viewer saga in `label_adjudication_guide.md` (STATUS: RESOLVED; the guide stays as the rulebook for authoring the new 50).
+- Golden set history: pre-audit backup at `goldendataset.pre-audit-backup.json`, pre-Round-3 backup at `goldendataset.pre-round3-backup.json`; conventions + the printed-vs-viewer saga in `label_adjudication_guide.md` (STATUS: RESOLVED — all 50 queries adjudicated 2026-08-24; the guide stays as the rulebook for authoring the new 50).
 - Cross-lingual: see Phase H — dense doesn't bridge English↔Hindi here, BM25 can't cross scripts.
 
 ## 8. Key files map (for the next agent)
@@ -147,8 +152,8 @@ Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong c
 | Ingestion | `services/common/ingestion/main.py` (page handler + zero-element fallback), `parser.py` (bbox), `chunker.py` (token budget, page_level, VLM single-chunks), `vlm_router.py` (signals, VLM calls), `store.py` (Qdrant/Memory), `pdf_splitter.py`, `preflight.py` |
 | Models | `services/common/models/base.py` (ModelProvider, embed_query, rerank), `vertex.py` (Ranking API rerank, embed task types), `mock.py`, `gpu.py` |
 | API | `services/retrieval_api/app.py` (/search, /query + parent-page expansion + RERANK_BLEND env, sessions, upload, view-url) |
-| Canary | `services/canary/main.py`, scheduler job `iris-canary-job`, metric `iris_canary_failures` |
-| Eval & measurement | `scripts/eval_phase2.py` (+`--rerank-sweep`), `label_audit.py`, `examine_flags.py`, `fix_golden_pages.py`, `round_a_reingest.py`, `round_a_recover.py`, `goldendataset.json`, `eval_report_phase2.json`, `label_adjudication_guide.md` |
+| Canary | `services/canary/main.py`, scheduler job `iris-canary-job`, metric `iris_canary_failures` (assertion 6 = corpus page-count integrity vs `EXPECTED_TOTAL_PAGES=201`) |
+| Eval & measurement | `scripts/eval_phase2.py` (+`--rerank-sweep`), `label_audit.py`, `examine_flags.py`, `fix_golden_pages.py`, `answer_evidence_pass.py`, `apply_round3_adjudication.py`, `render_page_evidence.py`, `round_a_reingest.py`, `round_a_recover.py`, `goldendataset.json` (+`pre-audit-backup`, `pre-round3-backup`), `eval_report_phase2.json`, `label_adjudication_guide.md`, `adjudication/` (gitignored renders) |
 | Deploy/CI | `.github/workflows/ci.yml` (STALLED — see gotchas), `scripts/deploy.sh`, `ingestion-worker-env.yaml` (deploy env reference) |
 | Frontend (separate repo) | `D:\iris-frontend`: `lib/pdf/client.ts`, `app/(app)/chat/components/{BboxOverlay,PdfPanel,ChatPanel}.tsx`, `lib/api/schemas.ts` |
 | Docs | `CONTEXT.md` (living memory — append session bullets), `ph6.md` (original plan), `ACTIONPLAN.md` (Phase 6 defs), `SRS.md`, `BENCHMARK.md` |
@@ -156,16 +161,19 @@ Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong c
 ## 9. Live state right now
 
 - **Worker** `ingestion-worker-00080-h5l` (fallback code, `CHUNK_TARGET_TOKENS=256`, `BM25_HINDI_ENABLED=1`); **api** `retrieval-api-00025-42s` (`RERANK_LOCATION=global`, `RERANK_BLEND` unset, Hindi on). Canary live every 15 min, alert armed (user configured).
+  - ⚠️ **Discrepancy to verify:** `label_adjudication_guide.md` §G claims `page_coverage_gap` is "deployed in worker rev ≥00081" — this handoff records the live worker as `00080-h5l`. Confirm the actual deployed rev (`gcloud run services describe`, ask first) before relying on that assertion in prod.
 - Corpus fully re-ingested 2026-08-23: 201/201 pages, 1,379 chunks, `test-tenant`.
-- Git `main` = `f0a5a6c`, clean, pushed. ~30 commits this session.
-- User's outstanding personal items: check the stalled GitHub Actions; CORS repo var before the CNAME lands; occasional frontend highlight eyeball.
+- Git `main` = `c7b49f1`. **Last 3 commits (521289f, fd5e516, c7b49f1) are local-only — not yet pushed.** ~33 commits this session.
+- User's outstanding personal items: push the local commits; confirm the `coco.md` deletion (uncommitted `D` in working tree); check the stalled GitHub Actions; CORS repo var before the CNAME lands; occasional frontend highlight eyeball.
 
 ## 10. Suggested first moves for the receiving agent
 
 1. Read `CONTEXT.md`, this file, `label_adjudication_guide.md`.
-2. Run the local suite (command in §7) to confirm 242-pass baseline.
+2. Run the local suite (command in §7) to confirm 242-pass baseline — **still not done as of 2026-08-24**.
 3. Start pipeline #2 (VLM chunking) — spec in §6. Local tests first; the one re-ingest + eval needs the user's explicit go-ahead (they always answer).
-4. When in doubt on intent, re-read §2 (the user's rules) — they were set explicitly and the user enforces them.
+4. Harden `scripts/answer_evidence_pass.py`: fetch failures are printed but NOT tallied — no `FETCH_FAILED` count / non-zero exit, so a failed doc can masquerade as page-disagreement flags (~15-line change + test).
+5. Verify the deployed worker rev (§9 discrepancy) — `page_coverage_gap` may not actually be live.
+6. When in doubt on intent, re-read §2 (the user's rules) — they were set explicitly and the user enforces them.
 
 ## 11. Reference documents (every MD file that matters)
 
@@ -173,8 +181,10 @@ Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong c
 | File | What it is | Consult when |
 |---|---|---|
 | `handoff.md` | This document — full session record, status, gotchas | First read, always |
-| `label_adjudication_guide.md` | The measurement rulebook: page-number convention (PDF-viewer 1-based), the printed-vs-viewer saga, floors-not-finals rules, authoring rules for new queries, resolution status of all 50 queries | Before touching `goldendataset.json`, before authoring pipeline #4's new 50 queries, before quoting any metric |
+| `label_adjudication_guide.md` | The measurement rulebook: page-number convention (PDF-viewer 1-based), the printed-vs-viewer saga, floors-not-finals rules, authoring rules for new queries, resolution status of all 50 queries (Rounds 1–3) | Before touching `goldendataset.json`, before authoring pipeline #4's new 50 queries, before quoting any metric |
 | `label_audit_sheet.md` | Generated adjudication sheet (query → flag → evidence → checkboxes) from `scripts/label_audit.py` | Historical evidence trail for label corrections; regenerate with the script for future audits |
+| `scripts/answer_evidence_pass.py` + `adjudication/` | Full-corpus answer-text verification (needle overlap vs PDF+VLM per page) + rendered page evidence for flags (`scripts/render_page_evidence.py`) | Any future answer-correctness or label-placement question |
+| `scripts/apply_round3_adjudication.py` + `goldendataset.pre-round3-backup.json` | Idempotent application of owner Round-3 rulings with pre-change snapshot | Applying any future label adjudication |
 
 ### Pre-existing, updated this session
 | File | What it is | Consult when |
@@ -195,9 +205,9 @@ Targets: scanned_lookup 7→20, hindi_lookup 3→15, multi_hop 10→20, strong c
 ### Non-MD reference artifacts (frequently needed)
 | File | What |
 |---|---|
-| `goldendataset.json` (+ `goldendataset.pre-audit-backup.json`) | The 50 golden queries — fully corrected & adjudicated as of 2026-08-23; backup = pre-audit original |
+| `goldendataset.json` (+ `goldendataset.pre-audit-backup.json`, `goldendataset.pre-round3-backup.json`) | The 50 golden queries — fully corrected & adjudicated (Rounds 1–3, final 2026-08-24); backups = pre-audit and pre-Round-3 snapshots |
 | `eval_report_phase2.json` | Regenerated by every eval run; contains `rerank_sweep` history and per-type breakdowns |
 | `ingestion-worker-env.yaml` | Worker deploy env reference (two-phase re-ingest notes) |
 | `trueassort/` | The 8 golden source PDFs + `document_routing.csv` (VLM threshold labels) |
 
-**Cross-reference index for this handoff:** user rules → §2 · why a decision was made → §3 (Phases A–H) · current numbers → §4 · what's left + specs → §6 · before running any command → §7 · where code lives → §8 · what's deployed right now → §9 · label/metric rules → `label_adjudication_guide.md` · frozen product decisions → `CONTEXT.md` §3.
+**Cross-reference index for this handoff:** user rules → §2 · why a decision was made → §3 (Phases A–I) · current numbers → §4 · what's left + specs → §6 · before running any command → §7 · where code lives → §8 · what's deployed right now → §9 · label/metric rules → `label_adjudication_guide.md` · frozen product decisions → `CONTEXT.md` §3.
