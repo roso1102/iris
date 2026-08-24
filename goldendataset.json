@@ -614,5 +614,41 @@
     "relevant_page_numbers": [
       20
     ]
+  },
+  {
+    "query_id": "q_051",
+    "type": "romanized_hindi",
+    "query": "pashupalan kanoon",
+    "answer": "Pashupalan (animal husbandry) is a subject under agriculture and allied matters in the Central Government allocation.",
+    "relevant_doc_ids": [
+      "doc_004"
+    ],
+    "relevant_page_numbers": [
+      3
+    ]
+  },
+  {
+    "query_id": "q_052",
+    "type": "romanized_hindi",
+    "query": "krishi utpadan viksan niti",
+    "answer": "The Ministry of Agriculture includes the Department of Agriculture and Cooperation and the Department of Agricultural Research and Education.",
+    "relevant_doc_ids": [
+      "doc_004"
+    ],
+    "relevant_page_numbers": [
+      3
+    ]
+  },
+  {
+    "query_id": "q_053",
+    "type": "romanized_hindi",
+    "query": "grameen vikas vibhag",
+    "answer": "The Rural Development Department is responsible for Panchayati Raj, land reform, and related subjects.",
+    "relevant_doc_ids": [
+      "doc_004"
+    ],
+    "relevant_page_numbers": [
+      2
+    ]
   }
 ]
