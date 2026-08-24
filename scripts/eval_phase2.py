@@ -393,12 +393,22 @@ def check_tenant_isolation(query: str, wrong_tenant: str = "tier4-wrong-tenant")
 
 # ── main benchmarks ───────────────────────────────────────────────────────────
 
-def load_golden() -> List[dict]:
-    with open(GOLDEN_PATH, encoding="utf-8") as f:
-        return json.load(f)
+def load_golden(split: str = "tune") -> List[dict]:
+    """Load golden queries. split: tune (default), heldout, or all."""
+    tune = json.loads(open(GOLDEN_PATH, encoding="utf-8").read())
+    if split == "tune":
+        return tune
+    heldout_path = ROOT / "golden_heldout.json"
+    if heldout_path.exists():
+        heldout = json.loads(heldout_path.read_text(encoding="utf-8"))
+    else:
+        heldout = []
+    if split == "heldout":
+        return heldout
+    return tune + heldout
 
 
-def run_benchmarks(skip_ingestion: bool = False, skip_deep: bool = False):
+def run_benchmarks(skip_ingestion: bool = False, skip_deep: bool = False, split: str = "tune"):
     print("\n" + "=" * 60)
     print("  IRIS Phase 2.0/2.5 - Evaluation Harness")
     print("=" * 60)
@@ -412,8 +422,8 @@ def run_benchmarks(skip_ingestion: bool = False, skip_deep: bool = False):
             return
 
     # ── step 2: load golden ─────────────────────────────────────────────
-    golden = load_golden()
-    print(f"\n── Step 2: Loaded {len(golden)} golden queries ──")
+    golden = load_golden(split=split)
+    print(f"\n── Step 2: Loaded {len(golden)} golden queries (split={split}) ──")
 
     # ── test 2-A: recall@5 ──────────────────────────────────────────────
     print("\n── Test 2-A: Standard Mode Recall@5 ──")
@@ -691,10 +701,19 @@ def run_rerank_sweep(golden: List[dict],
 def main():
     skip_ingestion = "--skip-ingestion" in sys.argv
     skip_deep = "--skip-deep" in sys.argv
-    run_benchmarks(skip_ingestion=skip_ingestion, skip_deep=skip_deep)
+
+    # --split: tune (default), heldout, or all
+    split = "tune"
+    for arg in sys.argv:
+        if arg.startswith("--split="):
+            split = arg.split("=", 1)[1]
+        elif arg == "--split" and sys.argv.index(arg) + 1 < len(sys.argv):
+            split = sys.argv[sys.argv.index(arg) + 1]
+
+    run_benchmarks(skip_ingestion=skip_ingestion, skip_deep=skip_deep, split=split)
 
     if "--rerank-sweep" in sys.argv:
-        run_rerank_sweep(load_golden())
+        run_rerank_sweep(load_golden(split=split))
 
 
 if __name__ == "__main__":
