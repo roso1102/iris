@@ -106,3 +106,14 @@ class UploadResponse(BaseModel):
     doc_id: str
     status: str  # "processing" | "already_ingested" | "rejected"
     detail: Optional[str] = None
+
+
+class DocumentInfo(BaseModel):
+    """A single document in the listing."""
+    doc_id: str
+    chunk_count: int
+    page_count: int
+
+
+class DocumentListResponse(BaseModel):
+    documents: List[DocumentInfo]

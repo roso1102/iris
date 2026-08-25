@@ -41,6 +41,8 @@ from services.common.models.factory import get_model_provider
 from services.common.retrieval.models import (
     DeleteResponse,
     DocStatusResponse,
+    DocumentInfo,
+    DocumentListResponse,
     QueryRequest,
     QueryResponse,
     ScoredChunk,
@@ -376,6 +378,36 @@ async def doc_status(
         "chunks": len(chunks),
         "pages": len({c.page_number for c in chunks}),
     }
+
+
+@app.get("/documents", response_model=DocumentListResponse)
+async def list_documents(
+    auth: AuthContext = Depends(require_auth),
+):
+    """List all documents for the verified tenant with chunk/page counts.
+
+    Uses Firestore ownership records for the listing (not Qdrant — no
+    tenant-wide vector scan), then fetches per-doc counts from Qdrant.
+    Returns an empty list if Firestore collection doesn't exist yet.
+    """
+    validate_tenant_id(auth.tenant_id)
+    client = _get_firestore_client()
+    if client is None:
+        raise HTTPException(status_code=503, detail="Firestore unavailable")
+    documents = []
+    try:
+        for doc in client.collection(f"tenants/{auth.tenant_id}/documents").stream():
+            doc_id = doc.id
+            chunks = store.get_by_doc(doc_id, tenant_id=auth.tenant_id)
+            documents.append(DocumentInfo(
+                doc_id=doc_id,
+                chunk_count=len(chunks),
+                page_count=len({c.page_number for c in chunks}),
+            ))
+    except Exception as exc:
+        logger.warning("Firestore collection listing failed for %s: %s", auth.tenant_id, exc)
+        # Collection may not exist yet; return empty list gracefully
+    return DocumentListResponse(documents=documents)
 
 
 @app.post("/search", response_model=SearchResponse)
