@@ -64,7 +64,40 @@ def _page_level_metadata(bbox: list[float]) -> dict:
 def _chunk_metadata(rr: RoutingResult) -> dict:
     meta = _standard_ocr_metadata(rr)
     meta.update(_page_level_metadata(rr.element.bbox))
+    meta.update(_reference_section_metadata(rr.element.text))
     return meta
+
+
+# ── Pipeline: reference section detection ──────────────────────────
+
+# Patterns that indicate a reference/bibliography section. High density
+# of these in a chunk = likely a reference page, which BM25 ranks
+# artificially high due to term frequency (e.g. "XBRL" mentioned 50x
+# across citation entries while the actual definition appears once).
+_CITATION_PATTERNS = re.compile(
+    r"(?:\(\d{4}\)|\[\d+\]|et al\.|Vol\.\s*\d|pp\.\s*\d|doi:|"
+    r"(?:Available|Retrieved)\s*[:\[]|"
+    r"(?:References|Bibliography|Works Cited)\s*$)",
+    re.IGNORECASE,
+)
+
+
+def _reference_section_metadata(text: str) -> dict:
+    """Tag chunks that look like reference/bibliography sections.
+
+    Detection: count citation-density lines in the chunk. If >30% of lines
+    match citation patterns, the chunk is likely a reference entry — BM25
+    scores these artificially high due to term frequency (the same keyword
+    appears in 40+ citation entries), so we tag them for demotion at search.
+    """
+    lines = [l for l in text.split("\n") if l.strip()]
+    if len(lines) < 3:
+        return {}
+    hits = sum(1 for l in lines if _CITATION_PATTERNS.search(l))
+    ratio = hits / len(lines)
+    if ratio > 0.3:
+        return {"section_type": "reference"}
+    return {}
 
 
 def _standard_ocr_metadata(rr: RoutingResult) -> dict:

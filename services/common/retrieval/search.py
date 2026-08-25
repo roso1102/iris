@@ -172,14 +172,14 @@ class SearchOrchestrator:
                 embedding,
                 tenant_id,
                 doc_ids,
-                limit=top_k * 3,
+                limit=top_k * 4,
             ),
             asyncio.to_thread(
                 self.store.search_sparse,
                 query,
                 tenant_id,
                 doc_ids,
-                limit=top_k * 3,
+                limit=top_k * 4,
             ),
         ]
         if needs_translit:
@@ -191,7 +191,7 @@ class SearchOrchestrator:
                     translit_query,
                     tenant_id,
                     doc_ids,
-                    limit=top_k * 3,
+                    limit=top_k * 4,
                 )
             )
         if xling_variant and xling_variant_embedding:
@@ -201,7 +201,7 @@ class SearchOrchestrator:
                     xling_variant_embedding,
                     tenant_id,
                     doc_ids,
-                    limit=top_k * 3,
+                    limit=top_k * 4,
                 )
             )
             search_tasks.append(
@@ -210,7 +210,7 @@ class SearchOrchestrator:
                     xling_variant,
                     tenant_id,
                     doc_ids,
-                    limit=top_k * 3,
+                    limit=top_k * 4,
                 )
             )
 
@@ -314,14 +314,14 @@ class SearchOrchestrator:
                 hyde_embedding,
                 tenant_id,
                 doc_ids,
-                limit=top_k * 3,
+                limit=top_k * 4,
             ),
             asyncio.to_thread(
                 self.store.search_sparse,
                 rewritten,
                 tenant_id,
                 doc_ids,
-                limit=top_k * 3,
+                limit=top_k * 4,
             ),
         ]
         if needs_translit:
@@ -331,7 +331,7 @@ class SearchOrchestrator:
                     translit_query,
                     tenant_id,
                     doc_ids,
-                    limit=top_k * 3,
+                    limit=top_k * 4,
                 )
             )
         if xling_variant and xling_variant_embedding:
@@ -341,7 +341,7 @@ class SearchOrchestrator:
                     xling_variant_embedding,
                     tenant_id,
                     doc_ids,
-                    limit=top_k * 3,
+                    limit=top_k * 4,
                 )
             )
             search_tasks.append(
@@ -350,7 +350,7 @@ class SearchOrchestrator:
                     xling_variant,
                     tenant_id,
                     doc_ids,
-                    limit=top_k * 3,
+                    limit=top_k * 4,
                 )
             )
 
@@ -362,7 +362,7 @@ class SearchOrchestrator:
             fused = reciprocal_rank_fusion(all_ranked[0], all_ranked[1])
 
         scored = await asyncio.to_thread(
-            self._resolve_chunks, fused, top_k * 3, tenant_id
+            self._resolve_chunks, fused, top_k * 4, tenant_id
         )
         if not doc_ids:
             scored = diversity_penalty(scored, top_k=top_k)
@@ -387,7 +387,14 @@ class SearchOrchestrator:
     def _resolve_chunks(
         self, fused: List[Tuple[str, float]], limit: int, tenant_id: str
     ) -> List[ScoredChunk]:
-        """Resolve RRF-fused (chunk_id, score) into full ScoredChunk objects."""
+        """Resolve RRF-fused (chunk_id, score) into full ScoredChunk objects.
+
+        Pipeline Fix 1: chunks tagged as section_type="reference" (bibliography,
+        citations) get a 0.2x score demotion. Reference sections accumulate
+        massive term frequency (the same keyword appears in 40+ entries) which
+        artificially inflates their BM25 ranking. The demotion pushes genuine
+        content chunks above reference-choked candidates.
+        """
         fused_ids = [cid for cid, _ in fused[:limit]]
         if not fused_ids:
             return []
@@ -395,11 +402,16 @@ class SearchOrchestrator:
         chunks = self.store.get_by_ids(fused_ids, tenant_id)
         chunk_map: Dict[str, Chunk] = {c.id: c for c in chunks}
 
+        REFERENCE_DEMOTION = 0.2
         results: List[ScoredChunk] = []
         for chunk_id, rrf_score in fused:
             chunk = chunk_map.get(chunk_id)
             if chunk is None:
                 continue
+            meta = dict(chunk.metadata or {})
+            score = rrf_score
+            if meta.get("section_type") == "reference":
+                score *= REFERENCE_DEMOTION
             results.append(
                 ScoredChunk(
                     chunk_id=chunk.id,
@@ -411,8 +423,8 @@ class SearchOrchestrator:
                     page_number=chunk.page_number,
                     element_type=chunk.element_type.value,
                     source=chunk.source.value,
-                    score=rrf_score,
-                    metadata=dict(chunk.metadata or {}),
+                    score=score,
+                    metadata=meta,
                 )
             )
         return results

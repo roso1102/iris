@@ -650,5 +650,32 @@
     "relevant_page_numbers": [
       2
     ]
+  },
+  {
+    "query_id": "q_054",
+    "type": "direct_factual",
+    "query": "What does the acronym XBRL stand for?",
+    "answer": "eXtensible Business Reporting Language.",
+    "relevant_doc_ids": [
+      "doc_006"
+    ],
+    "relevant_page_numbers": [
+      6
+    ]
+  },
+  {
+    "query_id": "q_055",
+    "type": "multi_hop",
+    "query": "Did the introduction of the XBRL mandate successfully decrease the cost of capital and increase analyst forecast accuracy?",
+    "answer": "In early adoption (first 1-2 years after mandate), studies found no evidence of reduced cost of capital or higher analyst forecast accuracy. However, in ongoing mandatory adoption (2+ years), studies found consistent evidence that capital market indicators (cost of capital, forecast accuracy, analyst following) improved as market participants adapted.",
+    "relevant_doc_ids": [
+      "doc_006"
+    ],
+    "relevant_page_numbers": [
+      14,
+      15,
+      16,
+      17
+    ]
   }
 ]
