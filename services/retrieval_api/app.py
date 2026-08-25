@@ -144,7 +144,7 @@ def _delete_firestore_session(tenant_id: str, session_id: str) -> None:
         try:
             messages = client.collection(
                 f"tenants/{tenant_id}/sessions/{session_id}/messages"
-            ).stream()
+            ).get()
             for msg in messages:
                 msg.reference.delete()
         except Exception as exc:
@@ -158,7 +158,7 @@ def _remove_doc_from_sessions(tenant_id: str, doc_id: str) -> None:
         logger.warning("Firestore client unavailable; skipping session purge for %s", doc_id)
         return
     try:
-        sessions = client.collection(f"tenants/{tenant_id}/sessions").stream()
+        sessions = client.collection(f"tenants/{tenant_id}/sessions").get()
         for session in sessions:
             data = session.to_dict() or {}
             doc_ids = list(data.get("document_ids") or [])
@@ -396,7 +396,11 @@ async def list_documents(
         raise HTTPException(status_code=503, detail="Firestore unavailable")
     documents = []
     try:
-        for doc in client.collection(f"tenants/{auth.tenant_id}/documents").stream():
+        # Use .get() instead of .stream() — avoids gRPC encoding bug
+        # where (default) gets URL-encoded to %28default%29 in the
+        # Firestore stream path. .get() returns all docs in memory.
+        docs = client.collection(f"tenants/{auth.tenant_id}/documents").get()
+        for doc in docs:
             doc_id = doc.id
             chunks = store.get_by_doc(doc_id, tenant_id=auth.tenant_id)
             documents.append(DocumentInfo(
@@ -631,14 +635,18 @@ async def list_sessions(
     if client is None:
         raise HTTPException(status_code=503, detail="Firestore unavailable")
     sessions = []
-    for doc in client.collection(f"tenants/{auth.tenant_id}/sessions").stream():
-        data = doc.to_dict() or {}
-        sessions.append({
-            "session_id": data.get("session_id") or doc.id,
-            "name": data.get("name", ""),
-            "document_ids": data.get("document_ids", []),
-            "created_at": data.get("created_at"),
-        })
+    try:
+        docs = client.collection(f"tenants/{auth.tenant_id}/sessions").get()
+        for doc in docs:
+            data = doc.to_dict() or {}
+            sessions.append({
+                "session_id": data.get("session_id") or doc.id,
+                "name": data.get("name", ""),
+                "document_ids": data.get("document_ids", []),
+                "created_at": data.get("created_at"),
+            })
+    except Exception as exc:
+        logger.warning("Firestore session listing failed for %s: %s", auth.tenant_id, exc)
     return SessionListResponse(sessions=sessions)
 
 
