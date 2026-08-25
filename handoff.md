@@ -110,16 +110,16 @@ Journey from session start (broken instrument): PageRec 0.320→0.812, MRR 0.262
 
 | Workstream | Items | Done | % |
 |---|---|---|---|
-| Original 8-stage quality plan (S0–S7) | 8 | 5 complete + S7 partial (docs current, ph6.md checkboxes pending) | **~65%** |
+| Original 8-stage quality plan (S0–S7) | 8 | 6 complete + S7 partial (docs current, ph6.md checkboxes pending) | **~75%** |
 | Measurement & observability workstream | label audit ×2 rounds, canary deploy+alert, CI parity, pushes, **Round-3 answer-evidence pass + full adjudication** | all complete | **100%** |
-| Current 6-item pipeline (§6) | 6 | #1 fallback done; **#2 chunking done**; #2 rerank sweep done; #3–#6 pending | **3/6 ≈ 50%** |
-| **Overall session scope** (plan + measurement + pipeline) | ~15 major items | ~12 | **~80%** |
+| Current 6-item pipeline (§6) | 6 | #1 fallback done; **#2 chunking done**; #2 rerank sweep done; #3 partial; #4 deferred; #5 done | **4/6 ≈ 67%** |
+| **Overall session scope** (plan + measurement + pipeline) | ~15 major items | ~13 | **~87%** |
 
 ### Detailed ledger
 
-**Original 8-stage plan:** S0 ✅ · S1 ✅ · S2 ✅ (built+swept; production-off by data) · S3 ✅ · S5 ✅ · S7 🔶 (CONTEXT.md current; ph6.md checkboxes not updated) · **S4 ❌ frontend ladder (= pipeline #5)** · **S6 ❌ Phase 6.1–6.4 (= pipeline #6)**.
+**Original 8-stage plan:** S0 ✅ · S1 ✅ · S2 ✅ (built+swept; production-off by data) · S3 ✅ · S4 ✅ frontend ladder (= pipeline #5) · S5 ✅ · S7 🔶 (CONTEXT.md current; ph6.md checkboxes not updated) · **S6 ❌ Phase 6.1–6.4 (= pipeline #6)**.
 **Measurement/observability workstream:** ✅ complete (incl. Round-3 answer-evidence + adjudication, 2026-08-24 — see §3 Phase I).
-**Current 6-item pipeline:** #1 page-level VLM fallback ✅ · **#2 VLM chunking ✅ (deployed `00081-lt2`; eval confirms PageRec +0.072, MRR +0.113)** · **#2 reranker re-sweep ✅ (RERANK_BLEND=0.3 best balanced; latency cost identified)** · **#3 cross-lingual dual-query ✅ PARTIAL (transliteration gate live `00030-h9l`; Flash-Lite dual-query DISABLED — regression + 5.3s latency; reranker confirmed multilingual for future re-activation)** · #4 eval-set growth 🔶 DEFERRED (tooling built, authoring pending) · #5 S4 frontend ❌ · #6 S6 memory ❌.
+**Current 6-item pipeline:** #1 page-level VLM fallback ✅ · **#2 VLM chunking ✅ (deployed `00081-lt2`; eval confirms PageRec +0.072, MRR +0.113)** · **#2 reranker re-sweep ✅ (RERANK_BLEND=0.3 best balanced; latency cost identified)** · **#3 cross-lingual dual-query ✅ PARTIAL (transliteration gate live `00030-h9l`; Flash-Lite dual-query DISABLED — regression + 5.3s latency; reranker confirmed multilingual for future re-activation)** · #4 eval-set growth 🔶 DEFERRED (tooling built, authoring pending) · #5 S4 frontend ✅ (highlight ladder + doc management UI wired) · #6 S6 memory ❌.
 **Parked (deliberately, see §3 Phase A/D):** reranker enabled decision (sweep done, latency-cost decision pending owner); Qdrant VM snapshots/backup; distributed (Firestore) rate limiter; 3072-d `gemini-embedding-001` (explicitly post-MVP per `CONTEXT.md` §3, needs full re-embed); line-level bboxes.
 
 ## 6. Remaining pipeline — exactly what to do
@@ -133,15 +133,16 @@ Gate: detect script mismatch (Latin query + Devanagari-dominant corpus, and roma
 ### #4 Eval-set growth (DEFERRED — user presenting soon, revisit later)
 Labeling worksheet built (`scripts/label_worksheet.py`), `--split` flag added to eval harness, `golden_heldout.json` gitignored. Tooling ready for when authoring resumes.
 
-### #5 S4 frontend highlight ladder + document management (repo `D:\iris-frontend`)
-**Highlight ladder:** `bboxToViewportRect()` in `lib/pdf/client.ts` (denormalize against `page.view` CropBox → `viewport.convertToViewportRectangle()` — fixes rotation + CropBox drift in one util; replaces the naive `bbox × canvas` math in `BboxOverlay.tsx`); `findTextQuads()` from `getTextContent()` item transforms; ladder in `PdfPanel.tsx`: (1) `page_level` metadata → page jump only, (2) bbox AND text-quads intersect → bbox overlay, (3) bbox misses text → render text quads instead, (4) no match → page jump + note; zero-citation footer in ChatPanel/MessageBubble; `page_level` in `lib/api/schemas.ts` Citation type. NOTE: `page_level` is already emitted by the backend for full-page chunks — the frontend just doesn't consume it yet.
+### #5 S4 frontend highlight ladder + document management ✅ (repo `D:\iris-frontend`)
+**Highlight ladder:** `bboxToViewportRect()` in `lib/pdf/client.ts` (denormalize against `page.view` CropBox → `viewport.convertToViewportRectangle()` — fixes rotation + CropBox drift in one util; replaces the naive `bbox × canvas` math in `BboxOverlay.tsx`); `findTextQuads()` from `getTextContent()` item transforms; ladder in `PdfPanel.tsx`: (1) `page_level` metadata → page jump only, (2) bbox AND text-quads intersect → bbox overlay, (3) bbox misses text → render text quads instead, (4) no match → page jump + note; zero-citation footer in ChatPanel; `page_level` in `lib/api/schemas.ts` Citation type. Bbox-to-viewport wiring bug fixed (bboxRect stored in state, passed as `rect` prop to BboxOverlay).
 
-**Document management (unwired UI):**
+**Document management (wired):**
 - Backend: `GET /documents` endpoint — query Qdrant for distinct doc_ids + chunk/page counts per tenant (retrieval-api already does similar queries in `/doc-status`); no new infra, just expose it.
 - Backend: `DELETE /documents/{id}` already exists and cascades: Qdrant chunks → GCS blob → Firestore ownership record. Worker is **not involved** — retrieval-api talks to Qdrant/Firestore/GCS directly. Battle-tested via `round_a_reingest.py`.
-- Frontend: `DocStatusTable` delete button per row with confirm dialog → calls `DELETE /documents/{id}` → refreshes list.
+- Frontend: `DocStatusTable` delete button per row with confirm dialog → calls `DELETE /documents/{id}` → refreshes list. Server-backed via TanStack Query (`GET /documents`).
 - Frontend: mount-time `GET /documents` fetch instead of session-local tracking (doc list lost on page refresh).
-- Local: vitest (add if absent) + Playwright.
+- Frontend: `UploadDropzone` — drag-and-drop PDF upload with doc_id input, 50MB limit, PDF-only validation.
+- Frontend: `documents/page.tsx` — full documents page with upload + ingestion status sections.
 
 ### #6 S6 Phase 6.1–6.4 (ACTIONPLAN.md ~lines 425–450)
 6.1 persist per-session history in Firestore (`tenants/{t}/sessions/{id}/messages`), write on `/query`; 6.2 ✅ exists (`rewrite_query`); 6.3 `/query` loads sliding window (N=6) server-side when `session_id` present (server-wins over client history); 6.4 `rewrite_ms` logging + `max_output_tokens≈256` on the Flash-Lite rewrite (target <300ms, <$0.001); 6.6 >15 turns → 2-sentence running `summary` on the session doc + last 2 raw messages (<200 tokens). Acceptance: Tests 6-A (≥90% resolution/5-turn), 6-B (persist across reload), 6-C (latency/cost), 6-D (gate bypass precision).
