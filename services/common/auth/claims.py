@@ -16,13 +16,19 @@ from __future__ import annotations
 import sys
 
 
-def set_tenant_claims(uid: str, tenant_id: str, role: str = "member") -> dict:
+def set_tenant_claims(uid: str, tenant_id: str, role: str = "member", project_id: str = "naturepivot-rag") -> dict:
+    import firebase_admin
     from firebase_admin import auth as firebase_auth
 
     if not uid or not tenant_id:
         raise ValueError("uid and tenant_id are required")
     if role not in ("member", "admin"):
         raise ValueError("role must be 'member' or 'admin'")
+
+    try:
+        firebase_admin.get_app()
+    except ValueError:
+        firebase_admin.initialize_app(options={"projectId": project_id})
 
     claims = {"tenant_id": tenant_id, "role": role}
     firebase_auth.set_custom_user_claims(uid, claims)
