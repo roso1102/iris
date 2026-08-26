@@ -35,7 +35,7 @@ Re-checked the working tree before this revision — it matches the analyzed sta
 
 🛑 **ASK → GCP (optional):** deploy retrieval-api only, run eval to record the free delta. (No deploy needed if you prefer to batch with Stage 2.)
 
-## Stage 2 — Real reranker, wired into `/query`
+## Stage 2 — Real reranker, wired into `/query` (✅ DONE)
 
 **2a. Replace broken `rerank()`** (`vertex.py:320-377`) with the Vertex AI Ranking API (plain REST + google-auth, no new SDK):
 `POST https://{RERANK_LOCATION}-discoveryengine.googleapis.com/v1/projects/{project}/locations/{RERANK_LOCATION}/rankingConfigs/default_ranking_config:rank` with `{"model": "semantic-ranker@latest", "query", "records": [{"id", "content"}]}` (≤40 records × 500 chars). Response is reordered records → derive scores from rank position. On failure: neutral fallback + **loud `logger.warning("rerank_failed")`** (the silent fallback is how the no-op went unnoticed). Env: `RERANK_LOCATION` (default `global`).
@@ -48,9 +48,9 @@ Re-checked the working tree before this revision — it matches the analyzed sta
 
 ## Stage 3 — Re-ingest batch: small-to-big chunking + page-level citations
 
-**3a.** `CHUNK_TARGET_TOKENS` env (default 256) in `chunker.py`; sentence packing + page-strict boundaries unchanged.
-**3b.** Tag `metadata["page_level"]=True` when normalized bbox area > 0.7 (VLM full-page OCR chunks).
-**3c. Parent-page expansion** (no re-ingest dependency, code alongside): `get_by_doc_pages()` on both stores; in `/query` only (`/search` untouched → eval honesty), fetch same-page siblings of top chunks, append to synthesis context; `validate_citations` runs against retrieved ∪ siblings.
+**3a. (✅ DONE)** `CHUNK_TARGET_TOKENS` env (default 256) in `chunker.py`; sentence packing + page-strict boundaries unchanged.
+**3b. (✅ DONE)** Tag `metadata["page_level"]=True` when normalized bbox area > 0.7 (VLM full-page OCR chunks).
+**3c. Parent-page expansion (🚀 NEXT PRIORITY)** (no re-ingest dependency, code alongside): Fixes context-dropping bugs like NDRF link and XBRL temporal query. `get_by_doc_pages()` on both stores; in `/query` only (`/search` untouched → eval honesty), fetch same-page siblings of top chunks, append to synthesis context; `validate_citations` runs against retrieved ∪ siblings.
 
 **Unit tests:** `test_chunker.py` — env override, ~256-token budget, area-threshold tagging (full-page vs normal); `test_retrieval_store.py` — filter construction (mocked Qdrant client) + MemoryChunkStore equivalent; `test_retrieval_api.py` — `/query` context includes same-page chunks, citations validate against expanded set; `test_synthesis.py` — neighbor-chunk citations survive validation.
 
@@ -67,22 +67,19 @@ Re-checked the working tree before this revision — it matches the analyzed sta
 
 🛑 **ASK → GCP:** verify the ladder against the live demo (digital doc, scanned doc, rotated doc) after Stage 3 is deployed.
 
-## Stage 5 — Hindi-aware BM25 (before re-ingest #2 if you merge stages; otherwise piggybacks on the next one)
+## Stage 5 — Hindi-aware BM25 🛑 (SUPERSEDED & CANCELLED)
 
-Fastembed 0.8.0 `Bm25` has **no Hindi** (18 languages, Tamil is the only Indic) — so this is a preprocessing layer, not a config flag:
-1. New `services/common/retrieval/hindi.py`: Devanagari range detection (`\u0900-\u097F`), curated Hindi stopword list (~60 common function words), light suffix-stripping stemmer for common inflections (ों/ओं/े/ी/यों/यें/स/ो/ा).
-2. Applied **symmetrically** in `text_to_sparse()` (queries) and `upsert_batch()` (passages) — consistency matters more than the stemmer itself. Env-gated `BM25_HINDI_ENABLED` (default on after tests).
-3. Effective for stored passages only after re-ingest — batched with Stage 3's re-ingest (or a dedicated one, your call at the gate).
-
-**Unit tests:** `test_bm25.py` — Devanagari detection, stopword removal, stemmer suffix cases, symmetric query/passage encoding, mixed-script text, English path untouched when disabled, disabled-by-default path.
-
-🛑 **ASK → GCP:** deploy + re-ingest (batched with Stage 3 if merged), eval — watch `hindi_lookup` page-recall (0.333 today).
+*This entire stage was superseded by the Transliteration Gate (Pipeline #3).* 
+Instead of building a manual Hindi stemmer/stopword list that pollutes the English index, we implemented token-level detection (`is_romanized_hindi`) and `indic-transliteration`.
+- The Transliteration Gate successfully maps Hinglish/Romanized queries directly to the Devanagari documents.
+- Recall@5 for Hinglish queries hit 1.000 in testing.
+- The complex "Dual-Query + Reranker" pipeline was proven too slow (5.3s latency) and was rolled back. Transliteration-only is the production standard.
 
 ## Stage 6 — Phase 6.1–6.4 conversational memory (per ACTIONPLAN)
 
 - **6.1 Firestore history:** `/query` writes each turn (user question + answer + citation refs) to `tenants/{tenant}/sessions/{session_id}/messages`; new `GET /sessions/{session_id}/messages` (tenant-scoped).
 - **6.2** `rewrite_query()` — already exists; verification only.
-- **6.3 Server-side history:** when `session_id` is present, `/query` loads the sliding window (last N=6, FR-5.3) from Firestore — server becomes source of truth; client-sent `history` is ignored/merged-only-when-no-session. Feeds the existing `_needs_rewrite` gate (6.5, done).
+- **6.3 Server-side history:** when `session_id` is present, `/query` loads the sliding window (last N=6, FR-5.3) from Firestore — server becomes source of truth; client-sent `history` is ignored/merged-only-when-no-session. Feeds the `_needs_rewrite` gate (6.5: triggers on ambiguous pronouns with history, or verbose/storytelling queries with `len > 15` / sentence punctuation / conversational openers).
 - **6.4 Budget:** `rewrite_ms` timing in logs; `max_output_tokens≈256` on the Flash-Lite rewrite call (thinking_budget already 0). Target sub-300ms, <$0.001/call.
 - **6.6 Topic-summary compression:** >15 turns → 2-sentence running `summary` field on the session doc (updated incrementally by Flash-Lite); rewrite context = summary + last 2 raw messages, <200 tokens.
 - Frontend: chat panel stops sending history once sessions carry it (server-wins).

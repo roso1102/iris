@@ -58,8 +58,9 @@ Recommended collapsed order: **Phase 5 (finish) → 9.0 → 12.0 → 6.0 → 10.
   `services/common/retrieval/search.py` when `history` is non-empty (mirror `deep_search`), so
   follow-ups like "what does it do?" become self-contained before Qdrant. Reuse existing
   `provider.rewrite_query` + Flash-Lite.
-- **6.5 (do now): pronoun heuristic gate** — skip the rewriter when no `it/this/that/former/latter/above/previous`
-  is present (zero-cost, saves ~150ms/call).
+- **6.5 (do now): expanded heuristic rewrite gate** — skip the rewriter for simple standalone queries (saves ~150ms/call), but trigger `rewrite_query()` when:
+  1. Multi-turn pronouns/ambiguity: query contains `it/this/that/these/those/former/latter/above/previous` when history is present.
+  2. Verbose storytelling / multi-sentence: `len(query.split()) > 15` or query contains sentence punctuation (`.` or `;`) or conversational openers (`can you`, `i want to`) to strip narrative filler before vector/BM25 retrieval.
 - **6.1/6.2/6.3/6.4/6.6 (defer to after 9/12):** full Firestore history persistence, sub-300ms budget
   measurement, 15-turn topic-summary compression. These belong after the retrieval/citation quality
   layers are stable so rewrite context is worth persisting.

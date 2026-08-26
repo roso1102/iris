@@ -110,16 +110,16 @@ Journey from session start (broken instrument): PageRec 0.320→0.812, MRR 0.262
 
 | Workstream | Items | Done | % |
 |---|---|---|---|
-| Original 8-stage quality plan (S0–S7) | 8 | 6 complete + S7 partial (docs current, ph6.md checkboxes pending) | **~75%** |
+| Original 8-stage quality plan (S0–S7) | 8 | 7 complete + S7 partial (docs current, ph6.md checkboxes pending) | **~88%** |
 | Measurement & observability workstream | label audit ×2 rounds, canary deploy+alert, CI parity, pushes, **Round-3 answer-evidence pass + full adjudication** | all complete | **100%** |
-| Current 6-item pipeline (§6) | 6 | #1 fallback done; **#2 chunking done**; #2 rerank sweep done; #3 partial; #4 deferred; #5 done | **4/6 ≈ 67%** |
-| **Overall session scope** (plan + measurement + pipeline) | ~15 major items | ~13 | **~87%** |
+| Current 6-item pipeline (§6) | 6 | #1 fallback done; **#2 chunking done**; #2 rerank sweep done; #3 partial; #4 deferred; #5 done; #6 done | **5/6 ≈ 83%** |
+| **Overall session scope** (plan + measurement + pipeline) | ~15 major items | ~14 | **~93%** |
 
 ### Detailed ledger
 
-**Original 8-stage plan:** S0 ✅ · S1 ✅ · S2 ✅ (built+swept; production-off by data) · S3 ✅ · S4 ✅ frontend ladder (= pipeline #5) · S5 ✅ · S7 🔶 (CONTEXT.md current; ph6.md checkboxes not updated) · **S6 ❌ Phase 6.1–6.4 (= pipeline #6)**.
+**Original 8-stage plan:** S0 ✅ · S1 ✅ · S2 ✅ (built+swept; production-off by data) · S3 ✅ · S4 ✅ frontend ladder (= pipeline #5) · S5 ✅ · S7 🔶 (CONTEXT.md current; ph6.md checkboxes not updated) · **S6 ✅ Phase 6.1–6.4 (= pipeline #6; 6.6 summary deferred)**.
 **Measurement/observability workstream:** ✅ complete (incl. Round-3 answer-evidence + adjudication, 2026-08-24 — see §3 Phase I).
-**Current 6-item pipeline:** #1 page-level VLM fallback ✅ · **#2 VLM chunking ✅ (deployed `00081-lt2`; eval confirms PageRec +0.072, MRR +0.113)** · **#2 reranker re-sweep ✅ (RERANK_BLEND=0.3 best balanced; latency cost identified)** · **#3 cross-lingual dual-query ✅ PARTIAL (transliteration gate live `00030-h9l`; Flash-Lite dual-query DISABLED — regression + 5.3s latency; reranker confirmed multilingual for future re-activation)** · #4 eval-set growth 🔶 DEFERRED (tooling built, authoring pending) · #5 S4 frontend ✅ (highlight ladder + doc management UI wired) · #6 S6 memory ❌.
+**Current 6-item pipeline:** #1 page-level VLM fallback ✅ · **#2 VLM chunking ✅ (deployed `00081-lt2`; eval confirms PageRec +0.072, MRR +0.113)** · **#2 reranker re-sweep ✅ (RERANK_BLEND=0.3 best balanced; latency cost identified)** · **#3 cross-lingual dual-query ✅ PARTIAL (transliteration gate live `00030-h9l`; Flash-Lite dual-query DISABLED — regression + 5.3s latency; reranker confirmed multilingual for future re-activation)** · #4 eval-set growth 🔶 DEFERRED (tooling built, authoring pending) · #5 S4 frontend ✅ (highlight ladder + doc management UI wired) · #6 S6 memory ✅ (auto-session, message persistence, server history, rewrite_ms timing, max_output_tokens=256; 6.6 summary deferred).
 **Parked (deliberately, see §3 Phase A/D):** reranker enabled decision (sweep done, latency-cost decision pending owner); Qdrant VM snapshots/backup; distributed (Firestore) rate limiter; 3072-d `gemini-embedding-001` (explicitly post-MVP per `CONTEXT.md` §3, needs full re-embed); line-level bboxes.
 
 ## 6. Remaining pipeline — exactly what to do
@@ -144,8 +144,8 @@ Labeling worksheet built (`scripts/label_worksheet.py`), `--split` flag added to
 - Frontend: `UploadDropzone` — drag-and-drop PDF upload with doc_id input, 50MB limit, PDF-only validation.
 - Frontend: `documents/page.tsx` — full documents page with upload + ingestion status sections.
 
-### #6 S6 Phase 6.1–6.4 (ACTIONPLAN.md ~lines 425–450)
-6.1 persist per-session history in Firestore (`tenants/{t}/sessions/{id}/messages`), write on `/query`; 6.2 ✅ exists (`rewrite_query`); 6.3 `/query` loads sliding window (N=6) server-side when `session_id` present (server-wins over client history); 6.4 `rewrite_ms` logging + `max_output_tokens≈256` on the Flash-Lite rewrite (target <300ms, <$0.001); 6.6 >15 turns → 2-sentence running `summary` on the session doc + last 2 raw messages (<200 tokens). Acceptance: Tests 6-A (≥90% resolution/5-turn), 6-B (persist across reload), 6-C (latency/cost), 6-D (gate bypass precision).
+### #6 S6 Phase 6.1–6.4 ✅ (ACTIONPLAN.md ~lines 425–450)
+6.1 ✅ persist per-session history in Firestore (`tenants/{t}/sessions/{id}/messages`), write on `/query`; 6.2 ✅ exists (`rewrite_query`); 6.3 ✅ `/query` loads sliding window (N=6) server-side when `session_id` present (server-wins over client history); 6.4 ✅ `rewrite_ms` logging + `max_output_tokens=256` on the Flash-Lite rewrite; 6.6 🔶 >15 turns → 2-sentence running `summary` (deferred — needs its own design). Tests written: `tests/test_session_memory.py` (16 tests: Firestore helpers + /query endpoint integration). Auto-session creation (Option B): `/query` creates session when none provided, returns `session_id` in response. Frontend: `sessionId` in store, sent in requests, synced to URL. **Not deployed yet — local only.**
 
 ## 7. Gotchas & caveats (hard-won — read twice)
 
@@ -183,22 +183,22 @@ Labeling worksheet built (`scripts/label_worksheet.py`), `--split` flag added to
 
 | Area | Files |
 |---|---|
-| Retrieval core | `services/common/retrieval/search.py` (orchestrator), `rrf.py` (+`fuse_rerank_scores`), `diversity.py`, `bm25.py`, `hindi.py`, `models.py`, `synthesis.py` |
-| Ingestion | `services/common/ingestion/main.py` (page handler + zero-element fallback), `parser.py` (bbox), `chunker.py` (token budget, page_level, VLM single-chunks), `vlm_router.py` (signals, VLM calls), `store.py` (Qdrant/Memory), `pdf_splitter.py`, `preflight.py` |
-| Models | `services/common/models/base.py` (ModelProvider, embed_query, rerank), `vertex.py` (Ranking API rerank, embed task types), `mock.py`, `gpu.py` |
-| API | `services/retrieval_api/app.py` (/search, /query + parent-page expansion + RERANK_BLEND env, sessions, upload, view-url) |
+| Retrieval core | `services/common/retrieval/search.py` (orchestrator, rewrite_ms timing), `rrf.py` (+`fuse_rerank_scores`), `diversity.py`, `bm25.py`, `hindi.py`, `models.py` (QueryResponse with session_id), `synthesis.py` |
+| Ingestion | `services/common/ingestion/main.py` (page handler + zero-element fallback), `parser.py` (bbox — per-prov split: multi-prov elements emit one ParsedElement per prov item with precise bbox, not a union envelope), `chunker.py` (token budget, page_level, VLM single-chunks), `vlm_router.py` (signals, VLM calls), `store.py` (Qdrant/Memory), `pdf_splitter.py`, `preflight.py` |
+| Models | `services/common/models/base.py` (ModelProvider, embed_query, rerank), `vertex.py` (Ranking API rerank, embed task types, rewrite_query with max_output_tokens=256), `mock.py`, `gpu.py` |
+| API | `services/retrieval_api/app.py` (/search, /query + parent-page expansion + RERANK_BLEND env, sessions, upload, view-url, session memory: auto-create, message persistence, history loading, ownership check) |
 | Canary | `services/canary/main.py`, scheduler job `iris-canary-job`, metric `iris_canary_failures` (assertion 6 = corpus page-count integrity vs `EXPECTED_TOTAL_PAGES=201`) |
 | Eval & measurement | `scripts/eval_phase2.py` (+`--rerank-sweep`), `label_audit.py`, `examine_flags.py`, `fix_golden_pages.py`, `answer_evidence_pass.py`, `apply_round3_adjudication.py`, `render_page_evidence.py`, `round_a_reingest.py`, `round_a_recover.py`, `goldendataset.json` (+`pre-audit-backup`, `pre-round3-backup`), `eval_report_phase2.json`, `label_adjudication_guide.md`, `adjudication/` (gitignored renders) |
 | Deploy/CI | `.github/workflows/ci.yml` (STALLED — see gotchas), `scripts/deploy.sh`, `ingestion-worker-env.yaml` (deploy env reference) |
-| Frontend (separate repo) | `D:\iris-frontend`: `lib/pdf/client.ts`, `app/(app)/chat/components/{BboxOverlay,PdfPanel,ChatPanel}.tsx`, `lib/api/schemas.ts` |
+| Frontend (separate repo) | `D:\iris-frontend`: `lib/pdf/client.ts`, `app/(app)/chat/components/{BboxOverlay,PdfPanel,ChatPanel}.tsx`, `lib/api/schemas.ts` (session_id in request+response), `app/(app)/chat/store.ts` (sessionId state), `app/(app)/chat/page.tsx` (URL hydration) |
 | Docs | `CONTEXT.md` (living memory — append session bullets), `ph6.md` (original plan), `ACTIONPLAN.md` (Phase 6 defs), `SRS.md`, `BENCHMARK.md` |
 
 ## 9. Live state right now
 
 - **Worker** `ingestion-worker-00081-lt2` (pipeline #2 code, `CHUNK_TARGET_TOKENS=256`, `BM25_HINDI_ENABLED=1`, `page_coverage_gap` now live); **api** `retrieval-api-00027-mcz` (`RERANK_LOCATION=global`, `RERANK_BLEND=0.3`, Hindi on, **pipeline #3 cross-lingual dual-query live**). Canary live every 15 min, alert armed (user configured).
 - Corpus re-ingested 2026-08-24: 201/201 pages, 1,688 chunks, `test-tenant`.
-- Git `main` = `7ec4e42`. **Last 5 commits (521289f, fd5e516, c7b49f1, 6fdf8b9, 7ec4e42) are local-only — not yet pushed.** ~35 commits this session.
-- User's outstanding personal items: push the local commits; confirm the `coco.md` deletion (uncommitted `D` in working tree); check the stalled GitHub Actions; CORS repo var before the CNAME lands; occasional frontend highlight eyeball.
+- Git `main` = `7ec4e42`. **Local-only uncommitted changes:** parser per-prov bbox fix, pipeline 6 session memory (backend + frontend), stale test removal, handoff.md updates, `tests/test_session_memory.py` (16 new tests). ~35 commits this session.
+- User's outstanding personal items: commit + push all local changes; deploy pipeline 6 to GCP; confirm the `coco.md` deletion (uncommitted `D` in working tree); check the stalled GitHub Actions; CORS repo var before the CNAME lands.
 
 ## 10. Suggested first moves for the receiving agent
 

@@ -384,7 +384,7 @@ Build the client-facing Next.js app on the existing Vercel custom domain and con
 - 5.2: **Firebase Auth** — Firebase Client SDK (`lib/auth/firebase.ts` + `token.ts`): sign-in page, silent ID-token refresh, `X-Firebase-Token` header injection in `lib/api/client.ts`. **Never send `tenantId`** — query params carry UI state only (`sessionId`, `docId`, `page`, `citationId`, `panelWidth`); security state stays server-side from the JWT (FRONTEND_PLAN §3).
 - 5.3: **Chat surface (`/chat`)** — split-screen `ChatPanel` + `PdfPanel` + `ResizableSplit`; `POST /query` integration with loading skeleton + latency telemetry; Zod runtime validation of `QueryResponse`/`Citation` so unexpected backend data never crashes the UI (FRONTEND_PLAN §5).
 - 5.4: **Documents page** — `UploadDropzone` (calls `POST /documents/upload`) + `DocStatusTable` polling `/doc-status/{id}` via TanStack Query; server state in TanStack Query, UI state (active citation, PDF zoom, panel width) in Zustand (FRONTEND_PLAN §4).
-- 5.5: **PDF.js citation side panel** — click citation pill → fetch signed URL (`GET /documents/{doc_id}/view-url`) → PDF.js renders target page → `BboxOverlay.tsx` maps normalized `[left, top, right, bottom]` bbox to canvas pixels → animated highlight + auto-scroll; text-search fallback when bbox is null; auto-refresh signed URL when the 15-min TTL expires (HTTP 403) (FRONTEND_PLAN §6).
+- 5.5: **PDF.js citation side panel (Degradation Ladder)** — click citation pill → fetch signed URL (`GET /documents/{doc_id}/view-url`) → PDF.js renders target page → `BboxOverlay.tsx` attempts to map normalized `[left, top, right, bottom]` bbox to canvas pixels (ideal for digital docs). If `bbox` is missing (e.g. scanned VLM OCR docs) or fails, fallback to jumping to the page without a box. **Crucially:** always display a collapsible "Text Snippet" card in the chat UI containing the `page_number` and first ~150 chars of the retrieved chunk as a safety net, so users know exactly what to look for when visual highlights degrade (FRONTEND_PLAN §6).
 - 5.6: **URL state pattern** — split-screen state lives in query params (`/chat?sessionId=s_123&docId=doc_456&page=14&citationId=c_789`) for instant state restoration on refresh/share (FRONTEND_PLAN §3.1).
 - 5.7: **Playwright E2E** — automated test: login → ask → click citation → PDF navigates + highlights bbox (automates Test 5-A).
 - 5.8: **Deploy to Vercel** — existing custom domain; env vars: Firebase web config (from the `FIREBASE_CONFIG` secret), `RETRIEVAL_URL`; enable CORS on `retrieval-api` for the Vercel origin if browser calls require it (the app already accepts `X-Firebase-Token`).
@@ -431,9 +431,26 @@ Allow multi-turn conversations that retain context, using a dedicated **Small La
 - 6.1: Persist full chat history per session in Firestore.
 - 6.2: Add a `rewrite_query()` method to the `ModelProvider` interface, backed by the smallest/cheapest available model (e.g., Gemini Flash-Lite at minimum `thinking`/token budget, or a self-hosted SLM such as Gemma once GPU is available in Phase 15.0 — selected via the same `MODEL_BACKEND` config pattern as every other provider call).
 - 6.3: On each turn, prior conversation turns + the new question are passed to `rewrite_query()`, which resolves pronouns/ambiguous references ("what about that clause?") into a fully self-contained query before retrieval.
-- 6.4: Cap rewrite latency and token budget tightly (this runs on every turn) — target sub-300ms, a few hundred tokens max.
-- 6.5: **Pronoun/Dependency Heuristic Gate (Latency & Cost Optimization):** Run a fast zero-cost code check for ambiguous pronouns (`it`, `this`, `that`, `former`, `latter`, `above`, `the previous`). If no pronouns/dependencies are present (e.g. *"What is Section 5?"*), skip the LLM rewriter completely to save ~150ms and 100% of rewriter API cost.
+- 6.5: **Heuristic Rewrite Gate (Latency & Cost Optimization):** Run a fast zero-cost code check before triggering `rewrite_query()`. Trigger rewriter when:
+  1. Ambiguous pronouns/references are present with chat history (`it`, `this`, `that`, `these`, `those`, `former`, `latter`, `above`, `the previous`).
+  2. Word count threshold (`len(query.split()) > 15`) or storytelling punctuation (`.` or `;`) or conversational openers (`can you`, `i want to`) are detected, stripping narrative filler from verbose questions before retrieval.
+  If neither condition is met (e.g. short standalone queries like *"What is Section 5?"*), skip the LLM rewriter completely to save ~150ms and 100% of rewriter API cost.
 - 6.6: **Hybrid Topic Summary Memory (Long-Chat Optimization):** When session history exceeds 15 turns, compress older messages into a 2-sentence running topic summary and append only the last $N=2$ raw messages. This keeps rewrite context under 200 tokens regardless of conversation length.
+
+#### 6.6 Detailed Spec
+
+**Problem:** The sliding window (N=6) truncates early context in long conversations. After 15+ turns, the rewrite gate loses track of the original topic.
+
+**Design:**
+1. **Trigger:** After every `/query` call, count messages in the session. If ≥15, run summary compression.
+2. **Summary generation:** Flash-Lite call with prompt: "Summarize this conversation in 2 sentences, preserving the main topic and any document references." Input = all messages except the last 2. Output ≤100 tokens.
+3. **Storage:** Write summary to the session document field `topic_summary` (not in the messages sub-collection — it replaces history, not appends to it).
+4. **Loading:** In `_load_firestore_messages`, if the session doc has a `topic_summary`, prepend it as a system-style message before the last 2 raw messages. This gives the rewriter: `[summary, msg_N-1, msg_N, new_query]`.
+5. **Cost:** One Flash-Lite call per query after turn 15 (~$0.0001, <200ms). Bounded: summary is always ≤100 tokens regardless of conversation length.
+
+**Files:** `services/retrieval_api/app.py` (summary generation + storage), `_load_firestore_messages` (summary loading).
+
+**Deferred because:** Requires a second LLM call per query, incremental summary update design, and testing with real long conversations. The current N=6 sliding window handles MVP conversations adequately.
 
 ### Services Touched
 Firestore, Vertex AI (SLM query rewriting via `ModelProvider`).
@@ -485,6 +502,7 @@ Improve retrieval recall for short or ambiguously-phrased questions by generatin
 - 8.1: Add `generate_hypothesis(query) -> hypothetical_answer_text` and `rephrase(query) -> [alt_phrasings]` methods to the `ModelProvider` interface, backed by the same SLM tier used for query rewrite (Phase 6.0).
 - 8.2: On retrieval, embed the hypothetical answer (and/or a fused multi-phrasing embedding) instead of the raw question; fall back to raw-query embedding if hypothesis generation fails or times out.
 - 8.3: Add a config flag to toggle HyDE per query type (e.g., always on for short queries under N words, optional for long/specific queries where raw embedding already performs well).
+- 8.4: ⚠️ **[DEFERRED from retrieval-quality pipeline #3]** **Cross-Lingual Dual-Query:** Detect script mismatch (Latin query + Devanagari-dominant corpus, romanized-Hindi detection) and generate Hindi + English query variants via SLM; run parallel searches and merge via RRF. Transliteration gate was deployed live (`ingestion-worker-00030-h9l`) but the Flash-Lite dual-query path was disabled after eval showed negligible retrieval improvement (+0.003 MRR) and unacceptable latency regression (+5.3s). Reranker confirmed multilingual — may be re-activated as a cheaper alternative once cross-encoder reranking is live. Files: `services/common/retrieval/search.py` (next to `_needs_rewrite`), `retrieval/hindi.py` (`contains_devanagari`), new `ModelProvider` method mirroring `rewrite_query`.
 
 ### Services Touched
 Vertex AI (via `ModelProvider`), Retrieval API.
@@ -495,9 +513,9 @@ Vertex AI (via `ModelProvider`), Retrieval API.
 - **Test 8-C (Failure Fallback):** Simulate a hypothesis-generation failure (timeout/error); confirm the query still completes using the raw-query embedding path.
 
 ### Exit Criteria
-✅ Measurable recall improvement confirmed on test set. ✅ Latency fallback verified under simulated failure.
+✅ Measurable recall improvement confirmed on test set. ✅ Latency fallback verified under simulated failure. ⚠️ Task 8.4 (cross-lingual dual-query) deferred pending cross-encoder reranker activation — transliteration gate is live but dual-query disabled (negligible lift, +5.3s latency).
 
-**Est. Effort:** 3–5 days
+**Est. Effort:** 3–5 days (excluding deferred Task 8.4)
 
 ---
 
