@@ -178,10 +178,13 @@ class RouterVlmRouter(VlmRouter):
         self._renderer = renderer
         self._min_text_chars = min_text_chars
         self._vlm_cache: Dict[str, str] = {}
+        self._lock = threading.Lock()
         self.vlm_calls = 0
         self._vlm_semaphore = threading.BoundedSemaphore(value=10)
 
     def route(self, elements: List[ParsedElement], pdf_path: str = "") -> List[RoutingResult]:
+        from concurrent.futures import ThreadPoolExecutor
+
         results: List[RoutingResult] = []
         # Group by page so full-page crops reuse one render.
         pages: dict[int, list[ParsedElement]] = {}
@@ -192,10 +195,12 @@ class RouterVlmRouter(VlmRouter):
             page_elements = pages[page_no]
             page_coverage, page_total_chars = _page_text_stats(page_elements)
             page_render = None
-            # FIX-012: routing is strictly per-element — page stats are computed
-            # fresh per page group and never cached at document level, so mixed
-            # language documents classify each page independently.
-            for el in page_elements:
+
+            # 1. Determine routing decisions for all elements on the page
+            page_results: List[Optional[RoutingResult]] = [None] * len(page_elements)
+            vlm_tasks = []
+
+            for idx, el in enumerate(page_elements):
                 decision, text = self._route_element(
                     el, pdf_path, page_render,
                     page_coverage=page_coverage,
@@ -207,44 +212,62 @@ class RouterVlmRouter(VlmRouter):
                             pdf_path, page_no, scale=2.0
                         )
                     crop = page_render.crop((0, 0, page_render.width, page_render.height))
-                    try:
-                        text = self._cached_vlm_call(_to_png_bytes(crop), self._provider.ocr_page)
-                    except Exception:
-                        logger.warning("VLM_FULL_PAGE failed for %s page %s, falling back to Docling text",
-                                       pdf_path, page_no, exc_info=True)
-                        decision = RouteDecision.DOCLING_TEXT
-                        text = el.text
+                    vlm_tasks.append((idx, _to_png_bytes(crop), self._provider.ocr_page, el, decision))
                 elif decision in (RouteDecision.VLM_TABLE, RouteDecision.VLM_PICTURE):
                     if page_render is None:
                         page_render = self._renderer.render_page(
                             pdf_path, page_no, scale=2.0
                         )
                     crop = _crop_bbox(page_render, el.bbox, pdf_path, page_no)
+                    vlm_tasks.append((idx, _to_png_bytes(crop), self._provider.extract_table, el, decision))
+                else:
+                    page_results[idx] = RoutingResult(element=el, decision=decision, text=text)
+
+            # 2. Execute VLM calls for the page concurrently in parallel
+            if vlm_tasks:
+                def _run_task(task):
+                    i, png_bytes, extractor, element, dec = task
                     try:
-                        text = self._cached_vlm_call(_to_png_bytes(crop), self._provider.extract_table)
+                        extracted_text = self._cached_vlm_call(png_bytes, extractor)
+                        return i, dec, extracted_text
                     except Exception:
-                        logger.warning("VLM_TABLE/PICTURE failed for %s page %s, falling back to Docling text",
-                                       pdf_path, page_no, exc_info=True)
-                        decision = RouteDecision.DOCLING_TEXT
-                        text = el.text
-                results.append(RoutingResult(element=el, decision=decision, text=text))
+                        logger.warning(
+                            "VLM call failed for %s page %s (element %s), falling back to Docling text",
+                            pdf_path, page_no, i, exc_info=True,
+                        )
+                        return i, RouteDecision.DOCLING_TEXT, element.text
+
+                workers = min(8, len(vlm_tasks))
+                with ThreadPoolExecutor(max_workers=workers) as executor:
+                    for i, final_dec, final_text in executor.map(_run_task, vlm_tasks):
+                        page_results[i] = RoutingResult(element=page_elements[i], decision=final_dec, text=final_text)
+
+            # 3. Collect page results in original document order
+            for r in page_results:
+                if r is not None:
+                    results.append(r)
+
         return results
 
     def _cached_vlm_call(self, image_bytes: bytes, extractor) -> str:
         img_hash = hashlib.sha256(image_bytes).hexdigest()
-        if img_hash in self._vlm_cache:
-            return self._vlm_cache[img_hash]
+        with self._lock:
+            if img_hash in self._vlm_cache:
+                return self._vlm_cache[img_hash]
 
         cached = _load_cached_vlm(img_hash)
         if cached is not None:
-            self._vlm_cache[img_hash] = cached
+            with self._lock:
+                self._vlm_cache[img_hash] = cached
             return cached
 
         with self._vlm_semaphore:
             text = extractor(image_bytes)
-        self._vlm_cache[img_hash] = text
+
+        with self._lock:
+            self._vlm_cache[img_hash] = text
+            self.vlm_calls += 1
         _store_cached_vlm(img_hash, text)
-        self.vlm_calls += 1
         return text
 
     def _route_element(

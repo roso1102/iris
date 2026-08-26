@@ -197,12 +197,21 @@ class IngestionPipeline:
         return local
 
     def _embed(self, chunks: List[Chunk]) -> None:
-        for chunk in chunks:
-            try:
-                chunk.embedding = self._provider.embed(chunk.text)
-            except Exception:
-                logger.warning("Embedding failed for chunk %s, using zero vector fallback", chunk.id, exc_info=True)
-                chunk.embedding = [0.0] * 768
+        if not chunks:
+            return
+        texts = [c.text for c in chunks]
+        try:
+            embeddings = self._provider.embed_batch(texts)
+            for chunk, emb in zip(chunks, embeddings):
+                chunk.embedding = emb
+        except Exception:
+            logger.warning("Batch embedding failed; falling back to individual embeddings", exc_info=True)
+            for chunk in chunks:
+                try:
+                    chunk.embedding = self._provider.embed(chunk.text)
+                except Exception:
+                    logger.warning("Embedding failed for chunk %s, using zero vector fallback", chunk.id, exc_info=True)
+                    chunk.embedding = [0.0] * 768
 
 
 def _split_gcs_uri(uri: str) -> tuple[str, str]:

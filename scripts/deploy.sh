@@ -40,7 +40,7 @@ gcloud run deploy ingestion-worker \
   --region="${REGION}" --project="${PROJECT_ID}" \
   --no-allow-unauthenticated --ingress=all \
   --cpu=2 --memory=8Gi --max-instances=10 --min-instances=0 --concurrency=1 \
-  --timeout=900 \
+  --timeout=900 --cpu-boost \
   --service-account="ingestion-worker-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
   --vpc-connector=iris-connector --vpc-egress=private-ranges-only \
   --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},FIREBASE_PROJECT_ID=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,VERTEX_VISION_LOCATION=us-central1,QDRANT_URL=http://10.0.0.5:6333,RETRIEVAL_COLLECTION=iris_chunks_v2,CHUNK_TARGET_TOKENS=256,BM25_HINDI_ENABLED=1"
@@ -49,7 +49,7 @@ gcloud run deploy retrieval-api \
   --image="${REPO}/retrieval-api:latest" \
   --region="${REGION}" --project="${PROJECT_ID}" \
   --allow-unauthenticated --ingress=all \
-  --cpu=2 --memory=2Gi --max-instances=10 --min-instances=1 \
+  --cpu=2 --memory=2Gi --max-instances=10 --min-instances=1 --cpu-boost \
   --service-account="retrieval-api-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
   --vpc-connector=iris-connector --vpc-egress=private-ranges-only \
   --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},FIREBASE_PROJECT_ID=${PROJECT_ID},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://10.0.0.5:6333,CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS},RERANK_LOCATION=global,BM25_HINDI_ENABLED=1"

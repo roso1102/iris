@@ -35,6 +35,13 @@ class ModelProvider(ABC):
         """
         pass
 
+    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        """
+        Batch embedding for multiple chunks in parallel/bulk.
+        Default implementation embeds sequentially or via thread pool.
+        """
+        return [self.embed(t) for t in texts]
+
     def embed_query(self, text: str) -> List[float]:
         """
         Query-side embedding. text-embedding-004 is trained asymmetrically:

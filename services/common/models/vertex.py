@@ -186,6 +186,33 @@ class VertexAIProvider(ModelProvider):
     def embed(self, text: str) -> List[float]:
         return self._embed_task(text, "RETRIEVAL_DOCUMENT")
 
+    def embed_batch(self, texts: List[str], task_type: str = "RETRIEVAL_DOCUMENT") -> List[List[float]]:
+        if not texts:
+            return []
+        self._ensure_init()
+        from vertexai.language_models import TextEmbeddingInput
+
+        model = self._get_embedding_model()
+        dim = _DIMENSIONALITY_MAP.get(self.embedding_model_name)
+        results: List[List[float]] = []
+
+        # Batch in chunks of 250 (Vertex limit per single API request)
+        batch_size = 250
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i : i + batch_size]
+            inputs = [TextEmbeddingInput(text=t, task_type=task_type) for t in batch_texts]
+            if dim is not None:
+                embeddings = model.get_embeddings(inputs, output_dimensionality=dim)
+            else:
+                embeddings = model.get_embeddings(inputs)
+            for emb in embeddings:
+                if not emb or not emb.values:
+                    results.append([0.0] * (dim or 768))
+                else:
+                    results.append(emb.values)
+
+        return results
+
     def embed_query(self, text: str) -> List[float]:
         # text-embedding-004 is asymmetric: queries must use RETRIEVAL_QUERY
         # against RETRIEVAL_DOCUMENT-embedded chunks (Stage 1a metric fix).
