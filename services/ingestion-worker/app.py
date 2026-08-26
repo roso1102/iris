@@ -45,6 +45,15 @@ def _firestore() -> firestore.Client:
     return firestore.Client()
 
 
+def _doc_exists(tenant_id: str, doc_id: str) -> bool:
+    """Check if document ownership record still exists in Firestore."""
+    try:
+        doc = _firestore().document(f"tenants/{tenant_id}/documents/{doc_id}").get()
+        return doc.exists
+    except Exception:
+        return True  # if Firestore is down, don't block ingestion
+
+
 def _progress_doc_path(tenant_id: str, doc_id: str) -> str:
     # Firestore paths must alternate collection/document (even number of
     # elements): ingestion_progress/{tenant_id}/documents/{doc_id}.
@@ -130,6 +139,9 @@ def ingest_page():
     total_pages = int(total_pages) if str(total_pages).isdigit() else 0
 
     try:
+        if not _doc_exists(tenant_id, doc_id):
+            logger.info("Doc deleted during ingestion, skipping page %s/%s", doc_id, page_number)
+            return jsonify({"status": "skipped", "doc_id": doc_id, "page_number": page_number}), 200
         result = _get_pipeline().ingest(
             gcs_uri=gcs_uri,
             tenant_id=tenant_id,
