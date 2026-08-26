@@ -313,7 +313,7 @@ class VertexAIProvider(ModelProvider):
 
     def rewrite_query(self, query: str, history: List[dict]) -> str:
         self._ensure_init()
-        from vertexai.generative_models import GenerativeModel
+        from vertexai.generative_models import GenerationConfig, GenerativeModel
 
         safe_history = [
             {"role": h.get("role", "user")[:20],
@@ -331,7 +331,17 @@ class VertexAIProvider(ModelProvider):
             "STANDALONE QUERY:"
         )
         try:
-            return self._safe_generate(model, prompt)
+            response = model.generate_content(
+                prompt,
+                generation_config=GenerationConfig(
+                    temperature=0.0,
+                    max_output_tokens=256,
+                    thinking_config={"thinking_budget": 0},
+                ),
+            )
+            if response and response.text:
+                return response.text.strip()
+            return safe_query
         except RuntimeError:
             return safe_query
 

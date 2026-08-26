@@ -114,9 +114,12 @@ class SearchOrchestrator:
 
         # ── Phase 1: Rewrite (existing) ──────────────────────────────
         if _needs_rewrite(query, history):
+            t_rw = time.perf_counter()
             query = await asyncio.to_thread(
                 self.provider.rewrite_query, query, history or []
             )
+            rewrite_ms = round((time.perf_counter() - t_rw) * 1000, 1)
+            logger.info("rewrite_ms=%.1f rewritten=%s", rewrite_ms, query[:80])
 
         # ── Phase 2: Original embedding + transliteration leg ────────
         # Pipeline #3 revision: ONLY fire for romanized Hindi content
@@ -278,6 +281,8 @@ class SearchOrchestrator:
         rewritten = await asyncio.to_thread(
             self.provider.rewrite_query, query, history or []
         )
+        rewrite_ms = round((time.perf_counter() - t0) * 1000, 1)
+        logger.info("rewrite_ms=%.1f (deep) rewritten=%s", rewrite_ms, rewritten[:80])
 
         # ── Transliteration on the REWRITTEN query ────────────────────
         from services.common.retrieval.hindi import (

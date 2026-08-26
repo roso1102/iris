@@ -30,6 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from services.common.auth.jwt import AuthContext, require_auth
 from services.common.auth.rate_limit import limiter
 from services.common.auth.validation import (
+    MAX_HISTORY_TURNS,
     validate_doc_id,
     validate_history,
     validate_session_id,
@@ -135,6 +136,80 @@ def _delete_firestore_doc(doc_path: str) -> None:
         client.document(doc_path).delete()
     except Exception as exc:
         logger.warning("Firestore delete failed for %s: %s", doc_path, exc)
+
+
+def _create_firestore_session(tenant_id: str) -> str:
+    """Create an empty session document and return the new session_id."""
+    session_id = str(uuid.uuid4())
+    client = _get_firestore_client()
+    if client is None:
+        logger.warning("Firestore unavailable; session not created")
+        return session_id
+    try:
+        client.document(f"tenants/{tenant_id}/sessions/{session_id}").set({
+            "session_id": session_id,
+            "tenant_id": tenant_id,
+            "name": "",
+            "document_ids": [],
+            "created_at": _server_timestamp(),
+        })
+    except Exception as exc:
+        logger.warning("Firestore session create failed: %s", exc)
+    return session_id
+
+
+def _append_firestore_messages(
+    tenant_id: str, session_id: str, messages: list[dict]
+) -> None:
+    """Write user + assistant messages to the session's messages sub-collection."""
+    client = _get_firestore_client()
+    if client is None:
+        return
+    path = f"tenants/{tenant_id}/sessions/{session_id}/messages"
+    try:
+        col = client.collection(path)
+        for msg in messages:
+            col.add({
+                "role": msg["role"],
+                "content": msg["content"],
+                "created_at": _server_timestamp(),
+            })
+    except Exception as exc:
+        logger.warning("Firestore messages append failed: %s", exc)
+
+
+def _load_firestore_messages(
+    tenant_id: str, session_id: str, limit: int = 6
+) -> list[dict]:
+    """Load the last N messages from Firestore, returned in chronological order."""
+    client = _get_firestore_client()
+    if client is None:
+        return []
+    path = f"tenants/{tenant_id}/sessions/{session_id}/messages"
+    try:
+        docs = list(
+            client.collection(path)
+            .order_by("created_at", direction="DESCENDING")
+            .limit(limit)
+            .stream()
+        )
+        docs.reverse()  # newest-first → chronological (oldest-first)
+        return [{"role": d.get("role", ""), "content": d.get("content", "")} for d in docs]
+    except Exception as exc:
+        logger.warning("Firestore messages load failed: %s", exc)
+        return []
+
+
+def _session_exists(tenant_id: str, session_id: str) -> bool:
+    """Check if a session document belongs to this tenant."""
+    client = _get_firestore_client()
+    if client is None:
+        return True  # if Firestore is down, don't block the request
+    try:
+        doc = client.document(f"tenants/{tenant_id}/sessions/{session_id}").get()
+        return doc.exists
+    except Exception:
+        return True
 
 
 def _delete_firestore_session(tenant_id: str, session_id: str) -> None:
@@ -462,9 +537,21 @@ async def query(
     validate_tenant_id(auth.tenant_id)
     if request.session_id:
         validate_session_id(request.session_id)
+        if not await asyncio.to_thread(_session_exists, auth.tenant_id, request.session_id):
+            raise HTTPException(status_code=404, detail="Session not found")
+    else:
+        request.session_id = await asyncio.to_thread(
+            _create_firestore_session, auth.tenant_id
+        )
     limiter.check(f"tenant:{auth.tenant_id}")
     top_k = validate_top_k(request.top_k, for_synthesis=True)
     history = validate_history(request.history)
+    if request.session_id:
+        server_history = await asyncio.to_thread(
+            _load_firestore_messages, auth.tenant_id, request.session_id, MAX_HISTORY_TURNS
+        )
+        if server_history:
+            history = server_history
     try:
         t0 = time.perf_counter()
         if request.mode == "deep":
@@ -497,6 +584,14 @@ async def query(
             provider.synthesize, context, request.query, source_chunks
         )
         answer = validate_citations(answer, expanded)
+        if request.session_id:
+            await asyncio.to_thread(
+                _append_firestore_messages, auth.tenant_id, request.session_id,
+                [
+                    {"role": "user", "content": request.query},
+                    {"role": "assistant", "content": answer.answer},
+                ],
+            )
         latency = round((time.perf_counter() - t0) * 1000, 2)
         return QueryResponse(
             answer=answer.answer,
@@ -504,6 +599,7 @@ async def query(
             mode=request.mode,
             latency_ms=latency,
             chunks_used=len(retrieved),
+            session_id=request.session_id,
         )
     except Exception as exc:
         logger.exception("Query failed for tenant %s", auth.tenant_id)

@@ -68,6 +68,7 @@ class QueryResponse(BaseModel):
     mode: str
     latency_ms: float
     chunks_used: int
+    session_id: Optional[str] = None
 
 
 class DeleteResponse(BaseModel):
