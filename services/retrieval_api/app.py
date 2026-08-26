@@ -439,20 +439,50 @@ async def livez():
     }
 
 
+def _get_doc_total_pages(client, tenant_id: str, doc_id: str) -> Optional[int]:
+    """Retrieve total_pages from document record or progress tracker."""
+    if client is None:
+        return None
+    try:
+        doc_snap = client.document(f"tenants/{tenant_id}/documents/{doc_id}").get()
+        if doc_snap.exists:
+            data = doc_snap.to_dict() or {}
+            if "total_pages" in data and data["total_pages"]:
+                return int(data["total_pages"])
+        tracker_snap = client.document(f"tenants/{tenant_id}/documents/{doc_id}/progress/tracker").get()
+        if tracker_snap.exists:
+            tdata = tracker_snap.to_dict() or {}
+            if "total_pages" in tdata and tdata["total_pages"]:
+                return int(tdata["total_pages"])
+    except Exception as exc:
+        logger.debug("Failed reading total_pages for %s/%s: %s", tenant_id, doc_id, exc)
+    return None
+
+
 @app.get("/doc-status/{doc_id}", response_model=DocStatusResponse)
 async def doc_status(
     doc_id: str,
     auth: AuthContext = Depends(require_auth),
 ):
-    """Return Qdrant chunk count for a document without touching ingestion-worker."""
+    """Return Qdrant chunk count and processing status for a document."""
     validate_tenant_id(auth.tenant_id)
     validate_doc_id(doc_id)
+    client = _get_firestore_client()
+    total_pages = _get_doc_total_pages(client, auth.tenant_id, doc_id) if client else None
     chunks = store.get_by_doc(doc_id, tenant_id=auth.tenant_id)
+    page_count = len({c.page_number for c in chunks})
+    if total_pages and total_pages > 0:
+        status = "completed" if page_count >= total_pages else "processing"
+    else:
+        status = "completed" if len(chunks) > 0 else "processing"
+
     return {
         "doc_id": doc_id,
         "tenant_id": auth.tenant_id,
         "chunks": len(chunks),
-        "pages": len({c.page_number for c in chunks}),
+        "pages": page_count,
+        "total_pages": total_pages,
+        "status": status,
     }
 
 
@@ -460,33 +490,36 @@ async def doc_status(
 async def list_documents(
     auth: AuthContext = Depends(require_auth),
 ):
-    """List all documents for the verified tenant with chunk/page counts.
-
-    Uses Firestore ownership records for the listing (not Qdrant — no
-    tenant-wide vector scan), then fetches per-doc counts from Qdrant.
-    Returns an empty list if Firestore collection doesn't exist yet.
-    """
+    """List all documents for the verified tenant with chunk/page counts and accurate status."""
     validate_tenant_id(auth.tenant_id)
     client = _get_firestore_client()
     if client is None:
         raise HTTPException(status_code=503, detail="Firestore unavailable")
     documents = []
     try:
-        # Use .get() instead of .stream() — avoids gRPC encoding bug
-        # where (default) gets URL-encoded to %28default%29 in the
-        # Firestore stream path. .get() returns all docs in memory.
         docs = client.collection(f"tenants/{auth.tenant_id}/documents").get()
         for doc in docs:
             doc_id = doc.id
+            data = doc.to_dict() or {}
+            total_pages = data.get("total_pages")
+            if total_pages is None:
+                total_pages = _get_doc_total_pages(client, auth.tenant_id, doc_id)
             chunks = store.get_by_doc(doc_id, tenant_id=auth.tenant_id)
+            page_count = len({c.page_number for c in chunks})
+            if total_pages and total_pages > 0:
+                status = "completed" if page_count >= total_pages else "processing"
+            else:
+                status = "completed" if len(chunks) > 0 else "processing"
+
             documents.append(DocumentInfo(
                 doc_id=doc_id,
                 chunk_count=len(chunks),
-                page_count=len({c.page_number for c in chunks}),
+                page_count=page_count,
+                total_pages=total_pages,
+                status=status,
             ))
     except Exception as exc:
         logger.warning("Firestore collection listing failed for %s: %s", auth.tenant_id, exc)
-        # Collection may not exist yet; return empty list gracefully
     return DocumentListResponse(documents=documents)
 
 
@@ -836,6 +869,14 @@ async def upload_document(
         # delete them — a retry of /ingest (or manual trigger) can recover.
         logger.warning("Ingestion trigger failed for %s/%s: %s", auth.tenant_id, doc_id, exc.detail)
         raise exc
+
+    if "total_pages" in worker_resp and worker_resp["total_pages"]:
+        try:
+            client.document(f"tenants/{auth.tenant_id}/documents/{doc_id}").set({
+                "total_pages": int(worker_resp["total_pages"]),
+            }, merge=True)
+        except Exception as exc:
+            logger.debug("Failed saving total_pages to doc record: %s", exc)
 
     status = worker_resp.get("status", "processing")
     if status == "rejected":

@@ -105,6 +105,8 @@ class DocStatusResponse(BaseModel):
     tenant_id: str
     chunks: int
     pages: int
+    total_pages: Optional[int] = None
+    status: str = "processing"
 
 
 class UploadResponse(BaseModel):
@@ -118,6 +120,8 @@ class DocumentInfo(BaseModel):
     doc_id: str
     chunk_count: int
     page_count: int
+    total_pages: Optional[int] = None
+    status: str = "processing"
 
 
 class DocumentListResponse(BaseModel):
