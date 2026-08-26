@@ -154,26 +154,48 @@ class DoclingParser(DocParser):
 
         pages = sorted({int(getattr(p, "page_no", 0)) for p in prov})
         if len(pages) > 1 and element_type in (ElementType.TEXT, ElementType.OTHER):
-            for pno in pages:
-                page_items = [p for p in prov if int(getattr(p, "page_no", 0)) == pno]
-                if not page_items:
-                    continue
-                page_text = _text_for_page(element, text, page_items)
-                bbox = _bbox_of_items(page_items, page_dims.get(pno))
-                if bbox is None:
+            for item in prov:
+                pno = int(getattr(item, "page_no", 0))
+                item_text = _text_for_prov(text, item)
+                item_bbox = _bbox_of_single(item, page_dims.get(pno))
+                if item_bbox is None or not item_text:
                     continue
                 elements.append(
                     ParsedElement(
                         page_number=pno,
                         element_type=element_type,
-                        text=page_text,
-                        bbox=bbox,
+                        text=item_text,
+                        bbox=item_bbox,
                     )
                 )
             return
 
         page_no = _page_of(element)
-        bbox = _bbox_of(element, page_dims.get(page_no))
+        page_dims_this = page_dims.get(page_no)
+
+        # Single-page element with multiple prov items: split per prov so
+        # each ParsedElement carries only its own bbox (not a union envelope
+        # that may cover unrelated page regions like a figure placeholder).
+        same_page_items = [
+            p for p in prov if int(getattr(p, "page_no", 0)) == page_no
+        ]
+        if len(same_page_items) > 1 and element_type in (ElementType.TEXT, ElementType.OTHER):
+            for item in same_page_items:
+                item_text = _text_for_prov(text, item)
+                item_bbox = _bbox_of_single(item, page_dims_this)
+                if item_bbox is None or not item_text:
+                    continue
+                elements.append(
+                    ParsedElement(
+                        page_number=page_no,
+                        element_type=element_type,
+                        text=item_text,
+                        bbox=item_bbox,
+                    )
+                )
+            return
+
+        bbox = _bbox_of(element, page_dims_this)
         if bbox is None:
             return
 
@@ -207,6 +229,33 @@ def _page_size(page) -> tuple[float | None, float | None]:
     if img and hasattr(img, "width") and hasattr(img, "height"):
         return (float(img.width), float(img.height))
     return (None, None)
+
+
+def _text_for_prov(full_text: str, item) -> str:
+    """Slice full_text to a single prov item's charspan."""
+    cs = getattr(item, "charspan", None)
+    if cs is not None and len(cs) == 2:
+        s, e = int(cs[0]), int(cs[1])
+        if e > s:
+            return full_text[s:e].strip()
+    return full_text.strip()
+
+
+def _bbox_of_single(item, page_dims: tuple[float, float] | None) -> list[float] | None:
+    """Normalized [left, top, right, bottom] for a single prov item."""
+    bbox = getattr(item, "bbox", None)
+    if bbox is None or not page_dims:
+        return None
+    pw, ph = page_dims
+    if pw <= 0 or ph <= 0:
+        return None
+    l, t, r, b = float(bbox.l), float(bbox.t), float(bbox.r), float(bbox.b)
+    return [
+        max(0.0, min(1.0, round(l / pw, 4))),
+        max(0.0, min(1.0, round(1.0 - (t / ph), 4))),
+        max(0.0, min(1.0, round(r / pw, 4))),
+        max(0.0, min(1.0, round(1.0 - (b / ph), 4))),
+    ]
 
 
 def _bbox_of(element, page_dims: tuple[float, float] | None) -> list[float] | None:

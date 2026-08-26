@@ -81,24 +81,28 @@ class TestParserPageSplit(unittest.TestCase):
         # [l/pw, 1-(t/ph), r/pw, 1-(b/ph)] = [0, 0, 1, 0.1]
         self.assertEqual(els[0].bbox, [0.0, 0.0, 1.0, 0.1])
 
-    def test_multi_prov_same_page_unions_bbox(self):
+    def test_multi_prov_same_page_splits_per_prov(self):
         # A list with two items on page 5: BOTTOMLEFT boxes (10,900,200,700)
-        # and (100,500,400,100) on a 500x1000 page. The union must cover both
-        # (top edge = max t = 900 -> 0.1; bottom edge = min b = 100 -> 0.9),
-        # never just prov[0]'s box, and never vertically inverted.
+        # and (100,500,400,100) on a 500x1000 page. Each prov item gets its
+        # own ParsedElement with its own bbox (not a union envelope that may
+        # cover unrelated page regions).
         text = "item one. item two."
         prov = [
             _FakeProv(5, _FakeBBox(10, 900, 200, 700), (0, 9)),
             _FakeProv(5, _FakeBBox(100, 500, 400, 100), (10, len(text))),
         ]
         els = self._split("list_item", text, prov, {5: (500.0, 1000.0)})
-        self.assertEqual(len(els), 1)
-        self.assertEqual(els[0].bbox, [0.02, 0.1, 0.8, 0.9])
-        self.assertLessEqual(els[0].bbox[1], els[0].bbox[3])
+        self.assertEqual(len(els), 2)
+        # prov1: (10,900,200,700) -> [0.02, 0.1, 0.4, 0.3]
+        self.assertEqual(els[0].bbox, [0.02, 0.1, 0.4, 0.3])
+        self.assertEqual(els[0].text, "item one.")
+        # prov2: (100,500,400,100) -> [0.2, 0.5, 0.8, 0.9]
+        self.assertEqual(els[1].bbox, [0.2, 0.5, 0.8, 0.9])
+        self.assertEqual(els[1].text, "item two.")
 
-    def test_multi_page_split_unions_multiple_items_per_page(self):
-        # Two provs on page 13, one on page 14: the page-13 element must
-        # union BOTH page-13 boxes (not only the first item's).
+    def test_multi_page_split_per_prov(self):
+        # Two provs on page 13, one on page 14: each prov item gets its own
+        # ParsedElement with its own bbox (not a page-level union).
         text = "aaaa. bbbb. cccc."
         prov = [
             _FakeProv(13, _FakeBBox(10, 900, 200, 700), (0, 6)),
@@ -108,10 +112,20 @@ class TestParserPageSplit(unittest.TestCase):
         els = self._split(
             "text", text, prov, {13: (500.0, 1000.0), 14: (500.0, 1000.0)}
         )
+        self.assertEqual(len(els), 3)
         self.assertEqual({e.page_number for e in els}, {13, 14})
-        p13 = next(e for e in els if e.page_number == 13)
-        self.assertEqual(p13.bbox, [0.02, 0.1, 0.8, 0.9])
-        self.assertLessEqual(p13.bbox[1], p13.bbox[3])
+        p13_els = [e for e in els if e.page_number == 13]
+        self.assertEqual(len(p13_els), 2)
+        # prov1 on p13: (10,900,200,700) -> [0.02, 0.1, 0.4, 0.3]
+        self.assertEqual(p13_els[0].bbox, [0.02, 0.1, 0.4, 0.3])
+        self.assertEqual(p13_els[0].text, "aaaa.")
+        # prov2 on p13: (100,500,400,100) -> [0.2, 0.5, 0.8, 0.9]
+        self.assertEqual(p13_els[1].bbox, [0.2, 0.5, 0.8, 0.9])
+        self.assertEqual(p13_els[1].text, "bbbb.")
+        # prov3 on p14: (0,800,500,700) -> [0.0, 0.2, 1.0, 0.3]
+        p14 = next(e for e in els if e.page_number == 14)
+        self.assertEqual(p14.bbox, [0.0, 0.2, 1.0, 0.3])
+        self.assertEqual(p14.text, "cccc.")
 
     def test_bbox_missing_page_dims_skips_element(self):
         # Without page dims we cannot normalize — the element is skipped, never
