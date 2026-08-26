@@ -91,6 +91,10 @@ class SessionListResponse(BaseModel):
     sessions: List[dict]
 
 
+class SessionMessagesResponse(BaseModel):
+    messages: List[dict]
+
+
 class ViewUrlResponse(BaseModel):
     url: str
     expires_in_seconds: int = 900

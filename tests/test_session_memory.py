@@ -332,5 +332,95 @@ class TestQuerySessionMemory(unittest.TestCase):
         self.assertEqual(resp.status_code, 422)
 
 
+class TestGetSessionMessages(unittest.TestCase):
+    """Test GET /sessions/{session_id}/messages endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = TestClient(app)
+
+    def setUp(self):
+        self._gcs = patch(
+            "services.retrieval_api.app._get_gcs_client", return_value=None
+        )
+        self._fs = patch(
+            "services.retrieval_api.app._get_firestore_client",
+            return_value=MagicMock(),
+        )
+        self._gcs.start()
+        self._fs.start()
+        store._by_doc.clear()
+
+    def tearDown(self):
+        self._gcs.stop()
+        self._fs.stop()
+
+    def test_get_messages_returns_chronological(self):
+        fake = _fake_firestore()
+        fake.document.return_value.get.return_value.exists = True
+        # Simulate 3 messages (newest-first as Firestore returns them)
+        def _make_doc(data):
+            m = MagicMock()
+            m.get.side_effect = lambda field, *a: data.get(field, *a[0:]) if a else data[field]
+            return m
+
+        docs = [
+            _make_doc({"role": "assistant", "content": "answer 3"}),
+            _make_doc({"role": "user", "content": "question 3"}),
+            _make_doc({"role": "assistant", "content": "answer 2"}),
+            _make_doc({"role": "user", "content": "question 2"}),
+            _make_doc({"role": "assistant", "content": "answer 1"}),
+            _make_doc({"role": "user", "content": "question 1"}),
+        ]
+        fake.collection.return_value.order_by.return_value.limit.return_value.stream.return_value = docs
+        with patch(
+            "services.retrieval_api.app._get_firestore_client", return_value=fake
+        ), mock_auth(tenant_id="tenant-a"):
+            resp = self.client.get(
+                "/sessions/s1/messages", headers=auth_headers()
+            )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(len(body["messages"]), 6)
+        # Must be chronological (oldest first)
+        self.assertEqual(body["messages"][0]["content"], "question 1")
+        self.assertEqual(body["messages"][5]["content"], "answer 3")
+
+    def test_get_messages_404_for_nonexistent_session(self):
+        fake = _fake_firestore()
+        fake.document.return_value.get.return_value.exists = False
+        with patch(
+            "services.retrieval_api.app._get_firestore_client", return_value=fake
+        ), mock_auth(tenant_id="tenant-a"):
+            resp = self.client.get(
+                "/sessions/ghost/messages", headers=auth_headers()
+            )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_get_messages_requires_auth(self):
+        resp = self.client.get("/sessions/s1/messages")
+        self.assertEqual(resp.status_code, 401)
+
+    def test_get_messages_validates_session_id(self):
+        with mock_auth(tenant_id="tenant-a"):
+            resp = self.client.get(
+                "/sessions/has space/messages", headers=auth_headers()
+            )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_get_messages_empty_session(self):
+        fake = _fake_firestore()
+        fake.document.return_value.get.return_value.exists = True
+        fake.collection.return_value.order_by.return_value.limit.return_value.stream.return_value = []
+        with patch(
+            "services.retrieval_api.app._get_firestore_client", return_value=fake
+        ), mock_auth(tenant_id="tenant-a"):
+            resp = self.client.get(
+                "/sessions/s1/messages", headers=auth_headers()
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["messages"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

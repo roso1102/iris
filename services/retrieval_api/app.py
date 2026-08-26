@@ -51,6 +51,7 @@ from services.common.retrieval.models import (
     SearchResponse,
     SessionCreateRequest,
     SessionListResponse,
+    SessionMessagesResponse,
     SessionResponse,
     UploadResponse,
     ViewUrlResponse,
@@ -744,6 +745,22 @@ async def list_sessions(
     except Exception as exc:
         logger.warning("Firestore session listing failed for %s: %s", auth.tenant_id, exc)
     return SessionListResponse(sessions=sessions)
+
+
+@app.get("/sessions/{session_id}/messages", response_model=SessionMessagesResponse)
+async def get_session_messages(
+    session_id: str,
+    auth: AuthContext = Depends(require_auth),
+):
+    """Return chat history for a session, in chronological order."""
+    validate_tenant_id(auth.tenant_id)
+    validate_session_id(session_id)
+    if not await asyncio.to_thread(_session_exists, auth.tenant_id, session_id):
+        raise HTTPException(status_code=404, detail="Session not found")
+    messages = await asyncio.to_thread(
+        _load_firestore_messages, auth.tenant_id, session_id, limit=100
+    )
+    return SessionMessagesResponse(messages=messages)
 
 
 @app.get("/documents/{doc_id}/view-url", response_model=ViewUrlResponse)
