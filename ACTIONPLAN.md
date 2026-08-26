@@ -239,6 +239,7 @@ Empirically validate heuristics, validate extracted Markdown table structures, a
 - 2.5.4: **HyDE & Reranker A/B Benchmarks:** Benchmark Standard vs Deep Search (HyDE + Cross-Encoder) on latency vs recall lift to verify if HyDE justifies $+400\text{ms}$ query latency.
 - 2.5.5: **VLM Signal Threshold Sweep:** Sweep word ratio ($0.75$) and area coverage ($0.15$) on the labeled dataset to minimize false-positive VLM API spend.
 - 2.5.7: ✅ **[DONE — Emergency Fix] BM25 Hash Determinism:** Replace Python's built-in `hash(term)` (PEP 456 randomized per process) with `mmh3` (MurmurHash3). This was a silent production failure: ingestion-worker and retrieval-api generated different sparse indices for the same word, causing every sparse search to return zero matches. `mmh3==4.*` added to both service `requirements.txt`. This is a bug fix only — it makes sparse retrieval functional without improving its quality. Full quality upgrade is Task 3.5.
+- 2.5.8: ✅ **[TOOLING DONE / AUTHORING DEFERRED — Pipeline #4] Eval-Set Growth & Held-Out Harness:** Tooling complete (`scripts/label_worksheet.py` authoring worksheet and `--split` flag in `scripts/eval_phase2.py` with `golden_heldout.json` support). Expansion to 100 queries is archived/deferred post-MVP. Full 50-query golden dataset adjudicated (Rounds 1–3) with Recall@5=0.980–1.000 / Page-Recall@5=0.812.
 
 ### Services Touched
 RAGAS Framework, Vertex AI, Python Test Suite.

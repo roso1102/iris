@@ -16,6 +16,7 @@ class Citation(BaseModel):
     page_number: int
     bbox: List[float] = Field(description="[left, top, right, bottom] normalized coordinates")
     text_snippet: str
+    page_level: bool = False
 
 
 class StructuredAnswer(BaseModel):

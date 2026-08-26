@@ -96,6 +96,7 @@ def validate_citations(
                 page_number=chunk.page_number,
                 bbox=list(chunk.bbox),
                 text_snippet=chunk.text[:500],
+                page_level=bool(chunk.metadata.get("page_level")),
             )
         )
 

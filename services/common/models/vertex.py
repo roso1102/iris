@@ -41,6 +41,18 @@ def _is_resource_exhausted(exc: Exception) -> bool:
     return "429" in text or "resource exhausted" in text or "rate exceeded" in text
 
 
+def _get_safety_settings():
+    """Enterprise safety settings blocking medium-and-above risk across all categories."""
+    from vertexai.generative_models import HarmCategory, HarmBlockThreshold
+
+    return {
+        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    }
+
+
 def _sanitize_context(text: str) -> str:
     cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]", "", text)
     cleaned = _PROMPT_BOUNDARY_PATTERN.sub("[REDACTED]", cleaned)
@@ -116,6 +128,7 @@ class VertexAIProvider(ModelProvider):
         response = model.generate_content(
             contents,
             generation_config=generation_config,
+            safety_settings=_get_safety_settings(),
         )
 
         if not response:
@@ -338,6 +351,7 @@ class VertexAIProvider(ModelProvider):
                     max_output_tokens=256,
                     thinking_config={"thinking_budget": 0},
                 ),
+                safety_settings=_get_safety_settings(),
             )
             if response and response.text:
                 return response.text.strip()
