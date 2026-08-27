@@ -50,6 +50,49 @@ _AMBIGUOUS_REFERENCE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Acronym ↔ expansion synonyms from the golden corpus (zero LLM cost).
+_SYNONYM_MAP: Dict[str, List[str]] = {
+    "sdg": ["sustainable development goals"],
+    "csr": ["corporate social responsibility"],
+    "gdp": ["gross domestic product"],
+    "fdi": ["foreign direct investment"],
+    "nda": ["national democratic alliance"],
+    "upa": ["united progressive alliance"],
+    "gva": ["gross value added"],
+    "cagr": ["compound annual growth rate"],
+    "roe": ["return on equity"],
+    "nim": ["net interest margin"],
+    "npj": ["non-performing assets"],
+    "npa": ["non-performing assets"],
+    "rmsa": ["rashtriya madhyamik shiksha abhiyan"],
+    "ssa": ["sarva shiksha abhiyan"],
+    "pmjay": ["pradhan mantri jan arogya yojana"],
+    "mgnrega": ["mahatma gandhi national rural employment guarantee act"],
+    "rera": ["real estate regulatory authority"],
+    "sebi": ["securities and exchange board of india"],
+    "rbi": ["reserve bank of india"],
+    "gst": ["goods and services tax"],
+}
+
+_SPECIFIC_QUERY_RE = re.compile(
+    r"\b(section|clause|article|schedule|annexure|chapter|part|rule|regulation|page|table|figure|schedule)\s+\d",
+    re.IGNORECASE,
+)
+
+
+def _expand_synonyms(query: str) -> str:
+    """Expand acronyms in the query with their full forms for BM25."""
+    words = query.split()
+    expanded = []
+    for word in words:
+        lower = word.lower().strip(".,;:!?")
+        if lower in _SYNONYM_MAP:
+            expanded.append(word)
+            expanded.extend(_SYNONYM_MAP[lower])
+        else:
+            expanded.append(word)
+    return " ".join(expanded)
+
 
 def _needs_rewrite(query: str, history: Optional[List[dict]]) -> bool:
     """Phase 6.5 gate: true only when there is history AND an ambiguous reference.
@@ -60,6 +103,25 @@ def _needs_rewrite(query: str, history: Optional[List[dict]]) -> bool:
     if not history:
         return False
     return bool(_AMBIGUOUS_REFERENCE_RE.search(query))
+
+
+def _needs_hyde(query: str) -> bool:
+    """Gate for HyDE + query expansion on vague/short queries.
+
+    Triggers when the query is short (< 6 words) and doesn't contain
+    a specific reference (section number, date, proper noun pattern).
+    This catches "What are the risks?", "Tell me about the budget",
+    "How much CSR was spent?" while skipping "Section 5 clause 3",
+    "What does the 2024 annual report say about Q3 revenue?".
+    """
+    words = query.split()
+    if len(words) >= 6:
+        return False
+    if _SPECIFIC_QUERY_RE.search(query):
+        return False
+    if _AMBIGUOUS_REFERENCE_RE.search(query):
+        return False
+    return True
 
 
 def _needs_cross_lingual(query: str, has_devanagari_corpus: bool) -> bool:
@@ -126,6 +188,28 @@ class SearchOrchestrator:
         # words (zero latency for English queries; no LLM call).
         embedding = await asyncio.to_thread(self.provider.embed_query, query)
 
+        # ── Phase 2a: Synonym expansion for BM25 ──────────────────
+        # Expand acronyms (SDG → "sustainable development goals") so
+        # BM25 can match full-form text in the corpus. Zero LLM cost.
+        synonym_query = _expand_synonyms(query)
+
+        # ── Phase 2b: HyDE for vague/short queries ─────────────────
+        # Generate a hypothetical answer and embed it for dense search.
+        # Catches vocabulary gaps: "risks" → "regulatory non-compliance penalties".
+        use_hyde = _needs_hyde(query)
+        hyde_embedding = None
+        if use_hyde:
+            try:
+                hyde_text = await asyncio.to_thread(
+                    self.provider.generate_hyde, query
+                )
+                hyde_embedding = await asyncio.to_thread(
+                    self.provider.embed, hyde_text
+                )
+                logger.info("hyde_generated query=%s hyde=%s", query[:40], hyde_text[:80])
+            except Exception as exc:
+                logger.warning("hyde_failed: %s", exc)
+
         from services.common.retrieval.hindi import (
             contains_devanagari,
             is_romanized_hindi,
@@ -179,12 +263,23 @@ class SearchOrchestrator:
             ),
             asyncio.to_thread(
                 self.store.search_sparse,
-                query,
+                synonym_query,
                 tenant_id,
                 doc_ids,
                 limit=top_k * 4,
             ),
         ]
+        # HyDE dense search: embed the hypothetical answer for vocabulary bridging
+        if hyde_embedding is not None:
+            search_tasks.append(
+                asyncio.to_thread(
+                    self.store.search_dense,
+                    hyde_embedding,
+                    tenant_id,
+                    doc_ids,
+                    limit=top_k * 4,
+                )
+            )
         if needs_translit:
             # Sparse search on the Devanagari-transliterated query —
             # BM25 hits Hindi doc passages directly without LLM cost.
@@ -263,6 +358,7 @@ class SearchOrchestrator:
                 "num_results": len(results),
                 "transliteration": needs_translit,
                 "cross_lingual": bool(xling_variant),
+                "hyde": use_hyde,
             },
         )
         return results

@@ -643,24 +643,55 @@ async def query(
 def _expand_to_parent_pages(
     retrieved: list[ScoredChunk], tenant_id: str
 ) -> list[ScoredChunk]:
-    """Small-to-big (Stage 3c): append same-page siblings of the top chunks.
+    """Small-to-big (Stage 3c): append bbox-proximate siblings of the top chunks.
 
-    Retrieval ranks fine 256-token chunks; the synthesizer sees whole pages.
-    /search never runs this, so eval numbers keep measuring retrieval itself.
-    Citations are validated against the expanded set, so a citation can land
-    on a sibling chunk with its own real bbox/page. Ranked chunks keep their
-    positions (siblings appended after, score 0).
+    Instead of feeding ALL chunks on a page (which dilutes synthesis with noise),
+    only include chunks whose vertical bbox overlaps with the ranked chunk's
+    bbox ± a proximity window. This keeps paragraph context without pulling
+    unrelated sections from the same page.
     """
-    pages_by_doc: dict[str, set[int]] = {}
+    PROXIMITY_WINDOW = 0.15  # 15% of page height in normalized coords
+
+    ranked_bboxes: list[tuple[str, int, list[float]]] = []
     for c in retrieved:
-        pages_by_doc.setdefault(c.doc_id, set()).add(c.page_number)
+        if len(c.bbox) == 4:
+            ranked_bboxes.append((c.doc_id, c.page_number, c.bbox))
+
+    pages_by_doc: dict[str, set[int]] = {}
+    for doc_id, page_num, _ in ranked_bboxes:
+        pages_by_doc.setdefault(doc_id, set()).add(page_num)
+
     seen = {c.chunk_id for c in retrieved}
     expanded = list(retrieved)
+
     for doc_id in sorted(pages_by_doc):
         pages = sorted(pages_by_doc[doc_id])
+        # Collect ranked bboxes for this doc to compute proximity
+        doc_ranked = [
+            (pg, bb) for did, pg, bb in ranked_bboxes if did == doc_id
+        ]
+
         for ch in store.get_by_doc_pages(doc_id, pages, tenant_id):
             if ch.id in seen:
                 continue
+            # Include if any ranked chunk's bbox is vertically proximate
+            if len(ch.bbox) == 4 and doc_ranked:
+                chunk_top = ch.bbox[1]
+                chunk_bottom = ch.bbox[3]
+                is_proximate = False
+                for ranked_page, ranked_bb in doc_ranked:
+                    if ranked_page != ch.page_number:
+                        continue
+                    ranked_top = ranked_bb[1]
+                    ranked_bottom = ranked_bb[3]
+                    # Check vertical overlap with proximity window
+                    if not (chunk_bottom + PROXIMITY_WINDOW < ranked_top or
+                            chunk_top - PROXIMITY_WINDOW > ranked_bottom):
+                        is_proximate = True
+                        break
+                if not is_proximate:
+                    continue
+
             seen.add(ch.id)
             expanded.append(
                 ScoredChunk(

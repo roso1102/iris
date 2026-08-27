@@ -118,6 +118,8 @@ class TestSearchOrchestrator(unittest.TestCase):
     def test_standard_uses_embed_query_deep_uses_embed(self):
         # Standard search embeds the query with the QUERY task type; deep
         # search embeds the HyDE hypothetical DOCUMENT with the doc task.
+        # A long query (>= 6 words) skips HyDE, so standard_search won't
+        # call embed() — isolating the embed_query path.
         class TrackProvider(MockModelProvider):
             def __init__(self):
                 super().__init__()
@@ -138,14 +140,15 @@ class TestSearchOrchestrator(unittest.TestCase):
         orch = SearchOrchestrator(store=MemoryChunkStore(), provider=provider)
         orch.store.upsert_batch([_chunk("d1", tenant_id="tenant-a", text="doc text")])
 
-        self._run(orch.standard_search("plain query", "tenant-a", top_k=3))
-        self.assertEqual(provider.query_embeds, ["plain query"])
+        # Long query (>= 6 words) → no HyDE → no embed() call in standard
+        self._run(orch.standard_search("what does the document say about section five", "tenant-a", top_k=3))
+        self.assertEqual(provider.query_embeds, ["what does the document say about section five"])
         self.assertEqual(provider.doc_embeds, [])
 
         self._run(orch.deep_search("deep query", "tenant-a", top_k=3))
         self.assertEqual(len(provider.doc_embeds), 1)
         self.assertIn("Hypothetical", provider.doc_embeds[0])
-        self.assertEqual(provider.query_embeds, ["plain query"])
+        self.assertEqual(provider.query_embeds, ["what does the document say about section five"])
 
     def test_doc_scoped_search_skips_diversity(self):
         # Doc-scoped sessions (doc_ids set) bypass the diversity pass; every
