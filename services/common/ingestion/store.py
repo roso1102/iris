@@ -94,6 +94,10 @@ class ChunkStore(ABC):
         """Delete all chunks for a session. Returns count deleted."""
 
     @abstractmethod
+    def delete_all_by_tenant(self, tenant_id: str) -> int:
+        """Delete all chunks for an entire tenant. Returns count deleted."""
+
+    @abstractmethod
     def has_devanagari_content(self, tenant_id: str) -> bool:
         """True if any chunk for this tenant contains Devanagari text.
 
@@ -215,6 +219,19 @@ class MemoryChunkStore(ChunkStore):
                     if not (c.session_id == session_id and c.tenant_id == tenant_id)
                 ]
                 deleted += len(chunks) - len(keep)
+                if keep:
+                    self._by_doc[doc_id] = keep
+                else:
+                    del self._by_doc[doc_id]
+        return deleted
+
+    def delete_all_by_tenant(self, tenant_id: str) -> int:
+        deleted = 0
+        with self._lock:
+            for doc_id in list(self._by_doc.keys()):
+                before = len(self._by_doc[doc_id])
+                keep = [c for c in self._by_doc[doc_id] if c.tenant_id != tenant_id]
+                deleted += before - len(keep)
                 if keep:
                     self._by_doc[doc_id] = keep
                 else:
@@ -532,6 +549,27 @@ class QdrantChunkStore(ChunkStore):
                                 key="session_id",
                                 match=models.MatchValue(value=session_id),
                             ),
+                            models.FieldCondition(
+                                key="tenant_id", match=models.MatchValue(value=tenant_id)
+                            ),
+                        ]
+                    )
+                ),
+                wait=True,
+            )
+            return getattr(result, "points_count", 0) or 0
+        except Exception:
+            return 0
+
+    def delete_all_by_tenant(self, tenant_id: str) -> int:
+        from qdrant_client import models
+
+        try:
+            result = self._client.delete(
+                collection_name=self._collection,
+                points_selector=models.FilterSelector(
+                    filter=models.Filter(
+                        must=[
                             models.FieldCondition(
                                 key="tenant_id", match=models.MatchValue(value=tenant_id)
                             ),

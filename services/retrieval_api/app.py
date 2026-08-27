@@ -751,6 +751,39 @@ async def delete_document(
     return DeleteResponse(deleted_chunks=deleted, resource_id=doc_id)
 
 
+@app.delete("/documents", response_model=DeleteResponse)
+async def delete_all_documents(
+    auth: AuthContext = Depends(require_auth),
+):
+    """Cascade-delete ALL documents for the tenant.
+
+    Wipes Qdrant chunks, GCS blobs, and Firestore ownership records.
+    Use with caution — this is irreversible.
+    """
+    validate_tenant_id(auth.tenant_id)
+
+    # 1. List all doc_ids from Firestore before deleting
+    client = _get_firestore_client()
+    doc_ids = []
+    if client:
+        try:
+            docs = client.collection(f"tenants/{auth.tenant_id}/documents").get()
+            doc_ids = [d.id for d in docs]
+        except Exception as exc:
+            logger.warning("Failed to list docs for bulk delete: %s", exc)
+
+    # 2. Delete all Qdrant chunks for this tenant at once
+    deleted = store.delete_all_by_tenant(auth.tenant_id)
+
+    # 3. Delete GCS blobs and Firestore records for each doc
+    for doc_id in doc_ids:
+        _delete_gcs_blob(auth.tenant_id, doc_id)
+        _delete_firestore_doc(f"tenants/{auth.tenant_id}/documents/{doc_id}")
+
+    logger.info("Bulk delete tenant=%s docs=%d chunks=%d", auth.tenant_id, len(doc_ids), deleted)
+    return DeleteResponse(deleted_chunks=deleted, resource_id=f"tenant:{auth.tenant_id}")
+
+
 @app.delete("/sessions/{session_id}", response_model=DeleteResponse)
 async def delete_session(
     session_id: str,
