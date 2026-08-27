@@ -75,7 +75,9 @@ _SYNONYM_MAP: Dict[str, List[str]] = {
 }
 
 _SPECIFIC_QUERY_RE = re.compile(
-    r"\b(section|clause|article|schedule|annexure|chapter|part|rule|regulation|page|table|figure|schedule)\s+\d",
+    r"(?:\b(?:section|clause|article|schedule|annexure|chapter|part|rule|regulation|page|table|figure|paragraph|act)\s+\d"
+    r"|\b(?:20\d{2}|19\d{2})\b"  # years
+    r"|\b(?:annual report|budget|gazette|notification|circular)\b)",  # document names
     re.IGNORECASE,
 )
 
@@ -108,11 +110,9 @@ def _needs_rewrite(query: str, history: Optional[List[dict]]) -> bool:
 def _needs_hyde(query: str) -> bool:
     """Gate for HyDE + query expansion on vague/short queries.
 
-    Triggers when the query is short (< 6 words) and doesn't contain
-    a specific reference (section number, date, proper noun pattern).
-    This catches "What are the risks?", "Tell me about the budget",
-    "How much CSR was spent?" while skipping "Section 5 clause 3",
-    "What does the 2024 annual report say about Q3 revenue?".
+    Triggers when the query is short (< 6 words), doesn't contain a specific
+    reference, and is in English (not Hindi/romanized Hindi — HyDE generates
+    English hypotheticals which don't help cross-lingual retrieval).
     """
     words = query.split()
     if len(words) >= 6:
@@ -120,6 +120,10 @@ def _needs_hyde(query: str) -> bool:
     if _SPECIFIC_QUERY_RE.search(query):
         return False
     if _AMBIGUOUS_REFERENCE_RE.search(query):
+        return False
+    # Skip HyDE for Hindi/Devanagari/romanized-Hindi queries
+    from services.common.retrieval.hindi import contains_devanagari, is_romanized_hindi
+    if contains_devanagari(query) or is_romanized_hindi(query):
         return False
     return True
 
