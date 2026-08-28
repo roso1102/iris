@@ -535,6 +535,8 @@ async def search(
     try:
         t0 = time.perf_counter()
         trace = None
+        if request.trace:
+            trace = {}
         if request.mode == "deep":
             results = await orchestrator.deep_search(
                 query=request.query,
@@ -591,6 +593,8 @@ async def query(
     try:
         t0 = time.perf_counter()
         trace = None
+        if request.trace:
+            trace = {}
         if request.mode == "deep":
             retrieved = await orchestrator.deep_search(
                 query=request.query,
@@ -617,9 +621,11 @@ async def query(
             _expand_to_parent_pages, retrieved, auth.tenant_id
         )
         context, source_chunks = _build_synthesis_context(expanded)
+        t_synth = time.perf_counter()
         answer = await asyncio.to_thread(
             provider.synthesize, context, request.query, source_chunks
         )
+        synthesis_ms = round((time.perf_counter() - t_synth) * 1000, 1)
         answer = validate_citations(answer, expanded)
         if request.session_id:
             await asyncio.to_thread(
@@ -630,6 +636,22 @@ async def query(
                 ],
             )
         latency = round((time.perf_counter() - t0) * 1000, 2)
+
+        # Add synthesis timing and chunk provenance to trace
+        if trace is not None:
+            trace["synthesis_ms"] = synthesis_ms
+            trace["chunks"] = [
+                {
+                    "chunk_id": sc["chunk_id"],
+                    "doc_id": sc["doc_id"],
+                    "page": sc["page_number"],
+                    "source": sc.get("source", "unknown"),
+                    "element_type": sc.get("element_type", "unknown"),
+                    "score": round(sc.get("score", 0.0), 3),
+                }
+                for sc in source_chunks
+            ]
+
         return QueryResponse(
             answer=answer.answer,
             citations=answer.citations,
@@ -737,6 +759,10 @@ def _build_synthesis_context(
             "page_number": chunk.page_number,
             "bbox": list(chunk.bbox),
             "text": chunk.text,
+            "score": chunk.score,
+            "element_type": chunk.element_type,
+            "source": chunk.source,
+            "metadata": chunk.metadata,
         })
     return "\n\n".join(parts), source_chunks
 

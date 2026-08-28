@@ -45,6 +45,10 @@ class SearchRequest(BaseModel):
         description="Phase 12.1: blend weight applied to the cross-encoder rerank "
                     "score against the original hybrid score. None disables reranking.",
     )
+    trace: bool = Field(
+        default=False,
+        description="Include retrieval debug trace (HyDE, latency breakdown, chunk provenance).",
+    )
 
 
 class SearchResponse(BaseModel):
@@ -61,6 +65,10 @@ class QueryRequest(BaseModel):
     history: Optional[List[dict]] = None
     doc_ids: Optional[List[str]] = None
     top_k: int = Field(default=10, ge=1, le=MAX_TOP_K_SYNTHESIS)
+    trace: bool = Field(
+        default=False,
+        description="Include retrieval debug trace (HyDE, latency breakdown, chunk provenance).",
+    )
 
 
 class QueryResponse(BaseModel):

@@ -186,6 +186,7 @@ class SearchOrchestrator:
         rewritten_query = None
 
         # ── Phase 1: Rewrite (existing) ──────────────────────────────
+        rewrite_ms = 0.0
         if _needs_rewrite(query, history):
             t_rw = time.perf_counter()
             query = await asyncio.to_thread(
@@ -338,7 +339,9 @@ class SearchOrchestrator:
                 )
             )
 
+        t_search = time.perf_counter()
         all_ranked = list(await asyncio.gather(*search_tasks))
+        search_ms = round((time.perf_counter() - t_search) * 1000, 1)
 
         # ── Phase 5: Multi-list RRF or standard 2-list RRF ──────────
         if len(all_ranked) > 2:
@@ -356,10 +359,14 @@ class SearchOrchestrator:
         # When reranker is active (rerank_blend set), skip diversity
         # BEFORE reranking — let the reranker see all candidates.
         # Diversity runs only when reranking is disabled (pure hybrid).
+        rerank_ms = 0.0
+        diversity_ms = 0.0
         if rerank_blend is not None and scored:
+            t_rerank = time.perf_counter()
             scores = await asyncio.to_thread(
                 self.provider.rerank, query, [c.text for c in scored]
             )
+            rerank_ms = round((time.perf_counter() - t_rerank) * 1000, 1)
             blended = fuse_rerank_scores(
                 [c.score for c in scored], scores, rerank_blend
             )
@@ -367,7 +374,9 @@ class SearchOrchestrator:
                 chunk.score = blended_score
             scored.sort(key=lambda c: c.score, reverse=True)
         elif not doc_ids:
+            t_div = time.perf_counter()
             scored = diversity_penalty(scored, top_k=top_k)
+            diversity_ms = round((time.perf_counter() - t_div) * 1000, 1)
 
         results = scored[:top_k]
 
@@ -383,6 +392,14 @@ class SearchOrchestrator:
             },
             "rewritten_query": rewritten_query,
             "synonym_query": synonym_query,
+            "latency": {
+                "rewrite_ms": rewrite_ms if rewritten_query else 0.0,
+                "hyde_ms": hyde_latency_ms,
+                "search_ms": search_ms,
+                "rerank_ms": rerank_ms,
+                "diversity_ms": diversity_ms,
+                "total_ms": latency,
+            },
         }
 
         logger.info(
