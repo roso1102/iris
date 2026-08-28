@@ -176,20 +176,14 @@ class SearchOrchestrator:
         top_k: int = 10,
         rerank_blend: Optional[float] = None,
         history: Optional[List[dict]] = None,
-    ) -> List[ScoredChunk]:
+    ) -> tuple[List[ScoredChunk], dict]:
         """Task 2.4a: Standard non-blocking async search path.
 
-        `rerank_blend` (Phase 12.1): when set (0.0..1.0), the top candidates are
-        cross-encoder reranked and fused with the original RRF scores via
-        weighted rank fusion (`fuse_rerank_scores` — scale-free, unlike a raw
-        score blend). Used by the eval harness to sweep the blend ratio. None
-        disables reranking (MVP behaviour).
-
-        `history` (Phase 6.0a): when follow-ups contain an ambiguous reference
-        (it/this/that/...), the SLM rewriter resolves them into a self-contained
-        query before retrieval. Gated by `_needs_rewrite` (Phase 6.5).
+        Returns (results, trace) where trace carries HyDE + debug metadata.
         """
         t0 = time.time()
+        original_query = query
+        rewritten_query = None
 
         # ── Phase 1: Rewrite (existing) ──────────────────────────────
         if _needs_rewrite(query, history):
@@ -198,6 +192,7 @@ class SearchOrchestrator:
                 self.provider.rewrite_query, query, history or []
             )
             rewrite_ms = round((time.perf_counter() - t_rw) * 1000, 1)
+            rewritten_query = query
             logger.info("rewrite_ms=%.1f rewritten=%s", rewrite_ms, query[:80])
 
         # ── Phase 2: Original embedding + transliteration leg ────────
@@ -215,13 +210,16 @@ class SearchOrchestrator:
         # Catches vocabulary gaps: "risks" → "regulatory non-compliance penalties".
         use_hyde = _needs_hyde(query)
         hyde_embedding = None
+        hyde_text = ""
+        hyde_keywords = ""
+        hyde_latency_ms = 0.0
         if use_hyde:
             try:
+                t_hyde = time.perf_counter()
                 hyde_text = await asyncio.to_thread(
                     self.provider.generate_hyde, query
                 )
                 # Parse keywords from HyDE output (format: "paragraph\nKeywords: kw1, kw2")
-                hyde_keywords = ""
                 if "\nKeywords:" in hyde_text:
                     parts = hyde_text.split("\nKeywords:", 1)
                     hyde_text = parts[0].strip()
@@ -233,6 +231,7 @@ class SearchOrchestrator:
                 hyde_embedding = await asyncio.to_thread(
                     self.provider.embed, combined_text
                 )
+                hyde_latency_ms = round((time.perf_counter() - t_hyde) * 1000, 1)
                 logger.info("hyde_generated query=%s hyde=%s keywords=%s", query[:40], hyde_text[:80], hyde_keywords[:50])
             except Exception as exc:
                 logger.warning("hyde_failed: %s", exc)
@@ -373,6 +372,19 @@ class SearchOrchestrator:
         results = scored[:top_k]
 
         latency = round((time.time() - t0) * 1000, 2)
+
+        # Build trace dict for debugging
+        trace = {
+            "hyde": {
+                "used": use_hyde,
+                "text": hyde_text,
+                "keywords": hyde_keywords,
+                "latency_ms": hyde_latency_ms,
+            },
+            "rewritten_query": rewritten_query,
+            "synonym_query": synonym_query,
+        }
+
         logger.info(
             "search_completed",
             extra={
@@ -388,7 +400,7 @@ class SearchOrchestrator:
                 "hyde": use_hyde,
             },
         )
-        return results
+        return results, trace
 
     async def deep_search(
         self,

@@ -534,6 +534,7 @@ async def search(
     history = validate_history(request.history)
     try:
         t0 = time.perf_counter()
+        trace = None
         if request.mode == "deep":
             results = await orchestrator.deep_search(
                 query=request.query,
@@ -543,7 +544,7 @@ async def search(
                 top_k=top_k,
             )
         else:
-            results = await orchestrator.standard_search(
+            results, trace = await orchestrator.standard_search(
                 query=request.query,
                 tenant_id=auth.tenant_id,
                 doc_ids=request.doc_ids,
@@ -556,6 +557,7 @@ async def search(
             results=results,
             mode=request.mode,
             latency_ms=latency,
+            trace=trace,
         )
     except Exception as exc:
         logger.exception("Search failed for tenant %s", auth.tenant_id)
@@ -588,6 +590,7 @@ async def query(
             history = server_history
     try:
         t0 = time.perf_counter()
+        trace = None
         if request.mode == "deep":
             retrieved = await orchestrator.deep_search(
                 query=request.query,
@@ -601,7 +604,7 @@ async def query(
             # production answers — /query has no request-level blend param, so
             # the env picked by the eval sweep applies automatically. Unset/0
             # keeps the hybrid-only ranking.
-            retrieved = await orchestrator.standard_search(
+            retrieved, trace = await orchestrator.standard_search(
                 query=request.query,
                 tenant_id=auth.tenant_id,
                 doc_ids=request.doc_ids,
@@ -634,6 +637,7 @@ async def query(
             latency_ms=latency,
             chunks_used=len(retrieved),
             session_id=request.session_id,
+            trace=trace,
         )
     except Exception as exc:
         logger.exception("Query failed for tenant %s", auth.tenant_id)

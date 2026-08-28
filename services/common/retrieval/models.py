@@ -51,6 +51,7 @@ class SearchResponse(BaseModel):
     results: List[ScoredChunk]
     mode: str
     latency_ms: float
+    trace: Optional[dict] = None
 
 
 class QueryRequest(BaseModel):
@@ -69,6 +70,7 @@ class QueryResponse(BaseModel):
     latency_ms: float
     chunks_used: int
     session_id: Optional[str] = None
+    trace: Optional[dict] = None
 
 
 class DeleteResponse(BaseModel):
