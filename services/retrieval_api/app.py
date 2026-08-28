@@ -781,7 +781,7 @@ async def delete_all_documents(
         _delete_firestore_doc(f"tenants/{auth.tenant_id}/documents/{doc_id}")
 
     logger.info("Bulk delete tenant=%s docs=%d chunks=%d", auth.tenant_id, len(doc_ids), deleted)
-    return DeleteResponse(deleted_chunks=deleted, resource_id=f"tenant:{auth.tenant_id}")
+    return DeleteResponse(deleted_chunks=deleted, resource_id=auth.tenant_id)
 
 
 @app.delete("/sessions/{session_id}", response_model=DeleteResponse)
