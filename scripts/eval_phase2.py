@@ -261,6 +261,11 @@ def _search(json_body: dict, timeout: int = 60) -> dict:
         _log("  429 rate-limited; waiting out the 60s tenant window...")
         time.sleep(65)
         resp = _post()
+    # Retry on 500/502/503 (transient timeout from HyDE latency)
+    if resp.status_code >= 500:
+        _log(f"  SEARCH {resp.status_code}; retrying in 5s...")
+        time.sleep(5)
+        resp = _post()
     if resp.status_code >= 400:
         _log(f"  SEARCH {resp.status_code}: {resp.text[:150]}")
     resp.raise_for_status()
