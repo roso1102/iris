@@ -38,7 +38,7 @@ class SearchRequest(BaseModel):
     query: str = Field(..., max_length=MAX_QUERY_CHARS)
     mode: str = Field(default="standard", pattern="^(standard|deep)$")
     doc_ids: Optional[List[str]] = None
-    top_k: int = Field(default=10, ge=1, le=MAX_TOP_K_SEARCH)
+    top_k: int = Field(default=25, ge=1, le=MAX_TOP_K_SEARCH)
     history: Optional[List[dict]] = None
     rerank_blend: Optional[float] = Field(
         default=None, ge=0.0, le=1.0,

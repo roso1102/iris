@@ -10,5 +10,5 @@ CORS_ALLOWED_ORIGINS: https://iris.procambrian.ai,https://procambrian.ai,https:/
 INGEST_URL: https://ingestion-worker-zzdrfa3kqa-el.a.run.app
 INGEST_SA: ingestion-worker-sa@naturepivot-rag.iam.gserviceaccount.com
 RERANK_LOCATION: global
-RERANK_BLEND: "0.3"
+RERANK_BLEND: "0.5"
 BM25_HINDI_ENABLED: "1"

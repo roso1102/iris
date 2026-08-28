@@ -289,6 +289,10 @@ class VertexAIProvider(ModelProvider):
                 "ongoing mandatory adoption (2+ years), consistent evidence of X was found.' "
                 "Never give a single-temporal answer when the document presents conditional or "
                 "evolving evidence.\n\n"
+                "IMPORTANT: Do not summarize away administrative authorities. You MUST preserve "
+                "specific job titles, ranks, approval thresholds, section numbers, and legal "
+                "references in your answer. For example, do not replace 'Under Secretary "
+                "(Forests)' with 'a senior official' — keep the exact title.\n\n"
                 f"DOCUMENT CONTEXT:\n'''\n{safe_context}\n'''\n\n"
                 f"USER QUESTION: {safe_query}\n\n"
                 "Return a JSON object with exactly two fields: "
@@ -394,7 +398,10 @@ class VertexAIProvider(ModelProvider):
         model = GenerativeModel(self.lite_model_name)
         prompt = (
             "Write a hypothetical paragraph that directly answers this question: "
-            f"'{safe_query}'"
+            f"'{safe_query}'\n\n"
+            "After the paragraph, on a new line starting with 'Keywords: ', list "
+            "2-3 alternative keyword phrasings or synonyms for the core concepts "
+            "in this question, separated by commas."
         )
         return self._safe_generate(model, prompt)
 

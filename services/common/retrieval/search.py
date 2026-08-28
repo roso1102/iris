@@ -72,6 +72,19 @@ _SYNONYM_MAP: Dict[str, List[str]] = {
     "sebi": ["securities and exchange board of india"],
     "rbi": ["reserve bank of india"],
     "gst": ["goods and services tax"],
+    "cpcb": ["central pollution control board"],
+    "ngt": ["national green tribunal"],
+    "cag": ["comptroller and auditor general"],
+    "epfo": ["employees provident fund organisation"],
+    "ed": ["enforcement directorate"],
+    "cbi": ["central bureau of investigation"],
+    "nclt": ["national company law tribunal"],
+    "nclat": ["national company law appellate tribunal"],
+    "tds": ["tax deducted at source"],
+    "pan": ["permanent account number"],
+    "gstn": ["goods and services tax network"],
+    "digi": ["digital india"],
+    "ayushman": ["pradhan mantri jan arogya yojana"],
 }
 
 _SPECIFIC_QUERY_RE = re.compile(
@@ -207,10 +220,20 @@ class SearchOrchestrator:
                 hyde_text = await asyncio.to_thread(
                     self.provider.generate_hyde, query
                 )
+                # Parse keywords from HyDE output (format: "paragraph\nKeywords: kw1, kw2")
+                hyde_keywords = ""
+                if "\nKeywords:" in hyde_text:
+                    parts = hyde_text.split("\nKeywords:", 1)
+                    hyde_text = parts[0].strip()
+                    hyde_keywords = parts[1].strip()
+                # Embed both the hypothetical answer and keywords together
+                combined_text = hyde_text
+                if hyde_keywords:
+                    combined_text = f"{hyde_text} {hyde_keywords}"
                 hyde_embedding = await asyncio.to_thread(
-                    self.provider.embed, hyde_text
+                    self.provider.embed, combined_text
                 )
-                logger.info("hyde_generated query=%s hyde=%s", query[:40], hyde_text[:80])
+                logger.info("hyde_generated query=%s hyde=%s keywords=%s", query[:40], hyde_text[:80], hyde_keywords[:50])
             except Exception as exc:
                 logger.warning("hyde_failed: %s", exc)
 

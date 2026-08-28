@@ -650,7 +650,7 @@ def _expand_to_parent_pages(
     bbox ± a proximity window. This keeps paragraph context without pulling
     unrelated sections from the same page.
     """
-    PROXIMITY_WINDOW = 0.15  # 15% of page height in normalized coords
+    PROXIMITY_WINDOW = 0.10  # 10% of page height in normalized coords
 
     ranked_bboxes: list[tuple[str, int, list[float]]] = []
     for c in retrieved:
