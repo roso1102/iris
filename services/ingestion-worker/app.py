@@ -153,6 +153,10 @@ def ingest_page():
             "Ingested doc_id=%s page=%s/%s tenant=%s chunks=%s vlm_calls=%s",
             doc_id, page_number, total_pages, tenant_id, result.chunk_count, result.vlm_calls,
         )
+        # Trigger background summary generation when all pages are done
+        if total_pages > 0 and page_number >= total_pages:
+            if _check_all_pages_done(tenant_id, doc_id):
+                _generate_doc_summary_background(tenant_id, doc_id)
         return jsonify({"status": "ok", "doc_id": doc_id, "page_number": page_number}), 200
     except RejectError as exc:
         _mark_page_failed(tenant_id, doc_id, page_number)
@@ -313,6 +317,89 @@ def _mark_page_done(tenant_id: str, doc_id: str, page_number: int):
     _firestore().document(_progress_doc_path(tenant_id, doc_id)).set({
         "updated_at": firestore.SERVER_TIMESTAMP,
     }, merge=True)
+
+
+def _check_all_pages_done(tenant_id: str, doc_id: str) -> bool:
+    """Check if all pages for a document have been ingested."""
+    if not tenant_id:
+        return False
+    snapshot = _firestore().document(_progress_doc_path(tenant_id, doc_id)).get()
+    if not snapshot.exists:
+        return False
+    data = snapshot.to_dict() or {}
+    total = int(data.get("total_pages", 0))
+    if total <= 0:
+        return False
+    store = get_chunk_store()
+    chunks = store.get_by_doc(doc_id, tenant_id=tenant_id)
+    completed = len({c.page_number for c in chunks})
+    return completed >= total
+
+
+def _generate_doc_summary_background(tenant_id: str, doc_id: str):
+    """Generate a document summary in the background after ingestion completes.
+
+    Runs in a daemon thread so it doesn't block the ingestion pipeline.
+    Falls back gracefully on any error.
+    """
+    def _worker():
+        try:
+            from services.common.models.vertex import VertexAIProvider
+            from google.cloud import firestore as fs
+
+            store = get_chunk_store()
+            chunks = store.get_by_doc(doc_id, tenant_id=tenant_id)
+            if not chunks:
+                return
+
+            # Combine all chunk texts (limit to avoid token overflow)
+            full_text = "\n\n".join(c.text for c in chunks[:200])
+
+            provider = VertexAIProvider()
+            model_name = os.environ.get("LITE_MODEL", "gemini-2.5-flash-lite")
+            from vertexai.generative_models import GenerativeModel
+            model = GenerativeModel(model_name)
+
+            prompt = (
+                "Generate a comprehensive 1-paragraph executive summary of this "
+                "document. Then list 3 key topics, one per line starting with "
+                "'Topics:'. Be specific about the document's purpose, key findings, "
+                "and domain.\n\n"
+                f"DOCUMENT TEXT (excerpt):\n'''\n{full_text[:80000]}\n'''"
+            )
+
+            response = model.generate_content(
+                prompt,
+                generation_config={"temperature": 0.2, "max_output_tokens": 512},
+            )
+
+            summary_text = ""
+            key_topics = []
+            if response and response.text:
+                raw = response.text.strip()
+                if "\nTopics:" in raw:
+                    parts = raw.split("\nTopics:", 1)
+                    summary_text = parts[0].strip()
+                    key_topics = [t.strip() for t in parts[1].split("\n") if t.strip()]
+                else:
+                    summary_text = raw
+
+            # Save to Firestore document record
+            client = fs.Client()
+            doc_ref = client.document(f"tenants/{tenant_id}/documents/{doc_id}")
+            doc_ref.set({
+                "summary": summary_text,
+                "key_topics": key_topics,
+                "summary_generated_at": fs.SERVER_TIMESTAMP,
+            }, merge=True)
+
+            logger.info("Summary generated for doc_id=%s tenant=%s", doc_id, tenant_id)
+
+        except Exception as exc:
+            logger.warning("Summary generation failed for %s/%s: %s", tenant_id, doc_id, exc)
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
 
 
 def _mark_page_failed(tenant_id: str, doc_id: str, page_number: int):

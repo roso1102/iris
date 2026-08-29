@@ -595,12 +595,90 @@ async def query(
         trace = None
         if request.trace:
             trace = {}
+
+        # Intent routing: if active_docs provided, classify and route
+        query_to_use = request.query
+        doc_ids_filter = request.doc_ids
+        if request.active_docs and request.mode != "deep":
+            try:
+                intent = await asyncio.to_thread(
+                    provider.route_query, request.query, request.active_docs
+                )
+                if trace is not None:
+                    trace["intent"] = intent
+
+                if intent["intent"] == "DOCUMENT_SUMMARY" and intent["target_doc_ids"]:
+                    # Fetch pre-computed summaries, skip Qdrant
+                    summaries = await asyncio.to_thread(
+                        _get_summaries, auth.tenant_id, intent["target_doc_ids"]
+                    )
+                    if summaries:
+                        # Build context from summaries directly
+                        fname_map = await asyncio.to_thread(
+                            _get_filenames, auth.tenant_id, intent["target_doc_ids"]
+                        )
+                        summary_parts = []
+                        source_chunks = []
+                        for i, doc_id in enumerate(intent["target_doc_ids"], start=1):
+                            fname = fname_map.get(doc_id, doc_id)
+                            summary_text = summaries.get(doc_id, "Summary not available.")
+                            summary_parts.append(
+                                f"Document [{i}] ({fname}):\n{summary_text}"
+                            )
+                            source_chunks.append({
+                                "chunk_id": f"summary_{doc_id}",
+                                "doc_id": doc_id,
+                                "page_number": 0,
+                                "bbox": [],
+                                "text": summary_text,
+                                "score": 1.0,
+                                "element_type": "summary",
+                                "source": "pre_computed",
+                                "metadata": {},
+                            })
+                        context = "\n\n".join(summary_parts)
+                        t_synth = time.perf_counter()
+                        answer = await asyncio.to_thread(
+                            provider.synthesize, context, request.query, source_chunks
+                        )
+                        synthesis_ms = round((time.perf_counter() - t_synth) * 1000, 1)
+                        answer = validate_citations(answer, [])
+                        if request.session_id:
+                            await asyncio.to_thread(
+                                _append_firestore_messages, auth.tenant_id, request.session_id,
+                                [
+                                    {"role": "user", "content": request.query},
+                                    {"role": "assistant", "content": answer.answer},
+                                ],
+                            )
+                        latency = round((time.perf_counter() - t0) * 1000, 2)
+                        if trace is not None:
+                            trace["synthesis_ms"] = synthesis_ms
+                            trace["chunks"] = source_chunks
+                        return QueryResponse(
+                            answer=answer.answer,
+                            citations=answer.citations,
+                            mode=request.mode,
+                            latency_ms=latency,
+                            chunks_used=len(source_chunks),
+                            session_id=request.session_id,
+                            trace=trace,
+                        )
+                    # Fallback: summaries not ready, do normal search
+
+                elif intent["intent"] == "SPECIFIC_SEARCH" and intent["target_doc_ids"]:
+                    doc_ids_filter = intent["target_doc_ids"]
+                    query_to_use = intent.get("rewritten_query", request.query)
+
+            except Exception as exc:
+                logger.warning("Intent routing failed, falling back: %s", exc)
+
         if request.mode == "deep":
             retrieved = await orchestrator.deep_search(
-                query=request.query,
+                query=query_to_use,
                 tenant_id=auth.tenant_id,
                 history=history,
-                doc_ids=request.doc_ids,
+                doc_ids=doc_ids_filter,
                 top_k=top_k,
             )
         else:
@@ -609,9 +687,9 @@ async def query(
             # the env picked by the eval sweep applies automatically. Unset/0
             # keeps the hybrid-only ranking.
             retrieved, trace = await orchestrator.standard_search(
-                query=request.query,
+                query=query_to_use,
                 tenant_id=auth.tenant_id,
-                doc_ids=request.doc_ids,
+                doc_ids=doc_ids_filter,
                 top_k=top_k,
                 rerank_blend=_env_rerank_blend(),
                 history=history,
@@ -620,7 +698,7 @@ async def query(
         expanded = await asyncio.to_thread(
             _expand_to_parent_pages, retrieved, auth.tenant_id
         )
-        context, source_chunks = _build_synthesis_context(expanded)
+        context, source_chunks = _build_synthesis_context(expanded, auth.tenant_id)
         t_synth = time.perf_counter()
         answer = await asyncio.to_thread(
             provider.synthesize, context, request.query, source_chunks
@@ -737,8 +815,49 @@ def _expand_to_parent_pages(
     return expanded
 
 
+def _get_filenames(tenant_id: str, doc_ids: list[str]) -> dict[str, str]:
+    """Batch-fetch filenames from Firestore for a set of doc_ids."""
+    if not doc_ids:
+        return {}
+    client = _get_firestore_client()
+    if client is None:
+        return {}
+    filenames: dict[str, str] = {}
+    for doc_id in doc_ids:
+        try:
+            snap = client.document(f"tenants/{tenant_id}/documents/{doc_id}").get()
+            if snap.exists:
+                data = snap.to_dict() or {}
+                filenames[doc_id] = data.get("filename", doc_id)
+        except Exception:
+            filenames[doc_id] = doc_id
+    return filenames
+
+
+def _get_summaries(tenant_id: str, doc_ids: list[str]) -> dict[str, str]:
+    """Batch-fetch pre-computed document summaries from Firestore."""
+    if not doc_ids:
+        return {}
+    client = _get_firestore_client()
+    if client is None:
+        return {}
+    summaries: dict[str, str] = {}
+    for doc_id in doc_ids:
+        try:
+            snap = client.document(f"tenants/{tenant_id}/documents/{doc_id}").get()
+            if snap.exists:
+                data = snap.to_dict() or {}
+                summary = data.get("summary", "")
+                if summary:
+                    summaries[doc_id] = summary
+        except Exception:
+            pass
+    return summaries
+
+
 def _build_synthesis_context(
     retrieved: list[ScoredChunk],
+    tenant_id: str = "",
 ) -> tuple[str, list[dict]]:
     """Build the source-chunk context and the source_chunks list for grounding.
 
@@ -746,11 +865,16 @@ def _build_synthesis_context(
     the model cites via short, stable markers that map 1:1 back to chunk_ids in
     `source_chunks` (position i -> source_chunks[i]).
     """
+    # Batch-fetch filenames for document provenance
+    doc_ids = list({c.doc_id for c in retrieved})
+    filenames = _get_filenames(tenant_id, doc_ids) if tenant_id else {}
+
     source_chunks: list[dict] = []
     parts: list[str] = []
     for i, chunk in enumerate(retrieved, start=1):
+        fname = filenames.get(chunk.doc_id, chunk.doc_id)
         parts.append(
-            f"Source [{i}]: doc_id={chunk.doc_id} page={chunk.page_number}\n"
+            f"Source [{i}] (Document: {fname}, Page {chunk.page_number}):\n"
             f"{chunk.text}"
         )
         source_chunks.append({

@@ -69,6 +69,11 @@ class QueryRequest(BaseModel):
         default=False,
         description="Include retrieval debug trace (HyDE, latency breakdown, chunk provenance).",
     )
+    active_docs: Optional[List[dict]] = Field(
+        default=None,
+        description="Ordered list of active documents for intent routing. "
+                    '[{"ui_index": 1, "doc_id": "doc_001", "filename": "report.pdf"}]',
+    )
 
 
 class QueryResponse(BaseModel):

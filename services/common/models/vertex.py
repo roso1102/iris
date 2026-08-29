@@ -3,6 +3,7 @@ VertexAIProvider wrapping Google Cloud Vertex AI SDK.
 Uses text-embedding-004 (768-d) and Gemini Flash models.
 """
 
+import json
 import logging
 import os
 import re
@@ -293,6 +294,15 @@ class VertexAIProvider(ModelProvider):
                 "specific job titles, ranks, approval thresholds, section numbers, and legal "
                 "references in your answer. For example, do not replace 'Under Secretary "
                 "(Forests)' with 'a senior official' — keep the exact title.\n\n"
+                "MULTI-DOCUMENT RULES:\n"
+                "1. Each source is labeled with a Document name in parentheses. If evidence "
+                "comes from multiple documents, explicitly attribute findings to their "
+                "respective documents (e.g., 'According to Document A (filename.pdf)...').\n"
+                "2. If documents provide conflicting information, state the conflict explicitly "
+                "rather than blending or averaging them (e.g., 'Doc 1 states X, whereas Doc 2 "
+                "states Y').\n"
+                "3. If the user refers to 'the first document' or 'Document 1', map it to the "
+                "document order as presented in the Source headers.\n\n"
                 f"DOCUMENT CONTEXT:\n'''\n{safe_context}\n'''\n\n"
                 f"USER QUESTION: {safe_query}\n\n"
                 "Return a JSON object with exactly two fields: "
@@ -404,6 +414,95 @@ class VertexAIProvider(ModelProvider):
             "in this question, separated by commas."
         )
         return self._safe_generate(model, prompt)
+
+    def route_query(self, query: str, active_docs: List[dict]) -> dict:
+        """Classify query intent and resolve document pointers.
+
+        Args:
+            query: The user's search query.
+            active_docs: Ordered list of documents
+                [{"ui_index": 1, "doc_id": "doc_001", "filename": "report.pdf"}]
+
+        Returns:
+            {"intent": "SPECIFIC_SEARCH|DOCUMENT_SUMMARY|GLOBAL_SEARCH",
+             "target_doc_ids": [...], "rewritten_query": "..."}
+        """
+        self._ensure_init()
+        from vertexai.generative_models import GenerativeModel
+
+        safe_query = _sanitize_context(query)
+        docs_json = json.dumps(active_docs, indent=2)
+
+        model = GenerativeModel(self.lite_model_name)
+        prompt = (
+            "You are a query router for a document search system. Given the user's "
+            "query and a list of available documents, classify the intent and resolve "
+            "any document pointers.\n\n"
+            f"AVAILABLE DOCUMENTS (in order):\n{docs_json}\n\n"
+            f"USER QUERY: '{safe_query}'\n\n"
+            "Classify the query into one of these intents:\n"
+            "- SPECIFIC_SEARCH: User targets specific document(s) by name, position "
+            "(first, second, etc.), or explicit reference. Search those documents only.\n"
+            "- DOCUMENT_SUMMARY: User asks what a document is about, wants an overview, "
+            "summary, or high-level description. Return the target doc_ids.\n"
+            "- GLOBAL_SEARCH: No specific document targeting. Search across all documents.\n\n"
+            "Rules:\n"
+            "- 'first document' = ui_index 1, 'second' = ui_index 2, etc.\n"
+            "- 'all documents' or no document reference = GLOBAL_SEARCH\n"
+            "- If the query mentions a filename exactly, match it.\n"
+            "- For DOCUMENT_SUMMARY, include ALL referenced doc_ids in target_doc_ids.\n"
+            "- For SPECIFIC_SEARCH, include only the targeted doc_ids.\n"
+            "- For GLOBAL_SEARCH, target_doc_ids should be empty.\n\n"
+            "Return ONLY a JSON object with these fields:\n"
+            '{"intent": "...", "target_doc_ids": [...], "rewritten_query": "..."}\n'
+            "The rewritten_query should be the query cleaned up for vector search "
+            "(remove document references, keep the actual search terms)."
+        )
+
+        response_schema = {
+            "type": "OBJECT",
+            "properties": {
+                "intent": {
+                    "type": "STRING",
+                    "enum": ["SPECIFIC_SEARCH", "DOCUMENT_SUMMARY", "GLOBAL_SEARCH"],
+                },
+                "target_doc_ids": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                },
+                "rewritten_query": {"type": "STRING"},
+            },
+            "required": ["intent", "target_doc_ids", "rewritten_query"],
+        }
+
+        try:
+            response = model.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": 0.0,
+                    "max_output_tokens": 256,
+                    "response_mime_type": "application/json",
+                    "response_schema": response_schema,
+                },
+                safety_settings=_get_safety_settings(),
+            )
+            if response and response.text:
+                result = json.loads(response.text.strip())
+                # Validate intent
+                if result.get("intent") not in (
+                    "SPECIFIC_SEARCH", "DOCUMENT_SUMMARY", "GLOBAL_SEARCH"
+                ):
+                    result["intent"] = "GLOBAL_SEARCH"
+                return result
+        except Exception:
+            pass
+
+        # Fallback: global search
+        return {
+            "intent": "GLOBAL_SEARCH",
+            "target_doc_ids": [],
+            "rewritten_query": safe_query,
+        }
 
     def rerank(
         self, query: str, passages: List[str]
