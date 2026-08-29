@@ -599,6 +599,15 @@ async def query(
         # Intent routing: if active_docs provided, classify and route
         query_to_use = request.query
         doc_ids_filter = request.doc_ids
+
+        # Fallback: if active_docs is empty but query references a specific document,
+        # warn the user instead of searching blindly across all docs
+        if not request.active_docs and not request.doc_ids:
+            import re
+            if re.search(r'\b(first|second|third|doc_\d|document\s*\d)\b', request.query, re.IGNORECASE):
+                if trace is not None:
+                    trace["warning"] = "Document reference detected but no active_docs provided. Upload documents first."
+
         if request.active_docs and request.mode != "deep":
             try:
                 intent = await asyncio.to_thread(
