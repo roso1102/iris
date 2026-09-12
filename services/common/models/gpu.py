@@ -51,7 +51,7 @@ class SelfHostedGPUProvider(ModelProvider):
             "Self-hosted GPU query rewrite not implemented. See Phase 10.0."
         )
 
-    def generate_hyde(self, query: str) -> str:
+    def generate_hyde(self, query: str) -> dict:
         raise NotImplementedError(
             "Self-hosted GPU HyDE not implemented. See Phase 10.0."
         )

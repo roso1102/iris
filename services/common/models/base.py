@@ -17,6 +17,8 @@ class Citation(BaseModel):
     bbox: List[float] = Field(description="[left, top, right, bottom] normalized coordinates")
     text_snippet: str
     page_level: bool = False
+    bbox_source: str = "element"
+    bbox_confidence: float = 1.0
 
 
 class StructuredAnswer(BaseModel):
@@ -51,6 +53,13 @@ class ModelProvider(ABC):
         distinguish sides (mock/gpu) inherit this embed() delegation.
         """
         return self.embed(text)
+
+    def embed_query_batch(self, texts: List[str]) -> List[List[float]]:
+        """
+        Batch-embed queries. Default: sequential embed_query calls.
+        VertexAIProvider overrides with a real batch implementation.
+        """
+        return [self.embed_query(t) for t in texts]
 
     @abstractmethod
     def extract_table(self, image_bytes: bytes) -> str:
@@ -93,10 +102,44 @@ class ModelProvider(ABC):
         """
         pass
 
-    @abstractmethod
-    def generate_hyde(self, query: str) -> str:
+    def rewrite_query_structured(self, query: str, history: List[dict]) -> dict:
+        """Rewrite a context-dependent turn into a validated structure.
+
+        Returns:
+            {
+              "standalone_query": str,
+              "preserved_entities": [str],
+              "document_scope": [str],
+              "temporal_scope": str | None,
+              "language": str,
+              "confidence": float,
+              "reason": str,
+            }
+
+        The default implementation wraps the plain-string rewriter with no
+        extra structure; providers with a schema-constrained model override it.
+        Callers must treat this output as untrusted and re-validate it against
+        the original query and authorized document scope.
         """
-        HyDE (Hypothetical Document Embeddings) generator for Deep Search mode.
+        standalone = self.rewrite_query(query, history)
+        return {
+            "standalone_query": standalone,
+            "preserved_entities": [],
+            "document_scope": [],
+            "temporal_scope": None,
+            "language": "",
+            "confidence": 0.0,
+            "reason": "default_string_rewrite",
+        }
+
+    @abstractmethod
+    def generate_hyde(self, query: str) -> dict:
+        """
+        HyDE (Hypothetical Document Embeddings) generator.
+
+        Returns a structure ``{"hypothesis": str, "keywords": [str]}``. Callers
+        validate the output and fall back to baseline retrieval when it is
+        missing or malformed.
         """
         pass
 

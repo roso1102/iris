@@ -47,8 +47,11 @@ class MockModelProvider(ModelProvider):
     def rewrite_query(self, query: str, history: List[dict]) -> str:
         return f"Self-contained mock query for '{query}'"
 
-    def generate_hyde(self, query: str) -> str:
-        return f"Hypothetical answer snippet for query: '{query}'"
+    def generate_hyde(self, query: str) -> dict:
+        return {
+            "hypothesis": f"Hypothetical answer snippet for query: '{query}'",
+            "keywords": [query],
+        }
 
     def rerank(self, query: str, passages: List[str]) -> List[float]:
         # Deterministic mock: score passages in ascending order so the LAST
