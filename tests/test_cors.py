@@ -86,7 +86,14 @@ class TestCorsMiddlewareWithAuth(unittest.TestCase):
         cls.client = TestClient(shared_app)
 
     def test_simple_authed_request_no_origin_no_cors_header(self):
-        with mock_auth(tenant_id="tenant-a"):
+        # Keep this middleware test hermetic: session persistence and retrieval
+        # are outside the CORS contract and must not require ADC in CI.
+        with patch(
+            "services.retrieval_api.app._create_firestore_session",
+            return_value="test-session",
+        ), patch(
+            "services.retrieval_api.app._append_firestore_messages",
+        ), mock_auth(tenant_id="tenant-a"):
             resp = self.client.post(
                 "/query",
                 headers=auth_headers("tenant-a"),

@@ -9,6 +9,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # Ordinary unit tests use in-process mocks. The dedicated
+      # reliability-linux job explicitly exercises fork isolation.
+      IRIS_PROCESS_ISOLATION: "0"
     steps:
       - uses: actions/checkout@v4
 
@@ -22,15 +26,14 @@ jobs:
           pip install -r services/ingestion-worker/requirements.txt
           pip install -r services/retrieval_api/requirements.txt
 
-      - name: Run unit tests (unittest + pytest)
+      - name: Run hermetic unit tests
         env:
           MODEL_BACKEND: mock
           QDRANT_URL: ""
           RUN_VERTEX_LIVE_TESTS: "0"
           RUN_QDRANT_LIVE_TESTS: "0"
         run: |
-          python -m unittest discover -s tests
-          pytest tests/ -q
+          python -m pytest tests/ -q -rs -m "not integration and not live"
 
   firestore-rules:
     runs-on: ubuntu-latest
@@ -128,6 +131,10 @@ jobs:
     # Proves the process-isolation primitive on the real platform. Windows would
     # silently skip the fork tests, so this job asserts they actually execute.
     runs-on: ubuntu-latest
+    env:
+      # Keep the broad suite deterministic; the explicit isolation checks
+      # below pass isolate=True and are the Linux fork gate.
+      IRIS_PROCESS_ISOLATION: "0"
     steps:
       - uses: actions/checkout@v4
 
@@ -163,7 +170,7 @@ jobs:
           PY
 
       - name: Full suite (with skip reasons and counts)
-        run: python -m pytest tests -q -rs
+        run: python -m pytest tests -q -rs -m "not integration and not live"
 
   containers:
     # Builds the deployable Cloud Run images so the pinned SDK is proven
