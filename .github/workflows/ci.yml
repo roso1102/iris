@@ -33,7 +33,7 @@ jobs:
           RUN_VERTEX_LIVE_TESTS: "0"
           RUN_QDRANT_LIVE_TESTS: "0"
         run: |
-          pytest tests/ -q -rs -m "not integration and not live"
+          python -m pytest tests/ -q -rs -m "not integration and not live"
 
   firestore-rules:
     runs-on: ubuntu-latest
