@@ -89,14 +89,25 @@ def validate_citations(
         chunk = by_id.get(citation.chunk_id)
         if chunk is None:
             continue
+        meta = chunk.metadata or {}
+        page_level = bool(meta.get("page_level"))
+        bbox = list(chunk.bbox)
+        bbox_source = str(meta.get("bbox_source") or ("page_area" if page_level else "element"))
+        bbox_confidence = float(meta.get("bbox_confidence", 1.0))
+        # A page-level citation must never carry a misleading precise box.
+        if page_level:
+            bbox = [0.0, 0.0, 1.0, 1.0]
+            bbox_confidence = 0.0
         valid.append(
             Citation(
                 chunk_id=chunk.chunk_id,
                 doc_id=chunk.doc_id,
                 page_number=chunk.page_number,
-                bbox=list(chunk.bbox),
+                bbox=bbox,
                 text_snippet=chunk.text[:500],
-                page_level=bool(chunk.metadata.get("page_level")),
+                page_level=page_level,
+                bbox_source=bbox_source,
+                bbox_confidence=bbox_confidence,
             )
         )
 

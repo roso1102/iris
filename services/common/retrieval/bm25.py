@@ -13,13 +13,17 @@ pre-trained IDF on its side).
 from __future__ import annotations
 
 import os
+import re
 import threading
+from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Optional
 
 _MODEL_NAME = "Qdrant/bm25"
 _LANGUAGE = "english"
 _TOKEN_MAX_LENGTH = 40
+
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 # Model weights are baked into the image at build time (see the Dockerfiles):
 #   /app/models/<HF cache layout: models--Qdrant--bm25/{refs, snapshots/<hash>}>
@@ -29,6 +33,41 @@ _DEFAULT_CACHE_DIR = "/app/models"
 
 _lock = threading.Lock()
 _model: Optional[object] = None
+
+
+def _offline_mode() -> bool:
+    """True when tests require a deterministic, network-free tokenizer."""
+    return os.environ.get("IRIS_BM25_OFFLINE", "").strip().lower() in ("1", "true", "yes")
+
+
+class _FakeSparse:
+    def __init__(self, values: Dict[int, float]) -> None:
+        self._values = values
+
+    def as_dict(self) -> Dict[int, float]:
+        return self._values
+
+
+class _FakeBm25:
+    """Deterministic hashing "BM25" for hermetic tests.
+
+    Not a real BM25: it tokenizes on ``[a-z0-9]+`` and maps each token to a
+    stable 32-bit blake2b index with raw term counts. It preserves the only
+    properties sparse matching depends on (non-empty, deterministic, symmetric
+    between query and passage) without downloading model weights.
+    """
+
+    def query_embed(self, text: str):
+        import hashlib
+
+        counts = Counter(_TOKEN_RE.findall(text.lower()))
+        values = {
+            int.from_bytes(
+                hashlib.blake2b(token.encode("utf-8"), digest_size=4).digest(), "big"
+            ): float(count)
+            for token, count in counts.items()
+        }
+        return iter([_FakeSparse(values)])
 
 
 def _resolve_cache_dir() -> str:
@@ -50,13 +89,17 @@ def _resolve_cache_dir() -> str:
 
 
 def _get_model():
-    """Lazily initialize the singleton FastEmbed Bm25 model (thread-safe).
+    """Lazily initialize the singleton sparse model (thread-safe).
 
-    Loads strictly from the local cache (local_files_only=True) so cold
-    starts never reach out to Hugging Face; if the cache is missing this
-    raises a clear error instead of silently downloading.
+    In offline test mode returns a deterministic hashing tokenizer instead of
+    loading FastEmbed weights (no network, no download). In production it loads
+    strictly from the local cache (``local_files_only=True``) so cold starts
+    never reach out to Hugging Face; a missing cache raises instead of silently
+    downloading.
     """
     global _model
+    if _offline_mode():
+        return _FakeBm25()
     if _model is None:
         with _lock:
             if _model is None:

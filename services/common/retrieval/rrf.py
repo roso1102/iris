@@ -75,6 +75,26 @@ def fuse_rerank_scores(
     ]
 
 
+def weighted_ranked_fusion(
+    ranked_lists: List[List[Tuple[str, float]]],
+    weights: List[float],
+    k: int = 60,
+) -> List[Tuple[str, float]]:
+    """Generalized RRF with a per-list weight.
+
+    Used to add HyDE as a *lower-weight* additional leg: a HyDE hit cannot
+    outrank a strong original-query hit because its contribution to the fused
+    score is scaled down. Empty lists and non-positive weights are skipped.
+    """
+    rrf_scores: dict[str, float] = {}
+    for ranked, weight in zip(ranked_lists, weights):
+        if weight <= 0.0:
+            continue
+        for rank, (chunk_id, _) in enumerate(ranked, start=1):
+            rrf_scores[chunk_id] = rrf_scores.get(chunk_id, 0.0) + weight * (1.0 / (k + rank))
+    return sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
+
+
 def multi_ranked_fusion(
     ranked_lists: List[List[Tuple[str, float]]],
     k: int = 60,

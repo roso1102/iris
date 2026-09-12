@@ -4,15 +4,43 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from fastapi import HTTPException
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from services.common.auth.validation import (
+    DOC_ID_PATTERN,
     MAX_HISTORY_TURNS,
     MAX_QUERY_CHARS,
     MAX_TOP_K_SEARCH,
     MAX_TOP_K_SYNTHESIS,
+    validate_doc_ids,
+    validate_history,
+    validate_query,
 )
 from services.common.models.base import Citation
+
+
+def _rethrow_as_value_error(fn, value):
+    """Run a validation helper and surface its stable 422 as a Pydantic error."""
+    try:
+        return fn(value)
+    except HTTPException as exc:
+        raise ValueError(str(exc.detail)) from exc
+
+
+class ActiveDoc(BaseModel):
+    """A typed active document reference provided by the client."""
+
+    ui_index: int = Field(..., ge=0)
+    doc_id: str = Field(..., min_length=1, max_length=128)
+    filename: str = Field(default="", max_length=255)
+
+    @field_validator("doc_id")
+    @classmethod
+    def _check_doc_id(cls, value: str) -> str:
+        if not isinstance(value, str) or not DOC_ID_PATTERN.match(value):
+            raise ValueError("active_docs.doc_id is invalid")
+        return value
 
 
 class ScoredChunk(BaseModel):
@@ -50,6 +78,21 @@ class SearchRequest(BaseModel):
         description="Include retrieval debug trace (HyDE, latency breakdown, chunk provenance).",
     )
 
+    @field_validator("query")
+    @classmethod
+    def _validate_query(cls, value: str) -> str:
+        return _rethrow_as_value_error(validate_query, value)
+
+    @field_validator("history")
+    @classmethod
+    def _validate_history(cls, value):
+        return _rethrow_as_value_error(validate_history, value)
+
+    @field_validator("doc_ids")
+    @classmethod
+    def _validate_doc_ids(cls, value):
+        return _rethrow_as_value_error(validate_doc_ids, value)
+
 
 class SearchResponse(BaseModel):
     results: List[ScoredChunk]
@@ -69,11 +112,39 @@ class QueryRequest(BaseModel):
         default=False,
         description="Include retrieval debug trace (HyDE, latency breakdown, chunk provenance).",
     )
-    active_docs: Optional[List[dict]] = Field(
+    active_docs: Optional[List[ActiveDoc]] = Field(
         default=None,
+        max_length=50,
         description="Ordered list of active documents for intent routing. "
                     '[{"ui_index": 1, "doc_id": "doc_001", "filename": "report.pdf"}]',
     )
+
+    @field_validator("query")
+    @classmethod
+    def _validate_query(cls, value: str) -> str:
+        return _rethrow_as_value_error(validate_query, value)
+
+    @field_validator("history")
+    @classmethod
+    def _validate_history(cls, value):
+        return _rethrow_as_value_error(validate_history, value)
+
+    @field_validator("doc_ids")
+    @classmethod
+    def _validate_doc_ids(cls, value):
+        return _rethrow_as_value_error(validate_doc_ids, value)
+
+    @model_validator(mode="after")
+    def _validate_active_docs(self):
+        docs = self.active_docs
+        if docs:
+            doc_ids = [d.doc_id for d in docs]
+            if len(set(doc_ids)) != len(doc_ids):
+                raise ValueError("active_docs contains duplicate doc_id values")
+            indexes = [d.ui_index for d in docs]
+            if len(set(indexes)) != len(indexes):
+                raise ValueError("active_docs contains duplicate ui_index values")
+        return self
 
 
 class QueryResponse(BaseModel):
@@ -94,6 +165,11 @@ class DeleteResponse(BaseModel):
 class SessionCreateRequest(BaseModel):
     name: Optional[str] = Field(default=None, max_length=200)
     document_ids: Optional[List[str]] = None
+
+    @field_validator("document_ids")
+    @classmethod
+    def _validate_document_ids(cls, value):
+        return _rethrow_as_value_error(validate_doc_ids, value)
 
 
 class SessionResponse(BaseModel):

@@ -14,9 +14,16 @@ Role defaults to "member". Allowed roles: member, admin.
 from __future__ import annotations
 
 import sys
+import os
 
 
-def set_tenant_claims(uid: str, tenant_id: str, role: str = "member", project_id: str = "naturepivot-rag") -> dict:
+def set_tenant_claims(
+    uid: str,
+    tenant_id: str,
+    role: str = "member",
+    project_id: str | None = None,
+) -> dict:
+    project_id = project_id or os.getenv("GCP_PROJECT", "procambrian-iris-staging-2026")
     import firebase_admin
     from firebase_admin import auth as firebase_auth
 

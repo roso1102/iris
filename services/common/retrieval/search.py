@@ -30,15 +30,18 @@ import re
 import time
 from typing import Dict, List, Optional, Tuple
 
+from services.common.embeddings import validate_embedding_vector
 from services.common.ingestion.models import Chunk
 from services.common.ingestion.store import ChunkStore
 from services.common.models.base import ModelProvider
+from services.common.retrieval import hyde as hyde_gating
 from services.common.retrieval.diversity import diversity_penalty
 from services.common.retrieval.models import ScoredChunk
 from services.common.retrieval.rrf import (
     fuse_rerank_scores,
     multi_ranked_fusion,
     reciprocal_rank_fusion,
+    weighted_ranked_fusion,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,7 +49,8 @@ logger = logging.getLogger(__name__)
 # Phase 6.5 pronoun/dependency heuristic gate: if the raw query contains none of
 # these ambiguous indicators, skip the (costly) SLM rewriter entirely.
 _AMBIGUOUS_REFERENCE_RE = re.compile(
-    r"\b(it|this|that|these|those|former|latter|above|previous|the\s+(?:former|latter))\b",
+    r"\b(it|its|this|that|these|those|their|theirs|his|her|former|latter|above|previous|"
+    r"the\s+(?:former|latter))\b",
     re.IGNORECASE,
 )
 
@@ -120,25 +124,58 @@ def _needs_rewrite(query: str, history: Optional[List[dict]]) -> bool:
     return bool(_AMBIGUOUS_REFERENCE_RE.search(query))
 
 
-def _needs_hyde(query: str) -> bool:
-    """Gate for HyDE + query expansion on vague/short queries.
+_PROTECTED_NUMBER_RE = re.compile(r"\d[\d,./:-]*")
+_PROTECTED_IDENTIFIER_RE = re.compile(r"\b[A-Z][A-Z0-9-]{2,}\b")
+_PROTECTED_QUOTED_RE = re.compile(r"[\"'“”‘’][^\"'“”‘’]{1,}[\"'“”‘’]")
 
-    Triggers when the query is short (< 6 words), doesn't contain a specific
-    reference, and is in English (not Hindi/romanized Hindi — HyDE generates
-    English hypotheticals which don't help cross-lingual retrieval).
+
+def _protected_tokens(query: str) -> List[str]:
+    """Quoted strings, numbers/amounts/dates and ALL-CAPS identifiers."""
+    tokens = _PROTECTED_QUOTED_RE.findall(query)
+    tokens += _PROTECTED_NUMBER_RE.findall(query)
+    tokens += _PROTECTED_IDENTIFIER_RE.findall(query)
+    return tokens
+
+
+def _rewrite_fallback(query: str, reason: str) -> dict:
+    return {
+        "standalone_query": query,
+        "preserved_entities": [],
+        "document_scope": [],
+        "temporal_scope": None,
+        "language": "",
+        "confidence": 0.0,
+        "reason": reason,
+    }
+
+
+def _validate_rewrite(decision: object, original_query: str) -> dict:
+    """Validate a structured rewrite decision before it is used.
+
+    Rejects rewrites that drop quoted text, amounts, dates or identifiers that
+    were present in the original query (RET-003). On any violation the original
+    query is kept.
     """
-    words = query.split()
-    if len(words) >= 6:
-        return False
-    if _SPECIFIC_QUERY_RE.search(query):
-        return False
-    if _AMBIGUOUS_REFERENCE_RE.search(query):
-        return False
-    # Skip HyDE for Hindi/Devanagari/romanized-Hindi queries
-    from services.common.retrieval.hindi import contains_devanagari, is_romanized_hindi
-    if contains_devanagari(query) or is_romanized_hindi(query):
-        return False
-    return True
+    if not isinstance(decision, dict):
+        return _rewrite_fallback(original_query, "invalid_decision")
+    standalone = decision.get("standalone_query")
+    if not isinstance(standalone, str) or not standalone.strip():
+        return _rewrite_fallback(original_query, "empty_standalone_query")
+    standalone = standalone.strip()
+    for token in _protected_tokens(original_query):
+        if token not in standalone:
+            return _rewrite_fallback(original_query, "dropped_protected_token")
+    result = _rewrite_fallback(original_query, "ok")
+    result.update({
+        "standalone_query": standalone,
+        "preserved_entities": decision.get("preserved_entities") or [],
+        "document_scope": decision.get("document_scope") or [],
+        "temporal_scope": decision.get("temporal_scope"),
+        "language": decision.get("language") or "",
+        "confidence": decision.get("confidence") or 0.0,
+        "reason": decision.get("reason") or "ok",
+    })
+    return result
 
 
 def _needs_cross_lingual(query: str, has_devanagari_corpus: bool) -> bool:
@@ -150,6 +187,13 @@ def _needs_cross_lingual(query: str, has_devanagari_corpus: bool) -> bool:
     from services.common.retrieval.hindi import needs_cross_lingual_boost
 
     return needs_cross_lingual_boost(query, has_devanagari_corpus)
+
+
+def _fuse_ranked(ranked_lists: List[List[Tuple[str, float]]]) -> List[Tuple[str, float]]:
+    """Fuse two (or more) ranked lists with standard RRF."""
+    if len(ranked_lists) > 2:
+        return multi_ranked_fusion(ranked_lists)
+    return reciprocal_rank_fusion(ranked_lists[0], ranked_lists[1])
 
 
 class SearchOrchestrator:
@@ -176,88 +220,73 @@ class SearchOrchestrator:
         top_k: int = 10,
         rerank_blend: Optional[float] = None,
         history: Optional[List[dict]] = None,
+        query_vector: Optional[List[float]] = None,
+        query_text_for_sparse: Optional[str] = None,
     ) -> tuple[List[ScoredChunk], dict]:
         """Task 2.4a: Standard non-blocking async search path.
 
         Returns (results, trace) where trace carries HyDE + debug metadata.
         """
-        t0 = time.time()
+        t0 = time.perf_counter()
         original_query = query
         rewritten_query = None
-
-        # ── Phase 1: Rewrite (existing) ──────────────────────────────
-        rewrite_ms = 0.0
-        if _needs_rewrite(query, history):
-            t_rw = time.perf_counter()
-            query = await asyncio.to_thread(
-                self.provider.rewrite_query, query, history or []
-            )
-            rewrite_ms = round((time.perf_counter() - t_rw) * 1000, 1)
-            rewritten_query = query
-            logger.info("rewrite_ms=%.1f rewritten=%s", rewrite_ms, query[:80])
-
-        # ── Phase 2: Original embedding + transliteration leg ────────
-        # Pipeline #3 revision: ONLY fire for romanized Hindi content
-        # words (zero latency for English queries; no LLM call).
-        embedding = await asyncio.to_thread(self.provider.embed_query, query)
-
-        # ── Phase 2a: Synonym expansion for BM25 ──────────────────
-        # Expand acronyms (SDG → "sustainable development goals") so
-        # BM25 can match full-form text in the corpus. Zero LLM cost.
-        synonym_query = _expand_synonyms(query)
-
-        # ── Phase 2b: HyDE for vague/short queries ─────────────────
-        # Generate a hypothetical answer and embed it for dense search.
-        # Catches vocabulary gaps: "risks" → "regulatory non-compliance penalties".
-        use_hyde = _needs_hyde(query)
+        rewrite_meta = None
+        pre_computed = query_vector is not None
+        hyde_trace = {
+            "eligible": False,
+            "used": False,
+            "bypass_reason": None,
+            "baseline_top_score": 0.0,
+            "latency_ms": 0.0,
+            "estimated_cost": 0.0,
+        }
         hyde_embedding = None
         hyde_text = ""
         hyde_keywords = ""
         hyde_latency_ms = 0.0
-        if use_hyde:
-            try:
-                t_hyde = time.perf_counter()
-                hyde_text = await asyncio.to_thread(
-                    self.provider.generate_hyde, query
-                )
-                # Parse keywords from HyDE output (format: "paragraph\nKeywords: kw1, kw2")
-                if "\nKeywords:" in hyde_text:
-                    parts = hyde_text.split("\nKeywords:", 1)
-                    hyde_text = parts[0].strip()
-                    hyde_keywords = parts[1].strip()
-                # Embed both the hypothetical answer and keywords together
-                combined_text = hyde_text
-                if hyde_keywords:
-                    combined_text = f"{hyde_text} {hyde_keywords}"
-                hyde_embedding = await asyncio.to_thread(
-                    self.provider.embed, combined_text
-                )
-                hyde_latency_ms = round((time.perf_counter() - t_hyde) * 1000, 1)
-                logger.info("hyde_generated query=%s hyde=%s keywords=%s", query[:40], hyde_text[:80], hyde_keywords[:50])
-            except Exception as exc:
-                logger.warning("hyde_failed: %s", exc)
-
-        from services.common.retrieval.hindi import (
-            contains_devanagari,
-            is_romanized_hindi,
-            transliterate_romanized_hindi,
-        )
-
-        translit_query = transliterate_romanized_hindi(query)
-        needs_translit = (
-            translit_query != query
-            and self._has_devanagari_corpus(tenant_id)
-            and is_romanized_hindi(query)
-        )
-
-        # ── Phase 2b: Cross-lingual gate (English→Hindi variant) ────
-        # DISABLED: reranker-filtered cross-lingual path causes -0.056
-        # Recall, -0.095 MRR, and 12× latency regression (5.3s P95).
-        # The Hindi variant is noise the reranker can't fully filter.
-        # Keep infrastructure for future re-activation with better gating.
+        rewrite_ms = 0.0
+        # Cross-lingual variant legs remain disabled (regression note below).
         needs_xling = False
         xling_variant = None
         xling_variant_embedding = None
+
+        if pre_computed:
+            # Fast path: pre-computed vector from the decomposition pipeline.
+            embedding = validate_embedding_vector(query_vector)
+            sparse_text = query_text_for_sparse or query
+            synonym_query = _expand_synonyms(sparse_text)
+            translit_query = sparse_text
+            needs_translit = False
+        else:
+            # ── Phase 1: rewrite ONLY context-dependent turns ────────────
+            if _needs_rewrite(query, history):
+                t_rw = time.perf_counter()
+                decision = await asyncio.to_thread(
+                    self.provider.rewrite_query_structured, query, history or []
+                )
+                rewrite_meta = _validate_rewrite(decision, original_query)
+                query = rewrite_meta["standalone_query"]
+                rewrite_ms = round((time.perf_counter() - t_rw) * 1000, 1)
+                if query != original_query:
+                    rewritten_query = query
+
+            # ── Phase 2: Original-query embedding ───────────────────────
+            embedding = validate_embedding_vector(
+                await asyncio.to_thread(self.provider.embed_query, query)
+            )
+            synonym_query = _expand_synonyms(query)
+
+            from services.common.retrieval.hindi import (
+                is_romanized_hindi,
+                transliterate_romanized_hindi,
+            )
+
+            translit_query = transliterate_romanized_hindi(query)
+            needs_translit = (
+                translit_query != query
+                and self._has_devanagari_corpus(tenant_id)
+                and is_romanized_hindi(query)
+            )
 
         # ── Phase 3: All store searches in parallel ──────────────────
         # Core: dense_orig + sparse_orig (always).
@@ -280,6 +309,7 @@ class SearchOrchestrator:
                     self.provider.embed_query, xling_variant
                 )
 
+        # ── Phase 3: baseline retrieval always runs (dense + sparse) ────────
         search_tasks = [
             asyncio.to_thread(
                 self.store.search_dense,
@@ -296,17 +326,6 @@ class SearchOrchestrator:
                 limit=top_k * 4,
             ),
         ]
-        # HyDE dense search: embed the hypothetical answer for vocabulary bridging
-        if hyde_embedding is not None:
-            search_tasks.append(
-                asyncio.to_thread(
-                    self.store.search_dense,
-                    hyde_embedding,
-                    tenant_id,
-                    doc_ids,
-                    limit=top_k * 4,
-                )
-            )
         if needs_translit:
             # Sparse search on the Devanagari-transliterated query —
             # BM25 hits Hindi doc passages directly without LLM cost.
@@ -319,35 +338,65 @@ class SearchOrchestrator:
                     limit=top_k * 4,
                 )
             )
-        if xling_variant and xling_variant_embedding:
-            search_tasks.append(
-                asyncio.to_thread(
-                    self.store.search_dense,
-                    xling_variant_embedding,
-                    tenant_id,
-                    doc_ids,
-                    limit=top_k * 4,
-                )
-            )
-            search_tasks.append(
-                asyncio.to_thread(
-                    self.store.search_sparse,
-                    xling_variant,
-                    tenant_id,
-                    doc_ids,
-                    limit=top_k * 4,
-                )
-            )
 
         t_search = time.perf_counter()
         all_ranked = list(await asyncio.gather(*search_tasks))
         search_ms = round((time.perf_counter() - t_search) * 1000, 1)
 
-        # ── Phase 5: Multi-list RRF or standard 2-list RRF ──────────
-        if len(all_ranked) > 2:
-            fused = multi_ranked_fusion(all_ranked)
-        else:
-            fused = reciprocal_rank_fusion(all_ranked[0], all_ranked[1])
+        # ── Phase 4: baseline-first HyDE decision ───────────────────────────
+        fused = _fuse_ranked(all_ranked)
+        if not pre_computed:
+            dense_scores = all_ranked[0]
+            sparse_scores = all_ranked[1]
+            reason = hyde_gating.bypass_reason(
+                original_query, rewritten=rewritten_query is not None
+            )
+            eligible = reason is None
+            dense_top = dense_scores[0][1] if dense_scores else 0.0
+            weak = hyde_gating.baseline_is_weak(
+                dense_scores, sparse_scores
+            ) or (
+                bool(dense_scores)
+                and dense_top < 0.5
+                and hyde_gating.low_agreement(dense_scores, sparse_scores)
+            )
+            hyde_trace["eligible"] = eligible
+            hyde_trace["bypass_reason"] = reason
+            hyde_trace["baseline_top_score"] = round(dense_top, 4)
+
+            if eligible and weak:
+                t_hyde = time.perf_counter()
+                try:
+                    raw = await asyncio.to_thread(self.provider.generate_hyde, query)
+                    parsed = hyde_gating.validate_hyde_output(raw, query)
+                    if parsed:
+                        hyde_embedding = validate_embedding_vector(
+                            await asyncio.to_thread(
+                                self.provider.embed, hyde_gating.hyde_text_of(parsed)
+                            )
+                        )
+                        hyde_text = parsed["hypothesis"]
+                        hyde_keywords = " ".join(parsed["keywords"])
+                        hyde_trace["used"] = True
+                        hyde_trace["estimated_cost"] = hyde_gating.HYDE_ESTIMATED_COST_USD
+                except Exception as exc:
+                    logger.warning("hyde_failed: %s", exc)
+                hyde_latency_ms = round((time.perf_counter() - t_hyde) * 1000, 1)
+                hyde_trace["latency_ms"] = hyde_latency_ms
+                if hyde_embedding is not None:
+                    hyde_dense = list(
+                        await asyncio.to_thread(
+                            self.store.search_dense,
+                            hyde_embedding,
+                            tenant_id,
+                            doc_ids,
+                            limit=top_k * 4,
+                        )
+                    )
+                    fused = weighted_ranked_fusion(
+                        list(all_ranked) + [hyde_dense],
+                        [1.0] * len(all_ranked) + [hyde_gating.HYDE_LEG_WEIGHT],
+                    )
 
         # When cross-lingual is active, expand candidate pool for the
         # reranker to filter. Otherwise use the standard pool size.
@@ -380,17 +429,13 @@ class SearchOrchestrator:
 
         results = scored[:top_k]
 
-        latency = round((time.time() - t0) * 1000, 2)
+        latency = round((time.perf_counter() - t0) * 1000, 2)
 
         # Build trace dict for debugging
         trace = {
-            "hyde": {
-                "used": use_hyde,
-                "text": hyde_text,
-                "keywords": hyde_keywords,
-                "latency_ms": hyde_latency_ms,
-            },
+            "hyde": hyde_trace,
             "rewritten_query": rewritten_query,
+            "rewrite": rewrite_meta,
             "synonym_query": synonym_query,
             "latency": {
                 "rewrite_ms": rewrite_ms if rewritten_query else 0.0,
@@ -401,11 +446,13 @@ class SearchOrchestrator:
                 "total_ms": latency,
             },
         }
+        if hyde_trace["used"]:
+            trace["hyde"]["text"] = hyde_text
+            trace["hyde"]["keywords"] = hyde_keywords
 
         logger.info(
             "search_completed",
             extra={
-                "query": query[:100],
                 "mode": "standard",
                 "rerank_blend": rerank_blend,
                 "latency_ms": latency,
@@ -414,7 +461,8 @@ class SearchOrchestrator:
                 "num_results": len(results),
                 "transliteration": needs_translit,
                 "cross_lingual": bool(xling_variant),
-                "hyde": use_hyde,
+                "hyde": hyde_trace["used"],
+                "hyde_bypass_reason": hyde_trace["bypass_reason"],
             },
         )
         return results, trace
@@ -426,19 +474,32 @@ class SearchOrchestrator:
         history: Optional[List[dict]] = None,
         doc_ids: Optional[List[str]] = None,
         top_k: int = 10,
+        trace: Optional[dict] = None,
     ) -> List[ScoredChunk]:
-        """Deep Search with async SLM rewrite, HyDE generation, and fusion."""
-        t0 = time.time()
+        """Deep Search with async SLM rewrite, HyDE generation, and fusion.
 
-        rewritten = await asyncio.to_thread(
-            self.provider.rewrite_query, query, history or []
-        )
+        Deep is an explicit opt-in expensive path, so HyDE is not
+        baseline-gated — but it never *replaces* the original-query legs and
+        the deterministic bypass (greetings/identifiers/…) still applies.
+        """
+        t0 = time.perf_counter()
+        original_query = query
+
+        if _needs_rewrite(query, history):
+            decision = await asyncio.to_thread(
+                self.provider.rewrite_query_structured, query, history or []
+            )
+            rewrite_meta = _validate_rewrite(decision, original_query)
+            rewritten = rewrite_meta["standalone_query"]
+        else:
+            # Same context-dependence gate as standard mode: deep opts into
+            # HyDE, not into rewriting every standalone query.
+            rewrite_meta = _rewrite_fallback(original_query, "not_context_dependent")
+            rewritten = original_query
         rewrite_ms = round((time.perf_counter() - t0) * 1000, 1)
-        logger.info("rewrite_ms=%.1f (deep) rewritten=%s", rewrite_ms, rewritten[:80])
 
         # ── Transliteration on the REWRITTEN query ────────────────────
         from services.common.retrieval.hindi import (
-            contains_devanagari,
             is_romanized_hindi,
             transliterate_romanized_hindi,
         )
@@ -456,19 +517,50 @@ class SearchOrchestrator:
         xling_variant = None
         xling_variant_embedding = None
 
-        # ── HyDE for original query (unchanged) ──────────────────────
-        try:
-            hyde = await asyncio.to_thread(self.provider.generate_hyde, rewritten)
-        except Exception:
-            hyde = rewritten
+        # Original-query legs always run (dense uses the QUERY task type).
+        base_embedding = validate_embedding_vector(
+            await asyncio.to_thread(self.provider.embed_query, rewritten)
+        )
 
-        hyde_embedding = await asyncio.to_thread(self.provider.embed, hyde)
+        # ── HyDE leg (deep opt-in; deterministic bypass still applies) ──
+        reason = hyde_gating.bypass_reason(original_query)
+        hyde_embedding = None
+        hyde_trace = {
+            "eligible": reason is None,
+            "used": False,
+            "bypass_reason": reason,
+            "baseline_top_score": 0.0,
+            "latency_ms": 0.0,
+            "estimated_cost": 0.0,
+        }
+        if reason is None:
+            t_hyde = time.perf_counter()
+            try:
+                raw = await asyncio.to_thread(self.provider.generate_hyde, rewritten)
+                parsed = hyde_gating.validate_hyde_output(raw, rewritten)
+                if parsed:
+                    hyde_embedding = validate_embedding_vector(
+                        await asyncio.to_thread(
+                            self.provider.embed, hyde_gating.hyde_text_of(parsed)
+                        )
+                    )
+                    hyde_trace["used"] = True
+                    hyde_trace["estimated_cost"] = hyde_gating.HYDE_ESTIMATED_COST_USD
+            except Exception as exc:
+                logger.warning("hyde_failed: %s", exc)
+                try:
+                    hyde_embedding = validate_embedding_vector(
+                        await asyncio.to_thread(self.provider.embed, rewritten)
+                    )
+                except Exception as inner:  # pragma: no cover - defensive
+                    logger.warning("hyde_fallback_failed: %s", inner)
+            hyde_trace["latency_ms"] = round((time.perf_counter() - t_hyde) * 1000, 1)
 
         # ── All store searches in parallel ───────────────────────────
         search_tasks = [
             asyncio.to_thread(
                 self.store.search_dense,
-                hyde_embedding,
+                base_embedding,
                 tenant_id,
                 doc_ids,
                 limit=top_k * 4,
@@ -491,20 +583,13 @@ class SearchOrchestrator:
                     limit=top_k * 4,
                 )
             )
-        if xling_variant and xling_variant_embedding:
+        hyde_index = None
+        if hyde_embedding is not None:
+            hyde_index = len(search_tasks)
             search_tasks.append(
                 asyncio.to_thread(
                     self.store.search_dense,
-                    xling_variant_embedding,
-                    tenant_id,
-                    doc_ids,
-                    limit=top_k * 4,
-                )
-            )
-            search_tasks.append(
-                asyncio.to_thread(
-                    self.store.search_sparse,
-                    xling_variant,
+                    hyde_embedding,
                     tenant_id,
                     doc_ids,
                     limit=top_k * 4,
@@ -513,10 +598,12 @@ class SearchOrchestrator:
 
         all_ranked = list(await asyncio.gather(*search_tasks))
 
-        if len(all_ranked) > 2:
-            fused = multi_ranked_fusion(all_ranked)
+        if hyde_index is not None:
+            weights = [1.0] * len(all_ranked)
+            weights[hyde_index] = hyde_gating.HYDE_LEG_WEIGHT
+            fused = weighted_ranked_fusion(all_ranked, weights)
         else:
-            fused = reciprocal_rank_fusion(all_ranked[0], all_ranked[1])
+            fused = _fuse_ranked(all_ranked)
 
         scored = await asyncio.to_thread(
             self._resolve_chunks, fused, top_k * 4, tenant_id
@@ -525,11 +612,18 @@ class SearchOrchestrator:
             scored = diversity_penalty(scored, top_k=top_k)
         results = scored[:top_k]
 
-        latency = round((time.time() - t0) * 1000, 2)
+        latency = round((time.perf_counter() - t0) * 1000, 2)
+        if trace is not None:
+            trace["hyde"] = hyde_trace
+            trace["rewrite"] = rewrite_meta
+            trace["latency"] = {
+                "rewrite_ms": rewrite_ms,
+                "hyde_ms": hyde_trace["latency_ms"],
+                "total_ms": latency,
+            }
         logger.info(
             "search_completed",
             extra={
-                "query": query[:100],
                 "mode": "deep",
                 "latency_ms": latency,
                 "top_score": results[0].score if results else 0.0,
@@ -537,6 +631,8 @@ class SearchOrchestrator:
                 "num_results": len(results),
                 "transliteration": needs_translit,
                 "cross_lingual": bool(xling_variant),
+                "hyde": hyde_trace["used"],
+                "hyde_bypass_reason": hyde_trace["bypass_reason"],
             },
         )
         return results

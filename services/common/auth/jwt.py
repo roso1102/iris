@@ -139,6 +139,11 @@ def require_auth(
         return token_to_auth_context(claims)
     except MissingTenantClaimError as exc:
         logger.warning("Auth denied: %s", exc)
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        # Static public message — never the exception text (SEC-009).
+        raise HTTPException(
+            status_code=403, detail="The token is missing a required tenant claim."
+        ) from exc
     except AuthError as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=401, detail="The authentication token is invalid or expired."
+        ) from exc

@@ -10,7 +10,9 @@ import re
 import time
 from typing import List, Optional
 
+from services.common.embeddings import EmbeddingInvalidError
 from services.common.models.base import ModelProvider, StructuredAnswer, Citation
+from services.common.reliability import RetryPolicy, retry_call
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,15 @@ logger = logging.getLogger(__name__)
 _MAX_CONTEXT_BYTES = 100_000
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
 _MAX_RETRIES = 3
+
+_VISION_RETRY_POLICY = RetryPolicy(
+    max_attempts=_MAX_RETRIES,
+    base_delay=0.5,
+    max_delay=8.0,
+    per_attempt_timeout=60.0,
+    overall_deadline=120.0,
+    operation="vertex.gemini_vision",
+)
 
 _PROMPT_BOUNDARY_PATTERN = re.compile(
     r"(\[SYSTEM\]|\[OVERRIDE\]|<\|im_start\|>|<\|im_end\|>|"
@@ -112,11 +123,12 @@ class VertexAIProvider(ModelProvider):
         image_part=None,
         response_mime_type: Optional[str] = None,
         response_schema: Optional[dict] = None,
+        max_output_tokens: int = 8192,
     ) -> str:
         contents = [prompt] if image_part is None else [prompt, image_part]
         generation_config = {
             "temperature": 0.0,
-            "max_output_tokens": 8192,
+            "max_output_tokens": max_output_tokens,
             # Thinking mode bills 5-8x standard output tokens. IRIS never
             # needs chain-of-thought, so disable it on every call.
             "thinking_config": {"thinking_budget": 0},
@@ -168,21 +180,18 @@ class VertexAIProvider(ModelProvider):
         image_part = Part.from_data(data=image_bytes, mime_type="image/png")
         model = GenerativeModel(self.synthesis_model_name)
 
-        last_exc = None
-        for attempt in range(_MAX_RETRIES):
-            try:
-                return self._safe_generate(model, prompt, image_part)
-            except Exception as exc:
-                last_exc = exc
-                if attempt >= _MAX_RETRIES - 1:
-                    break
-                # 429/resource-exhaustion needs the per-minute quota to
-                # replenish; other errors are transient and can retry sooner.
-                if _is_resource_exhausted(exc):
-                    time.sleep(60 * (attempt + 1))
-                else:
-                    time.sleep(2 ** attempt)
-        raise RuntimeError(f"Gemini Vision failed after {_MAX_RETRIES} attempts") from last_exc
+        # Phase 0.1: retry ONLY transient failures, with exponential backoff and
+        # full jitter and an overall deadline. Permanent failures (safety
+        # blocks, invalid requests) surface immediately.
+        try:
+            return retry_call(
+                lambda: self._safe_generate(model, prompt, image_part),
+                _VISION_RETRY_POLICY,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"Gemini Vision failed after {_MAX_RETRIES} attempts"
+            ) from exc
 
     def embed(self, text: str) -> List[float]:
         return self._embed_task(text, "RETRIEVAL_DOCUMENT")
@@ -206,11 +215,16 @@ class VertexAIProvider(ModelProvider):
                 embeddings = model.get_embeddings(inputs, output_dimensionality=dim)
             else:
                 embeddings = model.get_embeddings(inputs)
+            if len(embeddings) != len(batch_texts):
+                raise EmbeddingInvalidError(
+                    f"count_mismatch:{len(embeddings)}!={len(batch_texts)}"
+                )
             for emb in embeddings:
                 if not emb or not emb.values:
-                    results.append([0.0] * (dim or 768))
-                else:
-                    results.append(emb.values)
+                    # Phase 0.1: never fabricate a zero vector — a missing
+                    # embedding is an invalid response the caller must handle.
+                    raise EmbeddingInvalidError("empty_embedding_value")
+                results.append(emb.values)
 
         return results
 
@@ -218,6 +232,15 @@ class VertexAIProvider(ModelProvider):
         # text-embedding-004 is asymmetric: queries must use RETRIEVAL_QUERY
         # against RETRIEVAL_DOCUMENT-embedded chunks (Stage 1a metric fix).
         return self._embed_task(text, "RETRIEVAL_QUERY")
+
+    def embed_query_batch(self, texts: List[str]) -> List[List[float]]:
+        """Batch-embed query strings using RETRIEVAL_QUERY task_type.
+
+        Unlike embed_batch (which defaults to RETRIEVAL_DOCUMENT), this
+        correctly uses the asymmetric query-side task_type required by
+        text-embedding-004.
+        """
+        return self.embed_batch(texts, task_type="RETRIEVAL_QUERY")
 
     def _get_embedding_model(self):
         """Cached TextEmbeddingModel — from_pretrained per call re-resolves
@@ -305,9 +328,12 @@ class VertexAIProvider(ModelProvider):
                 "document order as presented in the Source headers.\n\n"
                 f"DOCUMENT CONTEXT:\n'''\n{safe_context}\n'''\n\n"
                 f"USER QUESTION: {safe_query}\n\n"
+                "FIRST: Identify which source numbers [1], [2] … actually contain the "
+                "facts you need. LIST those numbers in the 'citations' array.\n"
+                "THEN: Write the 'answer' using ONLY the listed sources.\n\n"
                 "Return a JSON object with exactly two fields: "
-                '"answer" (string) and "citations" (array of objects, each with a '
-                'single field "ref", an integer). Every ref MUST be one of: '
+                '"citations" (array of objects, each with a '
+                'single field "ref", an integer) and "answer" (string). Every ref MUST be one of: '
                 f"{json.dumps(sorted(ref_to_chunk.keys()))}. Cite the exact sources you "
                 "used. If no chunk supports the answer, return an empty citations array."
             )
@@ -315,7 +341,6 @@ class VertexAIProvider(ModelProvider):
             response_schema = {
                 "type": "OBJECT",
                 "properties": {
-                    "answer": {"type": "STRING"},
                     "citations": {
                         "type": "ARRAY",
                         "items": {
@@ -324,8 +349,9 @@ class VertexAIProvider(ModelProvider):
                             "required": ["ref"],
                         },
                     },
+                    "answer": {"type": "STRING"},
                 },
-                "required": ["answer", "citations"],
+                "required": ["citations", "answer"],
             }
 
             response_text = self._safe_generate(
@@ -399,7 +425,82 @@ class VertexAIProvider(ModelProvider):
         except RuntimeError:
             return safe_query
 
-    def generate_hyde(self, query: str) -> str:
+    def rewrite_query_structured(self, query: str, history: List[dict]) -> dict:
+        """Resolve a context-dependent follow-up into a validated structure.
+
+        Phase 0.1 (RET-003): schema-constrained JSON, temperature 0. Callers
+        re-validate the result against the original query and authorized scope
+        before using it.
+        """
+        self._ensure_init()
+        from vertexai.generative_models import GenerativeModel
+
+        safe_history = [
+            {"role": h.get("role", "user")[:20],
+             "content": _sanitize_context(h.get("content", ""))}
+            for h in history[-6:]
+        ]
+        safe_query = _sanitize_context(query)
+
+        model = GenerativeModel(self.lite_model_name)
+        prompt = (
+            "Rewrite the follow-up question into a standalone query by resolving "
+            "pronouns and references from the chat history.\n"
+            "Preserve every entity, identifier, amount, date and quoted string "
+            "exactly. Do NOT introduce new document ids or facts. Keep the "
+            "original language.\n\n"
+            f"CHAT HISTORY:\n{safe_history}\n\n"
+            f"FOLLOW-UP: {safe_query}"
+        )
+        response_schema = {
+            "type": "OBJECT",
+            "properties": {
+                "standalone_query": {"type": "STRING"},
+                "preserved_entities": {"type": "ARRAY", "items": {"type": "STRING"}},
+                "document_scope": {"type": "ARRAY", "items": {"type": "STRING"}},
+                "temporal_scope": {"type": "STRING", "nullable": True},
+                "language": {"type": "STRING"},
+                "confidence": {"type": "NUMBER"},
+                "reason": {"type": "STRING"},
+            },
+            "required": ["standalone_query", "confidence"],
+        }
+        try:
+            raw = self._safe_generate(
+                model,
+                prompt,
+                response_mime_type="application/json",
+                response_schema=response_schema,
+                max_output_tokens=256,
+            )
+            result = json.loads(raw)
+            if not isinstance(result, dict) or not result.get("standalone_query"):
+                raise ValueError("missing standalone_query")
+            result.setdefault("preserved_entities", [])
+            result.setdefault("document_scope", [])
+            result.setdefault("temporal_scope", None)
+            result.setdefault("language", "")
+            result.setdefault("confidence", 0.0)
+            result.setdefault("reason", "")
+            return result
+        except Exception as exc:
+            logger.warning("structured rewrite failed, using original query: %s", exc)
+            return {
+                "standalone_query": safe_query,
+                "preserved_entities": [],
+                "document_scope": [],
+                "temporal_scope": None,
+                "language": "",
+                "confidence": 0.0,
+                "reason": "rewrite_failed",
+            }
+
+    def generate_hyde(self, query: str) -> dict:
+        """Generate a constrained hypothetical document + keyword variants.
+
+        Temperature 0, short output, schema-constrained JSON. The caller
+        validates the content (no new entities/numbers) and may skip HyDE.
+        """
         self._ensure_init()
         from vertexai.generative_models import GenerativeModel
 
@@ -407,13 +508,38 @@ class VertexAIProvider(ModelProvider):
 
         model = GenerativeModel(self.lite_model_name)
         prompt = (
-            "Write a hypothetical paragraph that directly answers this question: "
-            f"'{safe_query}'\n\n"
-            "After the paragraph, on a new line starting with 'Keywords: ', list "
-            "2-3 alternative keyword phrasings or synonyms for the core concepts "
-            "in this question, separated by commas."
+            "Write a short hypothetical passage (2-4 sentences) that directly "
+            "answers the question below, as if quoting a relevant document.\n"
+            "Do NOT invent names, numbers, identifiers, dates or amounts that "
+            "are not present in the question.\n"
+            "Use the same language as the question.\n\n"
+            "Also give 2-3 alternative keyword phrasings or synonyms for the "
+            "core concepts.\n\n"
+            f"QUESTION: {safe_query}"
         )
-        return self._safe_generate(model, prompt)
+        response_schema = {
+            "type": "OBJECT",
+            "properties": {
+                "hypothesis": {"type": "STRING"},
+                "keywords": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "maxItems": 5,
+                },
+            },
+            "required": ["hypothesis", "keywords"],
+        }
+        raw = self._safe_generate(
+            model,
+            prompt,
+            response_mime_type="application/json",
+            response_schema=response_schema,
+            max_output_tokens=256,
+        )
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError("HyDE output was not an object")
+        return data
 
     def route_query(self, query: str, active_docs: List[dict]) -> dict:
         """Classify query intent and resolve document pointers.
@@ -453,8 +579,23 @@ class VertexAIProvider(ModelProvider):
             "- For DOCUMENT_SUMMARY, include ALL referenced doc_ids in target_doc_ids.\n"
             "- For SPECIFIC_SEARCH, include only the targeted doc_ids.\n"
             "- For GLOBAL_SEARCH, target_doc_ids should be empty.\n\n"
+            "Query Decomposition:\n"
+            "Additionally, analyze whether the query contains multiple distinct "
+            "information needs:\n"
+            "1. If the user's question contains multiple distinct information needs, "
+            "split it into separate sub-queries (one per need). Each should target "
+            "a single concept.\n"
+            "2. If the question is highly specific (contains rule numbers, dates, or "
+            "exact document titles), also produce a single broader 'step-back' query "
+            "that captures the high-level context.\n"
+            "3. Return the list in the order: all decomposition queries first, then "
+            "the optional step-back query (if any).\n\n"
+            "Each sub-query must have 'type': 'decomposition' or 'type': 'step_back'.\n"
+            "Set 'needs_decomposition': true only if you generated sub-queries.\n"
+            "Set 'needs_decomposition': false and 'search_queries': [] for simple queries.\n\n"
             "Return ONLY a JSON object with these fields:\n"
-            '{"intent": "...", "target_doc_ids": [...], "rewritten_query": "..."}\n'
+            '{"intent": "...", "target_doc_ids": [...], "rewritten_query": "...", '
+            '"needs_decomposition": true/false, "search_queries": [...]}\n'
             "The rewritten_query should be the query cleaned up for vector search "
             "(remove document references, keep the actual search terms)."
         )
@@ -471,8 +612,22 @@ class VertexAIProvider(ModelProvider):
                     "items": {"type": "STRING"},
                 },
                 "rewritten_query": {"type": "STRING"},
+                "needs_decomposition": {"type": "BOOLEAN"},
+                "search_queries": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "query": {"type": "STRING"},
+                            "type": {"type": "STRING", "enum": ["decomposition", "step_back"]},
+                        },
+                        "required": ["query", "type"],
+                    },
+                    "maxItems": 3,
+                },
             },
-            "required": ["intent", "target_doc_ids", "rewritten_query"],
+            "required": ["intent", "target_doc_ids", "rewritten_query",
+                          "needs_decomposition", "search_queries"],
         }
 
         try:
@@ -480,7 +635,7 @@ class VertexAIProvider(ModelProvider):
                 prompt,
                 generation_config={
                     "temperature": 0.0,
-                    "max_output_tokens": 256,
+                    "max_output_tokens": 512,
                     "response_mime_type": "application/json",
                     "response_schema": response_schema,
                 },
@@ -493,6 +648,13 @@ class VertexAIProvider(ModelProvider):
                     "SPECIFIC_SEARCH", "DOCUMENT_SUMMARY", "GLOBAL_SEARCH"
                 ):
                     result["intent"] = "GLOBAL_SEARCH"
+                # Guarantee decomposition beats step-back when cap hits 3
+                search_queries = result.get("search_queries", [])
+                decomp = [q for q in search_queries if q.get("type") == "decomposition"]
+                stepback = [q for q in search_queries if q.get("type") == "step_back"]
+                final = decomp[:3] + stepback[:max(0, 3 - len(decomp))]
+                result["search_queries"] = final
+                result["needs_decomposition"] = len(final) > 0
                 return result
         except Exception:
             pass
@@ -502,6 +664,8 @@ class VertexAIProvider(ModelProvider):
             "intent": "GLOBAL_SEARCH",
             "target_doc_ids": [],
             "rewritten_query": safe_query,
+            "needs_decomposition": False,
+            "search_queries": [],
         }
 
     def rerank(

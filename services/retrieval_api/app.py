@@ -19,23 +19,41 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import time
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import Depends, FastAPI, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from services.common.auth.jwt import AuthContext, require_auth
 from services.common.auth.rate_limit import limiter
 from services.common.auth.validation import (
     MAX_HISTORY_TURNS,
     validate_doc_id,
+    validate_doc_ids,
     validate_history,
+    validate_query,
     validate_session_id,
     validate_tenant_id,
     validate_top_k,
+)
+from services.common.errors import (
+    DEFAULT_MESSAGES,
+    STATUS_TO_CODE,
+    BadUpstreamResponse,
+    Conflict,
+    DependencyTimeout,
+    DependencyUnavailable,
+    ErrorCode,
+    InvalidInput,
+    NotFound,
+    ServiceError,
+    error_envelope,
 )
 from services.common.ingestion.store import get_chunk_store
 from services.common.models.factory import get_model_provider
@@ -62,21 +80,24 @@ from services.common.retrieval.synthesis import validate_citations
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("retrieval-api")
 
-_RAW_BUCKET = "iris-raw-pdfs"
+_RAW_BUCKET = os.environ.get("GCS_RAW_BUCKET", "procambrian-iris-staging-raw")
 _VIEW_URL_TTL_SECONDS = 900
 
 # Upload guards (Task 5.0b): size cap before any GCS write; page cap enforced
 # downstream by the ingestion-worker preflight. 50 MB is generous for scanned
 # legal PDFs and far below Cloud Run request limits.
 _UPLOAD_MAX_BYTES = 50 * 1024 * 1024
+_UPLOAD_CHUNK_BYTES = 1024 * 1024
 
 # Ingestion trigger (Task 5.0b): the ingestion-worker /ingest endpoint performs
 # preflight + page split + Pub/Sub fan-out. It's secured by Cloud Run IAM, so we
 # impersonate its service account to mint an ID token (same pattern as
 # scripts/eval_phase2.py). Env overridable for local/emulator tests.
 _INGEST_URL = os.environ.get("INGEST_URL", "")
-_INGEST_SA = os.environ.get("INGEST_SA", "ingestion-worker-sa@naturepivot-rag.iam.gserviceaccount.com")
-_GCP_PROJECT = os.environ.get("GCP_PROJECT", "naturepivot-rag")
+_INGEST_SA = os.environ.get(
+    "INGEST_SA", "ingestion-worker-sa@procambrian-iris-staging-2026.iam.gserviceaccount.com"
+)
+_GCP_PROJECT = os.environ.get("GCP_PROJECT", "procambrian-iris-staging-2026")
 
 
 def _env_rerank_blend() -> Optional[float]:
@@ -139,78 +160,165 @@ def _delete_firestore_doc(doc_path: str) -> None:
         logger.warning("Firestore delete failed for %s: %s", doc_path, exc)
 
 
+def _session_store_unavailable(cause: Exception | None = None) -> DependencyUnavailable:
+    return DependencyUnavailable(
+        "The session store is temporarily unavailable.",
+        code=ErrorCode.SESSION_STORE_UNAVAILABLE,
+    )
+
+
 def _create_firestore_session(tenant_id: str) -> str:
-    """Create an empty session document and return the new session_id."""
+    """Create an empty session document and return the new session_id.
+
+    Phase 0.1: never returns an unpersisted id. If Firestore is unavailable or
+    the write fails, raises a typed 503 so the caller cannot mint a phantom
+    session that later fails open.
+    """
     session_id = str(uuid.uuid4())
     client = _get_firestore_client()
     if client is None:
-        logger.warning("Firestore unavailable; session not created")
-        return session_id
+        raise _session_store_unavailable()
     try:
         client.document(f"tenants/{tenant_id}/sessions/{session_id}").set({
             "session_id": session_id,
             "tenant_id": tenant_id,
             "name": "",
             "document_ids": [],
+            "turn_seq": 0,
             "created_at": _server_timestamp(),
         })
     except Exception as exc:
         logger.warning("Firestore session create failed: %s", exc)
+        raise _session_store_unavailable(exc) from exc
     return session_id
 
 
+def _session_doc_path(tenant_id: str, session_id: str) -> str:
+    return f"tenants/{tenant_id}/sessions/{session_id}"
+
+
+def _session_messages_path(tenant_id: str, session_id: str) -> str:
+    return f"{_session_doc_path(tenant_id, session_id)}/messages"
+
+
 def _append_firestore_messages(
-    tenant_id: str, session_id: str, messages: list[dict]
-) -> None:
-    """Write user + assistant messages to the session's messages sub-collection."""
+    tenant_id: str,
+    session_id: str,
+    messages: list[dict],
+    expected_turn_seq: Optional[int] = None,
+) -> int:
+    """Atomically append a complete turn (user + assistant) to the session.
+
+    Phase 0.1 (P0): the turn sequence is allocated inside a Firestore
+    transaction, so ordering is correct across independent Cloud Run instances
+    — never from an in-process counter. Each message is stored with its
+    ``turn_seq`` and ``message_index``.
+
+    When ``expected_turn_seq`` is supplied (the value read before synthesis),
+    the transaction raises :class:`Conflict` if the session advanced in the
+    meantime. This is optimistic concurrency: a stale answer cannot be appended
+    out of order behind a newer turn.
+    """
+    if not messages:
+        return expected_turn_seq if expected_turn_seq is not None else 0
     client = _get_firestore_client()
     if client is None:
-        return
-    path = f"tenants/{tenant_id}/sessions/{session_id}/messages"
-    try:
-        col = client.collection(path)
-        for msg in messages:
-            col.add({
+        raise _session_store_unavailable()
+
+    from google.cloud import firestore
+
+    session_ref = client.document(_session_doc_path(tenant_id, session_id))
+    collection = client.collection(_session_messages_path(tenant_id, session_id))
+    transaction = client.transaction()
+
+    @firestore.transactional
+    def _write(txn) -> int:
+        snapshot = session_ref.get(transaction=txn)
+        current = 0
+        if snapshot.exists:
+            current = int((snapshot.to_dict() or {}).get("turn_seq", 0) or 0)
+        if expected_turn_seq is not None and current != expected_turn_seq:
+            raise Conflict(
+                "The conversation changed while this answer was generated; please retry."
+            )
+        turn_seq = current + 1
+        for index, msg in enumerate(messages):
+            txn.set(collection.document(f"{turn_seq:020d}-{index}"), {
                 "role": msg["role"],
                 "content": msg["content"],
-                "created_at": _server_timestamp(),
+                "turn_seq": turn_seq,
+                "message_index": index,
+                "created_at": datetime.now(timezone.utc),
             })
+        txn.set(session_ref, {"turn_seq": turn_seq}, merge=True)
+        return turn_seq
+
+    try:
+        return _write(transaction)
+    except Conflict:
+        raise
     except Exception as exc:
         logger.warning("Firestore messages append failed: %s", exc)
+        raise _session_store_unavailable(exc) from exc
+
+
+def _load_session_history(
+    tenant_id: str, session_id: str, limit: int = 6
+) -> tuple[list[dict], int]:
+    """Load the last N messages and the current turn version.
+
+    Returns ``(messages_oldest_first, turn_seq)``. Ordering uses the
+    transaction-allocated ``turn_seq`` (+ ``message_index``), not wall-clock
+    timestamps.
+    """
+    client = _get_firestore_client()
+    if client is None:
+        raise _session_store_unavailable()
+    try:
+        session_snap = client.document(_session_doc_path(tenant_id, session_id)).get()
+        version = 0
+        if session_snap.exists:
+            version = int((session_snap.to_dict() or {}).get("turn_seq", 0) or 0)
+        docs = list(
+            client.collection(_session_messages_path(tenant_id, session_id))
+            .order_by("turn_seq", direction="DESCENDING")
+            .order_by("message_index", direction="DESCENDING")
+            .limit(limit)
+            .stream()
+        )
+        docs.reverse()  # newest-first → chronological
+        messages = [
+            {"role": d.get("role", ""), "content": d.get("content", "")} for d in docs
+        ]
+        return messages, version
+    except Exception as exc:
+        logger.warning("Firestore messages load failed: %s", exc)
+        raise _session_store_unavailable(exc) from exc
 
 
 def _load_firestore_messages(
     tenant_id: str, session_id: str, limit: int = 6
 ) -> list[dict]:
-    """Load the last N messages from Firestore, returned in chronological order."""
-    client = _get_firestore_client()
-    if client is None:
-        return []
-    path = f"tenants/{tenant_id}/sessions/{session_id}/messages"
-    try:
-        docs = list(
-            client.collection(path)
-            .order_by("created_at", direction="DESCENDING")
-            .limit(limit)
-            .stream()
-        )
-        docs.reverse()  # newest-first → chronological (oldest-first)
-        return [{"role": d.get("role", ""), "content": d.get("content", "")} for d in docs]
-    except Exception as exc:
-        logger.warning("Firestore messages load failed: %s", exc)
-        return []
+    """Load the last N messages in chronological order (messages only)."""
+    messages, _version = _load_session_history(tenant_id, session_id, limit)
+    return messages
 
 
 def _session_exists(tenant_id: str, session_id: str) -> bool:
-    """Check if a session document belongs to this tenant."""
+    """Check whether a session document belongs to this tenant.
+
+    Phase 0.1: fails closed. A missing client or a query error raises a typed
+    503 rather than reporting that an unverified session exists.
+    """
     client = _get_firestore_client()
     if client is None:
-        return True  # if Firestore is down, don't block the request
+        raise _session_store_unavailable()
     try:
         doc = client.document(f"tenants/{tenant_id}/sessions/{session_id}").get()
-        return doc.exists
-    except Exception:
-        return True
+        return bool(doc.exists)
+    except Exception as exc:
+        logger.warning("Firestore session existence check failed: %s", exc)
+        raise _session_store_unavailable(exc) from exc
 
 
 def _delete_firestore_session(tenant_id: str, session_id: str) -> None:
@@ -305,19 +413,73 @@ def _document_exists(tenant_id: str, doc_id: str) -> bool:
     client = _get_firestore_client()
     if client is None:
         raise HTTPException(status_code=503, detail="Firestore unavailable")
-    snapshot = client.document(f"tenants/{tenant_id}/documents/{doc_id}").get()
+    try:
+        snapshot = client.document(f"tenants/{tenant_id}/documents/{doc_id}").get()
+    except Exception as exc:  # noqa: BLE001 - provider text must not reach clients
+        logger.warning("firestore document ownership lookup failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Firestore unavailable") from exc
     if not snapshot.exists:
         raise HTTPException(status_code=404, detail="Document not found")
 
 
-def _upload_pdf_to_gcs(tenant_id: str, doc_id: str, content: bytes) -> None:
-    """Stream the uploaded PDF to gs://iris-raw-pdfs/{tenant}/{doc_id}.pdf."""
+def _authorized_doc_ids(tenant_id: str, requested: list[str] | None) -> list[str]:
+    """Resolve requested doc ids against tenant ownership.
+
+    Client-supplied ``doc_ids``/``active_docs`` are requests, not proof of
+    access. Every id must resolve to a document under this tenant or the
+    request is rejected. Returns the authorized, de-duplicated ids.
+    """
+    if not requested:
+        return []
+    authorized: list[str] = []
+    for doc_id in requested:
+        _document_exists(tenant_id, doc_id)
+        if doc_id not in authorized:
+            authorized.append(doc_id)
+    return authorized
+
+
+async def _stream_upload_to_gcs(tenant_id: str, doc_id: str, file: UploadFile) -> int:
+    """Stream an upload to GCS in bounded chunks, enforcing the size cap.
+
+    Phase 0.1 (ING-001): the whole document is never buffered in memory.
+    Returns the byte count written; partial blobs are removed on failure.
+    """
     gcs = _get_gcs_client()
     if gcs is None:
-        raise HTTPException(status_code=503, detail="Storage unavailable")
-    bucket = gcs.bucket(_RAW_BUCKET)
-    blob = bucket.blob(f"{tenant_id}/{doc_id}.pdf")
-    blob.upload_from_string(content, content_type="application/pdf")
+        raise DependencyUnavailable("Storage is unavailable.")
+    blob = gcs.bucket(_RAW_BUCKET).blob(f"{tenant_id}/{doc_id}.pdf")
+    total = 0
+    try:
+        with blob.open("wb", content_type="application/pdf") as handle:
+            while True:
+                chunk = await file.read(_UPLOAD_CHUNK_BYTES)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > _UPLOAD_MAX_BYTES:
+                    raise InvalidInput(
+                        f"File exceeds {_UPLOAD_MAX_BYTES // (1024 * 1024)} MB limit"
+                    )
+                handle.write(chunk)
+    except ServiceError:
+        _safe_delete_blob(blob)
+        raise
+    except Exception as exc:
+        _safe_delete_blob(blob)
+        logger.exception("GCS upload failed for tenant %s doc %s", tenant_id, doc_id)
+        raise BadUpstreamResponse("Storage write failed.") from exc
+    if total == 0:
+        _safe_delete_blob(blob)
+        raise InvalidInput("Empty file")
+    return total
+
+
+def _safe_delete_blob(blob) -> None:
+    try:
+        blob.delete()
+    except Exception:
+        pass
 
 
 def _create_document_record(tenant_id: str, doc_id: str, filename: str) -> None:
@@ -341,12 +503,13 @@ def _create_document_record(tenant_id: str, doc_id: str, filename: str) -> None:
 def _trigger_ingestion(tenant_id: str, doc_id: str) -> dict:
     """Call ingestion-worker /ingest to preflight + split + fan out to Pub/Sub.
 
-    Returns the worker's response JSON. On failure raises HTTPException so the
-    upload can report a clear error (the raw PDF is already in GCS; a retry of
-    the upload with the same doc_id must be handled, so this does NOT delete).
+    Phase 0.1: the upstream HTTP status is checked *before* its body is
+    accepted, the success payload is schema-validated, and timeouts/auth/
+    rejection/server failures are distinguished with typed errors. Raises
+    ``ServiceError`` so the upload path can report a stable code.
     """
     if not _INGEST_URL:
-        raise HTTPException(status_code=503, detail="Ingestion service not configured")
+        raise DependencyUnavailable("The ingestion service is not configured.")
 
     import requests
     from google.auth import default
@@ -355,36 +518,74 @@ def _trigger_ingestion(tenant_id: str, doc_id: str) -> dict:
     # Mint an ID token as the ingestion-worker SA (Cloud Run IAM) via the
     # IAM Credentials generateIdToken API — impersonated_credentials only
     # yields access tokens, not ID tokens.
-    creds, _ = default()
-    auth_req = gauth_requests.Request()
-    creds.refresh(auth_req)
-    token_endpoint = (
-        "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/"
-        f"{_INGEST_SA}:generateIdToken"
-    )
-    resp = requests.post(
-        token_endpoint,
-        headers={"Authorization": f"Bearer {creds.token}"},
-        json={"audience": _INGEST_URL, "includeEmail": True},
-        timeout=30,
-    )
-    if resp.status_code != 200:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Ingestion auth failed (HTTP {resp.status_code})",
-        )
-    id_token = resp.json()["token"]
-
-    resp = requests.post(
-        f"{_INGEST_URL}/ingest",
-        json={"gcs_uri": f"gs://{_RAW_BUCKET}/{tenant_id}/{doc_id}.pdf", "tenant_id": tenant_id, "doc_id": doc_id},
-        headers={"Authorization": f"Bearer {id_token}"},
-        timeout=120,
-    )
     try:
-        return resp.json()
-    except Exception:
-        raise HTTPException(status_code=502, detail=f"Ingestion trigger failed (HTTP {resp.status_code})") from None
+        creds, _ = default()
+        auth_req = gauth_requests.Request()
+        creds.refresh(auth_req)
+        token_endpoint = (
+            "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/"
+            f"{_INGEST_SA}:generateIdToken"
+        )
+        resp = requests.post(
+            token_endpoint,
+            headers={"Authorization": f"Bearer {creds.token}"},
+            json={"audience": _INGEST_URL, "includeEmail": True},
+            timeout=(5, 30),
+        )
+    except requests.Timeout as exc:
+        raise DependencyTimeout("Timed out authenticating to the ingestion service.") from exc
+    except requests.RequestException as exc:
+        raise DependencyUnavailable("Could not reach the ingestion service.") from exc
+
+    if resp.status_code != 200:
+        raise BadUpstreamResponse("The ingestion service authentication failed.")
+    try:
+        payload = resp.json()
+        id_token = payload["token"]
+    except Exception as exc:
+        raise BadUpstreamResponse(
+            "The ingestion service authentication returned an invalid response."
+        ) from exc
+    if not isinstance(id_token, str) or not id_token:
+        raise BadUpstreamResponse("The ingestion service authentication returned no token.")
+
+    try:
+        resp = requests.post(
+            f"{_INGEST_URL}/ingest",
+            json={
+                "gcs_uri": f"gs://{_RAW_BUCKET}/{tenant_id}/{doc_id}.pdf",
+                "tenant_id": tenant_id,
+                "doc_id": doc_id,
+            },
+            headers={"Authorization": f"Bearer {id_token}"},
+            timeout=(5, 120),
+        )
+    except requests.Timeout as exc:
+        raise DependencyTimeout("The ingestion service timed out.") from exc
+    except requests.RequestException as exc:
+        raise DependencyUnavailable("The ingestion service is unavailable.") from exc
+
+    if resp.status_code in (401, 403):
+        raise DependencyUnavailable("The ingestion service rejected our credentials.")
+    if resp.status_code == 429:
+        raise DependencyUnavailable("The ingestion service is rate limited.")
+    if resp.status_code >= 500:
+        raise DependencyUnavailable("The ingestion service is temporarily unavailable.")
+    if resp.status_code >= 400:
+        raise BadUpstreamResponse("The ingestion service rejected the request.")
+
+    try:
+        data = resp.json()
+    except Exception as exc:
+        raise BadUpstreamResponse("The ingestion service returned an invalid response.") from exc
+    if not isinstance(data, dict):
+        raise BadUpstreamResponse("The ingestion service returned an invalid response.")
+    if "total_pages" in data and data["total_pages"] is not None:
+        if not isinstance(data["total_pages"], int) or isinstance(data["total_pages"], bool):
+            raise BadUpstreamResponse("The ingestion service returned an invalid response.")
+    if "status" in data and not isinstance(data["status"], str):
+        raise BadUpstreamResponse("The ingestion service returned an invalid response.")
+    return data
 
 
 # --- App --------------------------------------------------------------------------
@@ -420,6 +621,74 @@ def add_cors_middleware(application: FastAPI) -> None:
 
 
 add_cors_middleware(app)
+
+_REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
+
+def _request_id(request: Request) -> str:
+    return getattr(request.state, "request_id", "") or ""
+
+
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next):
+    """Attach a validated/generated correlation ID to every request + response."""
+    raw = request.headers.get("X-Request-ID", "")
+    request.state.request_id = raw if _REQUEST_ID_PATTERN.match(raw) else uuid.uuid4().hex
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request.state.request_id
+    return response
+
+
+def _error_response(request, code, message, status_code, headers=None):
+    return JSONResponse(
+        status_code=status_code,
+        content=error_envelope(code, message, _request_id(request)),
+        headers=headers,
+    )
+
+
+@app.exception_handler(ServiceError)
+async def _handle_service_error(request: Request, exc: ServiceError):
+    logger.warning(
+        "service_error code=%s status=%s request_id=%s",
+        exc.code, exc.status_code, _request_id(request),
+    )
+    headers = {"Retry-After": "1"} if exc.code == ErrorCode.RATE_LIMITED else None
+    return _error_response(request, exc.code, exc.public_message, exc.status_code, headers)
+
+
+@app.exception_handler(RequestValidationError)
+async def _handle_validation_error(request: Request, exc: RequestValidationError):
+    return _error_response(
+        request,
+        ErrorCode.INVALID_REQUEST,
+        DEFAULT_MESSAGES[ErrorCode.INVALID_REQUEST],
+        422,
+    )
+
+
+@app.exception_handler(HTTPException)
+async def _handle_http_exception(request: Request, exc: HTTPException):
+    code = STATUS_TO_CODE.get(exc.status_code, ErrorCode.INTERNAL_ERROR)
+    if exc.status_code < 500 and isinstance(exc.detail, str) and exc.detail:
+        message = exc.detail
+    else:
+        message = DEFAULT_MESSAGES[code]
+    return _error_response(
+        request, code, message, exc.status_code, headers=getattr(exc, "headers", None)
+    )
+
+
+@app.exception_handler(Exception)
+async def _handle_unexpected_exception(request: Request, exc: Exception):
+    logger.exception("unhandled_exception request_id=%s", _request_id(request))
+    return _error_response(
+        request,
+        ErrorCode.INTERNAL_ERROR,
+        DEFAULT_MESSAGES[ErrorCode.INTERNAL_ERROR],
+        500,
+    )
+
 
 store = get_chunk_store()
 provider = get_model_provider()
@@ -529,9 +798,11 @@ async def search(
     auth: AuthContext = Depends(require_auth),
 ):
     validate_tenant_id(auth.tenant_id)
+    validate_query(request.query)
     limiter.check(f"tenant:{auth.tenant_id}")
     top_k = validate_top_k(request.top_k, for_synthesis=False)
     history = validate_history(request.history)
+    doc_ids = _authorized_doc_ids(auth.tenant_id, request.doc_ids)
     try:
         t0 = time.perf_counter()
         trace = None
@@ -542,14 +813,15 @@ async def search(
                 query=request.query,
                 tenant_id=auth.tenant_id,
                 history=history,
-                doc_ids=request.doc_ids,
+                doc_ids=doc_ids or None,
                 top_k=top_k,
+                trace=trace,
             )
         else:
             results, trace = await orchestrator.standard_search(
                 query=request.query,
                 tenant_id=auth.tenant_id,
-                doc_ids=request.doc_ids,
+                doc_ids=doc_ids or None,
                 top_k=top_k,
                 rerank_blend=request.rerank_blend,
                 history=history,
@@ -561,9 +833,11 @@ async def search(
             latency_ms=latency,
             trace=trace,
         )
+    except ServiceError:
+        raise
     except Exception as exc:
         logger.exception("Search failed for tenant %s", auth.tenant_id)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise ServiceError() from exc
 
 
 @app.post("/query", response_model=QueryResponse)
@@ -573,37 +847,59 @@ async def query(
 ):
     """Retrieve -> synthesize -> grounded structured answer."""
     validate_tenant_id(auth.tenant_id)
+    validate_query(request.query)
+    # Rate limit BEFORE any session creation or Firestore document reads so an
+    # over-limit caller cannot generate database cost.
+    limiter.check(f"tenant:{auth.tenant_id}")
+    active_docs = (
+        [d.model_dump() for d in request.active_docs] if request.active_docs else []
+    )
+    authorized_active_ids = _authorized_doc_ids(
+        auth.tenant_id, [d["doc_id"] for d in active_docs]
+    )
+    authorized_doc_ids = _authorized_doc_ids(
+        auth.tenant_id, validate_doc_ids(request.doc_ids)
+    )
+    authorized_scope = set(authorized_active_ids) | set(authorized_doc_ids)
     if request.session_id:
         validate_session_id(request.session_id)
         if not await asyncio.to_thread(_session_exists, auth.tenant_id, request.session_id):
-            raise HTTPException(status_code=404, detail="Session not found")
+            raise NotFound("Session not found")
+        # Server history is authoritative for a session: client-supplied turns
+        # are ignored entirely (never merged). The version read here is used
+        # as an optimistic-concurrency guard when appending the answer.
+        history, session_version = await asyncio.to_thread(
+            _load_session_history, auth.tenant_id, request.session_id, MAX_HISTORY_TURNS
+        )
     else:
         request.session_id = await asyncio.to_thread(
             _create_firestore_session, auth.tenant_id
         )
-    limiter.check(f"tenant:{auth.tenant_id}")
+        # Client history is only honored for a stateless request.
+        history = validate_history(request.history)
+        session_version = 0
     top_k = validate_top_k(request.top_k, for_synthesis=True)
-    history = validate_history(request.history)
-    if request.session_id:
-        server_history = await asyncio.to_thread(
-            _load_firestore_messages, auth.tenant_id, request.session_id, MAX_HISTORY_TURNS
-        )
-        if server_history:
-            history = server_history
     try:
         t0 = time.perf_counter()
         trace = None
         if request.trace:
             trace = {}
 
-        # Intent routing: if active_docs provided, classify and route
+        # Intent defaults are initialized on every path so standard/deep
+        # requests without active_docs never dereference an unbound name.
+        intent = {
+            "intent": "GENERAL_SEARCH",
+            "target_doc_ids": [],
+            "needs_decomposition": False,
+            "search_queries": [],
+            "rewritten_query": request.query,
+        }
         query_to_use = request.query
-        doc_ids_filter = request.doc_ids
+        doc_ids_filter = authorized_doc_ids or None
 
         # Fallback: if active_docs is empty but query references a specific document,
         # warn the user instead of searching blindly across all docs
         if not request.active_docs and not request.doc_ids:
-            import re
             if re.search(r'\b(first|second|third|doc_\d|document\s*\d)\b', request.query, re.IGNORECASE):
                 if trace is not None:
                     trace["warning"] = "Document reference detected but no active_docs provided. Upload documents first."
@@ -611,8 +907,12 @@ async def query(
         if request.active_docs and request.mode != "deep":
             try:
                 intent = await asyncio.to_thread(
-                    provider.route_query, request.query, request.active_docs
+                    provider.route_query, request.query, active_docs
                 )
+                # The router may only target documents the server authorized.
+                intent["target_doc_ids"] = [
+                    d for d in intent.get("target_doc_ids", []) if d in authorized_scope
+                ]
                 if trace is not None:
                     trace["intent"] = intent
 
@@ -659,6 +959,7 @@ async def query(
                                     {"role": "user", "content": request.query},
                                     {"role": "assistant", "content": answer.answer},
                                 ],
+                                session_version,
                             )
                         latency = round((time.perf_counter() - t0) * 1000, 2)
                         if trace is not None:
@@ -689,7 +990,45 @@ async def query(
                 history=history,
                 doc_ids=doc_ids_filter,
                 top_k=top_k,
+                trace=trace,
             )
+        elif intent.get("needs_decomposition") and intent.get("search_queries"):
+            # Multi-query decomposition: batch-embed + parallel fan-out + dedup
+            sub_queries = intent["search_queries"]
+            sub_texts = [sq["query"] for sq in sub_queries]
+
+            # Batch-embed all sub-queries in one HTTP call (~80ms vs ~240ms sequential)
+            sub_vectors = await asyncio.to_thread(
+                provider.embed_query_batch, sub_texts
+            )
+
+            # Fan out parallel searches — each gets pre-computed vector + text for BM25
+            search_tasks = [
+                orchestrator.standard_search(
+                    query=sub_texts[i],
+                    tenant_id=auth.tenant_id,
+                    doc_ids=doc_ids_filter,
+                    top_k=top_k,
+                    rerank_blend=_env_rerank_blend(),
+                    query_vector=sub_vectors[i],
+                    query_text_for_sparse=sub_texts[i],
+                )
+                for i in range(len(sub_texts))
+            ]
+
+            # Collect parallel results
+            sub_results = await asyncio.gather(*search_tasks)
+
+            # Merge: flatten all scored chunks, dedup by chunk_id, keep highest score
+            all_chunks: dict = {}
+            for results, _sub_trace in sub_results:
+                for chunk in results:
+                    cid = chunk.id
+                    if cid not in all_chunks or chunk.score > all_chunks[cid].score:
+                        all_chunks[cid] = chunk
+
+            retrieved = sorted(all_chunks.values(), key=lambda c: c.score, reverse=True)
+            retrieved = retrieved[:top_k]  # cap before parent expansion
         else:
             # RERANK_BLEND (Phase 12.1): server-side default rerank weight for
             # production answers — /query has no request-level blend param, so
@@ -721,6 +1060,7 @@ async def query(
                     {"role": "user", "content": request.query},
                     {"role": "assistant", "content": answer.answer},
                 ],
+                session_version,
             )
         latency = round((time.perf_counter() - t0) * 1000, 2)
 
@@ -748,9 +1088,11 @@ async def query(
             session_id=request.session_id,
             trace=trace,
         )
+    except ServiceError:
+        raise
     except Exception as exc:
         logger.exception("Query failed for tenant %s", auth.tenant_id)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise ServiceError() from exc
 
 
 def _expand_to_parent_pages(
@@ -1055,47 +1397,31 @@ async def upload_document(
     validate_doc_id(doc_id)
 
     if file.content_type not in ("application/pdf", "application/octet-stream"):
-        raise HTTPException(status_code=422, detail="Only PDF files are accepted")
-
-    content = await file.read(_UPLOAD_MAX_BYTES + 1)
-    if not content:
-        raise HTTPException(status_code=422, detail="Empty file")
-    if len(content) > _UPLOAD_MAX_BYTES:
-        raise HTTPException(
-            status_code=422,
-            detail=f"File exceeds {_UPLOAD_MAX_BYTES // (1024 * 1024)} MB limit",
-        )
+        raise InvalidInput("Only PDF files are accepted")
 
     # Reject duplicates before writing anything (409 keeps re-upload idempotent
     # without clobbering an existing ingestion in flight).
     client = _get_firestore_client()
     if client is None:
-        raise HTTPException(status_code=503, detail="Firestore unavailable")
+        raise DependencyUnavailable("Firestore is unavailable.")
     existing = client.document(f"tenants/{auth.tenant_id}/documents/{doc_id}").get()
     if existing.exists:
-        raise HTTPException(
-            status_code=409,
-            detail=f"doc_id '{doc_id}' already exists; use DELETE first to re-upload",
-        )
+        raise Conflict("A document with this id already exists; delete it before re-uploading.")
 
     filename = file.filename or f"{doc_id}.pdf"
-    try:
-        _upload_pdf_to_gcs(auth.tenant_id, doc_id, content)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("GCS upload failed for tenant %s doc %s", auth.tenant_id, doc_id)
-        raise HTTPException(status_code=502, detail=f"Storage write failed: {exc}") from exc
+    await _stream_upload_to_gcs(auth.tenant_id, doc_id, file)
 
     _create_document_record(auth.tenant_id, doc_id, filename)
 
     try:
         worker_resp = _trigger_ingestion(auth.tenant_id, doc_id)
-    except HTTPException as exc:
+    except ServiceError as exc:
         # The PDF + record are persisted; report the trigger failure but don't
         # delete them — a retry of /ingest (or manual trigger) can recover.
-        logger.warning("Ingestion trigger failed for %s/%s: %s", auth.tenant_id, doc_id, exc.detail)
-        raise exc
+        logger.warning(
+            "Ingestion trigger failed for %s/%s: %s", auth.tenant_id, doc_id, exc.public_code
+        )
+        raise
 
     if "total_pages" in worker_resp and worker_resp["total_pages"]:
         try:
@@ -1107,6 +1433,7 @@ async def upload_document(
 
     status = worker_resp.get("status", "processing")
     if status == "rejected":
-        raise HTTPException(status_code=422, detail=worker_resp.get("reason", "Ingestion rejected file"))
+        # Enumerated rejection message only — never worker exception text.
+        raise InvalidInput(worker_resp.get("message") or "Ingestion rejected the file")
 
     return UploadResponse(doc_id=doc_id, status=status)
