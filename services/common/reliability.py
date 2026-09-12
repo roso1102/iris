@@ -13,12 +13,14 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import contextvars
 import logging
 import multiprocessing
 import os
 import random
 import threading
 import time
+import warnings
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, TypeVar
 
@@ -85,6 +87,36 @@ _DEADLINE_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
     max_workers=8, thread_name_prefix="iris-deadline"
 )
 
+_CHILD_PEAK_RSS_MB: contextvars.ContextVar[float] = contextvars.ContextVar(
+    "iris_child_peak_rss_mb", default=0.0
+)
+_CHILD_WARNINGS: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar(
+    "iris_child_warnings", default=()
+)
+_CORRELATION_ID: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "iris_correlation_id", default=""
+)
+
+
+def reset_isolation_metrics() -> None:
+    _CHILD_PEAK_RSS_MB.set(0.0)
+    _CHILD_WARNINGS.set(())
+
+
+def isolation_metrics() -> dict[str, Any]:
+    return {
+        "child_peak_rss_mb": _CHILD_PEAK_RSS_MB.get(),
+        "child_warnings": list(_CHILD_WARNINGS.get()),
+    }
+
+
+def set_correlation_id(value: str) -> None:
+    _CORRELATION_ID.set(value or "")
+
+
+def correlation_id() -> str:
+    return _CORRELATION_ID.get()
+
 
 class TransientError(Exception):
     """Failure that is safe to retry."""
@@ -106,15 +138,27 @@ def _isolated_entry(conn, fn: Callable[[], Any]) -> None:
         logging._lock = threading.RLock()  # type: ignore[attr-defined]
     except Exception:  # pragma: no cover - defensive
         pass
+    child_warnings: list[str] = []
     try:
-        status, payload = "ok", fn()
-    except BaseException as exc:  # noqa: BLE001 - relayed to the parent
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            try:
+                status, payload = "ok", fn()
+            except BaseException as exc:  # noqa: BLE001 - relayed to the parent
+                status, payload = "error", exc
+            child_warnings = [str(item.message) for item in captured]
+    except BaseException as exc:  # pragma: no cover - defensive
         status, payload = "error", exc
     try:
-        conn.send((status, payload))
+        import resource
+        child_rss_mb = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024.0
+    except Exception:  # pragma: no cover - non-Unix defensive path
+        child_rss_mb = 0.0
+    try:
+        conn.send((status, payload, child_warnings, child_rss_mb))
     except Exception as exc:  # outcome was not picklable
         try:
-            conn.send(("error", TransientError(f"unpicklable outcome: {exc}")))
+            conn.send(("error", TransientError(f"unpicklable outcome: {exc}"), [], 0.0))
         except Exception:  # pragma: no cover - defensive
             pass
     finally:
@@ -133,7 +177,24 @@ def _run_isolated(fn: Callable[[], T], timeout: float, operation: str) -> T:
         if not parent_conn.poll(timeout):
             raise CallTimeout(f"{operation}: per-attempt timeout after {timeout:g}s")
         try:
-            status, payload = parent_conn.recv()
+            outcome = parent_conn.recv()
+            if len(outcome) == 2:
+                status, payload = outcome
+                child_warnings, child_rss_mb = [], 0.0
+            else:
+                status, payload, child_warnings, child_rss_mb = outcome
+            if child_rss_mb:
+                _CHILD_PEAK_RSS_MB.set(max(_CHILD_PEAK_RSS_MB.get(), child_rss_mb))
+            if child_warnings:
+                prior = list(_CHILD_WARNINGS.get())
+                prior.extend(str(item) for item in child_warnings)
+                _CHILD_WARNINGS.set(tuple(prior))
+                for warning in child_warnings:
+                    logger.warning(
+                        "isolated_child_warning=%s correlation_id=%s",
+                        warning,
+                        correlation_id(),
+                    )
         except EOFError as exc:
             raise TransientError(f"{operation}: worker exited before returning") from exc
         if status == "ok":
@@ -293,14 +354,22 @@ def retry_call(
     """
     started = clock()
     last_exc: Optional[BaseException] = None
-    attempt_timeout = policy.per_attempt_timeout if enforce_attempt_timeout else None
     for attempt in range(policy.max_attempts):
-        if _deadline_expired(started, policy, clock):
+        remaining = policy.overall_deadline - (clock() - started)
+        if remaining <= 0:
             if last_exc is not None:
                 raise last_exc
             raise TransientError(f"{policy.operation}: overall deadline exceeded")
         try:
-            return run_with_timeout(fn, attempt_timeout, policy.operation, isolate)
+            attempt_timeout = (
+                min(policy.per_attempt_timeout, remaining)
+                if enforce_attempt_timeout
+                else None
+            )
+            result = run_with_timeout(fn, attempt_timeout, policy.operation, isolate)
+            if clock() - started > policy.overall_deadline:
+                raise CallTimeout(f"{policy.operation}: overall deadline exceeded")
+            return result
         except (KeyboardInterrupt, SystemExit):
             raise
         except BaseException as exc:  # noqa: BLE001 - classification decides
@@ -308,12 +377,13 @@ def retry_call(
             is_transient = retry_on(exc) if retry_on is not None else classify_exception(exc) == "transient"
             if not is_transient or attempt >= policy.max_attempts - 1:
                 raise
-            if _deadline_expired(started, policy, clock):
+            remaining = policy.overall_deadline - (clock() - started)
+            if remaining <= 0:
                 raise
-            delay = policy.delay_for(attempt, retry_after)
+            delay = min(policy.delay_for(attempt, retry_after), remaining)
             logger.warning(
-                "retry operation=%s attempt=%d delay_ms=%.0f transient=true",
-                policy.operation, attempt + 1, delay * 1000.0,
+                "retry operation=%s attempt=%d delay_ms=%.0f transient=true correlation_id=%s",
+                policy.operation, attempt + 1, delay * 1000.0, correlation_id(),
             )
             if on_retry is not None:
                 on_retry(attempt, exc, delay)
@@ -340,14 +410,22 @@ async def retry_call_async(
     """
     started = clock()
     last_exc: Optional[BaseException] = None
-    attempt_timeout = policy.per_attempt_timeout if enforce_attempt_timeout else None
     for attempt in range(policy.max_attempts):
-        if _deadline_expired(started, policy, clock):
+        remaining = policy.overall_deadline - (clock() - started)
+        if remaining <= 0:
             if last_exc is not None:
                 raise last_exc
             raise TransientError(f"{policy.operation}: overall deadline exceeded")
         try:
-            return await run_async_with_timeout(fn, attempt_timeout, policy.operation)
+            attempt_timeout = (
+                min(policy.per_attempt_timeout, remaining)
+                if enforce_attempt_timeout
+                else None
+            )
+            result = await run_async_with_timeout(fn, attempt_timeout, policy.operation)
+            if clock() - started > policy.overall_deadline:
+                raise CallTimeout(f"{policy.operation}: overall deadline exceeded")
+            return result
         except (KeyboardInterrupt, SystemExit):
             raise
         except BaseException as exc:  # noqa: BLE001
@@ -355,12 +433,13 @@ async def retry_call_async(
             is_transient = retry_on(exc) if retry_on is not None else classify_exception(exc) == "transient"
             if not is_transient or attempt >= policy.max_attempts - 1:
                 raise
-            if _deadline_expired(started, policy, clock):
+            remaining = policy.overall_deadline - (clock() - started)
+            if remaining <= 0:
                 raise
-            delay = policy.delay_for(attempt, retry_after)
+            delay = min(policy.delay_for(attempt, retry_after), remaining)
             logger.warning(
-                "retry operation=%s attempt=%d delay_ms=%.0f transient=true",
-                policy.operation, attempt + 1, delay * 1000.0,
+                "retry operation=%s attempt=%d delay_ms=%.0f transient=true correlation_id=%s",
+                policy.operation, attempt + 1, delay * 1000.0, correlation_id(),
             )
             if on_retry is not None:
                 on_retry(attempt, exc, delay)

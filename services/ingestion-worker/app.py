@@ -523,6 +523,35 @@ def _check_all_pages_done(tenant_id: str, doc_id: str) -> bool:
     return completed >= total
 
 
+def generate_summary_text(model, full_text: str) -> tuple[str, list[str]]:
+    """Generate and parse a document summary using the production prompt."""
+    prompt = (
+        "Generate a comprehensive 1-paragraph executive summary of this "
+        "document. Then list 3 key topics, one per line starting with "
+        "'Topics:'. Be specific about the document's purpose, key findings, "
+        "and domain.\n\n"
+        f"DOCUMENT TEXT (excerpt):\n'''\n{full_text[:80000]}\n'''"
+    )
+    response = retry_call(
+        lambda: model.generate_content(
+            prompt,
+            generation_config={"temperature": 0.2, "max_output_tokens": 512},
+        ),
+        _SUMMARY_RETRY_POLICY,
+    )
+    summary_text = ""
+    key_topics: list[str] = []
+    if response and response.text:
+        raw = response.text.strip()
+        if "\nTopics:" in raw:
+            parts = raw.split("\nTopics:", 1)
+            summary_text = parts[0].strip()
+            key_topics = [t.strip() for t in parts[1].split("\n") if t.strip()]
+        else:
+            summary_text = raw
+    return summary_text, key_topics
+
+
 def _generate_doc_summary_background(tenant_id: str, doc_id: str):
     """Generate a document summary in the background after ingestion completes.
 
@@ -547,32 +576,7 @@ def _generate_doc_summary_background(tenant_id: str, doc_id: str):
             from vertexai.generative_models import GenerativeModel
             model = GenerativeModel(model_name)
 
-            prompt = (
-                "Generate a comprehensive 1-paragraph executive summary of this "
-                "document. Then list 3 key topics, one per line starting with "
-                "'Topics:'. Be specific about the document's purpose, key findings, "
-                "and domain.\n\n"
-                f"DOCUMENT TEXT (excerpt):\n'''\n{full_text[:80000]}\n'''"
-            )
-
-            response = retry_call(
-                lambda: model.generate_content(
-                    prompt,
-                    generation_config={"temperature": 0.2, "max_output_tokens": 512},
-                ),
-                _SUMMARY_RETRY_POLICY,
-            )
-
-            summary_text = ""
-            key_topics = []
-            if response and response.text:
-                raw = response.text.strip()
-                if "\nTopics:" in raw:
-                    parts = raw.split("\nTopics:", 1)
-                    summary_text = parts[0].strip()
-                    key_topics = [t.strip() for t in parts[1].split("\n") if t.strip()]
-                else:
-                    summary_text = raw
+            summary_text, key_topics = generate_summary_text(model, full_text)
 
             # Save to Firestore document record
             client = fs.Client()

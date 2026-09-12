@@ -58,6 +58,7 @@ class OpRecord:
     children_before: int = 0
     children_after: int = 0
     memory_delta_mb: float = 0.0
+    child_peak_rss_mb: float = 0.0
     detail: str = ""
 
 
@@ -121,6 +122,13 @@ class _Canary:
             return
 
         self.counter.current = name
+        from services.common.reliability import (
+            isolation_metrics,
+            reset_isolation_metrics,
+            set_correlation_id,
+        )
+        set_correlation_id(record.correlation_id)
+        reset_isolation_metrics()
         record.children_before = len(multiprocessing.active_children())
         mem0 = _rss_mb()
         started = time.monotonic()
@@ -136,8 +144,21 @@ class _Canary:
         finally:
             self.counter.current = None
             record.children_after = len(multiprocessing.active_children())
-            record.memory_delta_mb = max(0.0, _rss_mb() - mem0)
+            metrics = isolation_metrics()
+            # Child RSS is reported by the isolation boundary. Keep it
+            # separate from the parent delta because a child peak is not a
+            # delta from the parent's baseline.
+            parent_delta = max(0.0, _rss_mb() - mem0)
+            record.memory_delta_mb = parent_delta
+            record.child_peak_rss_mb = float(metrics["child_peak_rss_mb"])
             record.retries = self.counter.counts.get(name, 0)
+            child_warnings = metrics["child_warnings"]
+            if child_warnings:
+                record.detail = (record.detail + "; " if record.detail else "") + \
+                    "child_warnings=" + " | ".join(child_warnings)
+                for warning in child_warnings:
+                    if any(term in warning.lower() for term in ("fork", "grpc")):
+                        self.failures.append(f"{name}: fork/gRPC warning: {warning}")
 
         if record.latency_ms > deadline * 1000.0 * _DEADLINE_TOLERANCE:
             self.failures.append(
@@ -161,8 +182,7 @@ def _render_png(pdf_path: str) -> bytes:
 
 
 def _summarize(text: str) -> str:
-    """Use the worker's real summary path (model + retry policy)."""
-    from services.common.reliability import retry_call
+    """Use the worker's exact production prompt, parser and retry policy."""
     from vertexai.generative_models import GenerativeModel
 
     worker_path = _REPO_ROOT / "services" / "ingestion-worker" / "app.py"
@@ -170,15 +190,14 @@ def _summarize(text: str) -> str:
     worker = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(worker)
 
+    # The worker creates this provider before its summary model. Initialize
+    # Vertex in the same way so the canary does not depend on an earlier op.
+    from services.common.models.vertex import VertexAIProvider
+    provider = VertexAIProvider()
+    provider._ensure_init()
     model = GenerativeModel(os.getenv("LITE_MODEL", "gemini-2.5-flash-lite"))
-    prompt = f"Summarize the following text in one sentence.\n\n{text[:4000]}"
-    response = retry_call(
-        lambda: model.generate_content(
-            prompt, generation_config={"temperature": 0.2, "max_output_tokens": 256}
-        ),
-        worker._SUMMARY_RETRY_POLICY,
-    )
-    return (response.text or "").strip()
+    summary, _topics = worker.generate_summary_text(model, text)
+    return summary
 
 
 def _build_ops(provider, args):

@@ -215,6 +215,31 @@ class TestDeadlineStopsRetries(unittest.TestCase):
             retry_call(fn, policy, sleep=lambda _d: None, clock=clock, isolate=False)
         self.assertEqual(calls["n"], 1)
 
+    def test_overall_deadline_clamps_attempts(self):
+        """A retry may not start with more time than remains in the budget."""
+        now = {"t": 0.0}
+        calls = {"n": 0}
+
+        def clock():
+            return now["t"]
+
+        def fn():
+            calls["n"] += 1
+            now["t"] += 0.8
+            raise TransientError("slow")
+
+        policy = RetryPolicy(
+            max_attempts=5,
+            base_delay=0.0,
+            max_delay=0.0,
+            per_attempt_timeout=10.0,
+            overall_deadline=1.0,
+            operation="clamped",
+        )
+        with self.assertRaises(TransientError):
+            retry_call(fn, policy, sleep=lambda _d: None, clock=clock, isolate=False)
+        self.assertEqual(calls["n"], 2)
+
 
 class TestForkAvailability(unittest.TestCase):
 
