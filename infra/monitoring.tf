@@ -10,6 +10,8 @@ resource "google_monitoring_notification_channel" "iam_alerts" {
   display_name = "IRIS IAM Alert → rohit"
   type         = "email"
   labels = {
-    email_address = "rohit.soni@naturepivot.com"
+    email_address = var.alert_email
   }
+
+  depends_on = [google_project_service.api]
 }

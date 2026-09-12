@@ -1,11 +1,11 @@
 MODEL_BACKEND: "vertex"
-GCP_PROJECT: "naturepivot-rag"
-FIREBASE_PROJECT_ID: "naturepivot-rag"
+GCP_PROJECT: "procambrian-iris-staging-2026"
+FIREBASE_PROJECT_ID: "procambrian-iris-staging-2026"
 EMBEDDING_MODEL: "text-embedding-004"
 SYNTHESIS_MODEL: "gemini-2.5-flash"
 LITE_MODEL: "gemini-2.5-flash-lite"
 VERTEX_VISION_LOCATION: "us-central1"
-QDRANT_URL: "http://10.0.0.5:6333"
+QDRANT_URL: ""
 RETRIEVAL_COLLECTION: "iris_chunks_v2"
 # Re-ingest #1 (bbox-fix attribution): keep legacy chunk size, Hindi BM25 off.
 # Re-ingest #2: CHUNK_TARGET_TOKENS -> "256" and add BM25_HINDI_ENABLED: "1".

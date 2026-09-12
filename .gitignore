@@ -55,8 +55,11 @@ adjudication/
 terraform.tfvars
 *.tfstate
 *.tfstate.*
+*.tfplan
 .terraform/
 crash.log
+.tools/
+token.txt
 
 # Firebase emulator + rules-test harness
 firestore-rules-test/node_modules/

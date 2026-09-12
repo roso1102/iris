@@ -1,13 +1,14 @@
 {
   "MODEL_BACKEND": "vertex",
-  "GCP_PROJECT": "naturepivot-rag",
-  "FIREBASE_PROJECT_ID": "naturepivot-rag",
+  "GCP_PROJECT": "procambrian-iris-staging-2026",
+  "FIREBASE_PROJECT_ID": "procambrian-iris-staging-2026",
+  "GCS_RAW_BUCKET": "procambrian-iris-staging-raw",
   "EMBEDDING_MODEL": "text-embedding-004",
   "SYNTHESIS_MODEL": "gemini-2.5-flash",
   "LITE_MODEL": "gemini-2.5-flash-lite",
   "RETRIEVAL_COLLECTION": "iris_chunks_v2",
-  "QDRANT_URL": "http://10.0.0.5:6333",
+  "QDRANT_URL": "",
   "CORS_ALLOWED_ORIGINS": "https://procambrian.ai,http://localhost:3000",
-  "INGEST_URL": "https://ingestion-worker-zzdrfa3kqa-el.a.run.app",
-  "INGEST_SA": "ingestion-worker-sa@naturepivot-rag.iam.gserviceaccount.com"
+  "INGEST_URL": "",
+  "INGEST_SA": "ingestion-worker-sa@procambrian-iris-staging-2026.iam.gserviceaccount.com"
 }

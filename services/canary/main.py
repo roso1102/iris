@@ -31,9 +31,7 @@ import os
 import time
 import urllib.request
 
-RETRIEVAL_URL = os.environ.get(
-    "RETRIEVAL_URL", "https://retrieval-api-zzdrfa3kqa-el.a.run.app"
-)
+RETRIEVAL_URL = os.environ.get("RETRIEVAL_URL", "")
 FIREBASE_API_KEY = os.environ.get("FIREBASE_API_KEY", "")
 EVAL_EMAIL = os.environ.get("EVAL_USER_EMAIL", "eval@iris.local")
 EVAL_PASSWORD = os.environ.get("EVAL_USER_PASSWORD", "")
@@ -63,7 +61,7 @@ def _firebase_token() -> str:
 
 
 def _post(path: str, payload: dict, token: str, timeout: int = 60) -> tuple[int, dict, float]:
-    t0 = time.time()
+    t0 = time.perf_counter()
     req = urllib.request.Request(
         f"{RETRIEVAL_URL}{path}",
         data=json.dumps(payload).encode(),
@@ -71,9 +69,9 @@ def _post(path: str, payload: dict, token: str, timeout: int = 60) -> tuple[int,
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status, json.loads(resp.read().decode()), (time.time() - t0) * 1000
+            return resp.status, json.loads(resp.read().decode()), (time.perf_counter() - t0) * 1000
     except urllib.error.HTTPError as exc:
-        return exc.code, {}, (time.time() - t0) * 1000
+        return exc.code, {}, (time.perf_counter() - t0) * 1000
 
 
 def _valid_bbox(bbox) -> bool:
@@ -93,7 +91,7 @@ def _probe_ranking_api() -> dict:
     import google.auth.transport.requests as gauth_requests
     from urllib.error import HTTPError
 
-    project = os.environ.get("GCP_PROJECT", "naturepivot-rag")
+    project = os.environ.get("GCP_PROJECT", "procambrian-iris-staging-2026")
     location = os.environ.get("RERANK_LOCATION", "global")
     endpoint = (
         f"https://{location}-discoveryengine.googleapis.com/v1/projects/"

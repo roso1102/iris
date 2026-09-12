@@ -1,8 +1,8 @@
 # IRIS — Example tfvars. Copy to terraform.tfvars (gitignored) and fill in.
 
-project_id          = "naturepivot-rag"
+project_id          = "procambrian-iris-staging-2026"
 region              = "asia-south1"
-billing_account_id  = "012345-6789AB-CDEF01"   # numeric ID, not dashed display form
-budget_amount       = 25000
-budget_currency     = "INR"
 owner               = "iris-team"
+raw_bucket_name     = "procambrian-iris-staging-raw-unique"
+alert_email         = "rohit.soni@procambrian.ai"
+enable_firestore_rules = false

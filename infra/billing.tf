@@ -18,5 +18,6 @@ resource "google_pubsub_topic" "billing_alerts" {
   name    = "billing-alerts"
   project = var.project_id
 
-  labels = local.labels
+  labels     = local.labels
+  depends_on = [google_project_service.api]
 }

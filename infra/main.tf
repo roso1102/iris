@@ -4,7 +4,7 @@
 # See README.md / ACTIONPLAN.md Phase 0.0.
 
 terraform {
-  required_version = ">= 1.5"
+  required_version = ">= 1.5, < 2.0"
 
   required_providers {
     google = {
@@ -15,21 +15,16 @@ terraform {
 
   # GCS-backed state (SRS NFR-6: infra as code, reproducible environments).
   backend "gcs" {
-    # bucket is bootstrapped by scripts/bootstrap_state.sh
+    # Bucket is supplied during init with -backend-config so staging and
+    # production can use separate state buckets.
+    prefix = "iris/staging"
   }
 }
 
 provider "google" {
   project = var.project_id
   region  = var.region
-  # ADC already carries quota_project_id=naturepivot-rag; honor it so APIs like
-  # billingbudgets (which require a quota project) authenticate correctly.
-  user_project_override = true
-}
-
-provider "google-beta" {
-  project = var.project_id
-  region  = var.region
+  # ADC is configured locally with the staging project as its quota project.
   user_project_override = true
 }
 
@@ -41,6 +36,6 @@ locals {
     app     = "iris"
     phase   = "phase-0"
     managed = "terraform"
-    owner   = "iris-team"
+    owner   = var.owner
   }
 }

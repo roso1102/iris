@@ -1,8 +1,13 @@
 # IRIS — Terraform variables (Phase 0.0).
 
 variable "project_id" {
-  description = "GCP project ID (e.g. naturepivot-rag)."
+  description = "GCP project ID for this environment."
   type        = string
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.project_id))
+    error_message = "project_id must be a valid GCP project ID."
+  }
 }
 
 variable "region" {
@@ -11,32 +16,34 @@ variable "region" {
   default     = "asia-south1"
 }
 
-variable "billing_account_id" {
-  description = "Numeric GCP billing account ID (from `gcloud billing projects describe`). NOT the dashed display form."
-  type        = string
-  sensitive   = true
-}
-
-variable "enable_billing_budget" {
-  description = "Create the billing budget + billing-publisher IAM binding. Requires Billing Account Administrator/Costs Manager on the billing account. Set false until billing access is granted."
-  type        = bool
-  default     = false
-}
-
-variable "budget_amount" {
-  description = "Monthly billing budget cap in `budget_currency` units (e.g. 25000 = ₹25,000/mo). The kill switch halts ingestion at/above this."
-  type        = number
-  default     = 25000
-}
-
-variable "budget_currency" {
-  description = "Currency code for the billing budget (must match the billing account's currency, e.g. USD or INR)."
-  type        = string
-  default     = "INR"
-}
-
 variable "owner" {
   description = "Label value for resource ownership (team/email)."
   type        = string
   default     = "iris-team"
+}
+
+variable "raw_bucket_name" {
+  description = "Globally unique bucket name for raw documents."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$", var.raw_bucket_name))
+    error_message = "raw_bucket_name must be a valid globally unique GCS bucket name."
+  }
+}
+
+variable "alert_email" {
+  description = "Email address for infrastructure alerts."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.alert_email))
+    error_message = "alert_email must be a valid email address."
+  }
+}
+
+variable "enable_firestore_rules" {
+  description = "Release Firestore rules only after Firebase has been initialized for the project."
+  type        = bool
+  default     = false
 }

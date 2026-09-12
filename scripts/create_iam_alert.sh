@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # IRIS — IAM Change Alerting (run once, manually).
 #
-# Creates a log-based alert that emails rohit.soni@naturepivot.com
+# Creates a log-based alert for the configured IRIS operator.
 # every time a SetIamPolicy event is detected in the project audit logs.
 #
-# Prerequisites: gcloud auth login done, project set to naturepivot-rag.
+# Prerequisites: gcloud auth login done and Terraform notification channel applied.
 
 set -euo pipefail
 
-PROJECT="${1:-naturepivot-rag}"
+PROJECT="${1:-procambrian-iris-staging-2026}"
 
 # 1. Find the email notification channel (created by Terraform in monitoring.tf)
 CHANNEL=$(gcloud monitoring channels list \
@@ -39,5 +39,5 @@ gcloud monitoring policies create \
   --condition-aggregation='{"alignmentPeriod":"60s","perSeriesAligner":"ALIGN_COUNT","crossSeriesReducer":"REDUCE_COUNT"}'
 
 echo "==> IAM alert policy created."
-echo "    You will now receive an email at rohit.soni@naturepivot.com"
+echo "    The configured IRIS notification channel will receive the alert."
 echo "    within ~60 seconds of any IAM policy change."

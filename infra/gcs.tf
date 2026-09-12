@@ -2,9 +2,9 @@
 # tenant prefixes + IAM conditions + cascading-delete scaffolding land with
 # Phase 1.0 ingestion code).
 
-# Raw PDF storage, tenant-prefixed: gs://iris-raw-pdfs/{tenant_id}/{doc_id}.pdf
+# Raw PDF storage, tenant-prefixed: gs://${var.raw_bucket_name}/{tenant_id}/{doc_id}.pdf
 resource "google_storage_bucket" "raw_pdfs" {
-  name                        = "iris-raw-pdfs"
+  name                        = var.raw_bucket_name
   project                     = var.project_id
   location                    = var.region
   uniform_bucket_level_access = true
@@ -13,22 +13,28 @@ resource "google_storage_bucket" "raw_pdfs" {
   }
 
   labels = local.labels
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  depends_on = [google_project_service.api]
 }
 
 # Least-privilege: ingestion worker can write/read objects but never manage
 # the bucket itself (no storage.admin). Object-level condition scopes to the
 # tenant prefix at Phase 4.0 once tenant IDs exist; for now objectAdmin is
 # bucket-scoped so the Phase 1.0 worker can place any tenant's objects.
-resource "google_storage_bucket_iam_member" "ingestion_object_admin" {
+resource "google_storage_bucket_iam_member" "ingestion_object_user" {
   bucket = google_storage_bucket.raw_pdfs.name
-  role   = "roles/storage.objectAdmin"
+  role   = "roles/storage.objectUser"
   member = google_service_account.ingestion_worker.member
 }
 
 # Retrieval API needs objectAdmin so its cascading delete can remove the raw
 # PDF blob (Phase 2.0 DELETE /documents/{doc_id}).
-resource "google_storage_bucket_iam_member" "retrieval_object_admin" {
+resource "google_storage_bucket_iam_member" "retrieval_object_user" {
   bucket = google_storage_bucket.raw_pdfs.name
-  role   = "roles/storage.objectAdmin"
+  role   = "roles/storage.objectUser"
   member = google_service_account.retrieval_api.member
 }

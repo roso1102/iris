@@ -1,17 +1,11 @@
 # IRIS — Task 0.6: Secret Manager secrets.
 
 locals {
-  secrets = {
-    "MODEL_BACKEND"    = "vertex"
-    "GCP_PROJECT"      = var.project_id
-    "EMBEDDING_MODEL"  = "text-embedding-004"
-    "SYNTHESIS_MODEL"  = "gemini-flash"
-    "LITE_MODEL"       = "gemini-flash-lite"
-  }
+  secret_names = toset(["FIREBASE_CONFIG"])
 }
 
 resource "google_secret_manager_secret" "iris" {
-  for_each = local.secrets
+  for_each = local.secret_names
 
   project   = var.project_id
   secret_id = each.key
@@ -21,14 +15,12 @@ resource "google_secret_manager_secret" "iris" {
   }
 
   labels = local.labels
-}
 
-resource "google_secret_manager_secret_version" "iris" {
-  for_each = local.secrets
-
-  secret      = google_secret_manager_secret.iris[each.key].id
-  secret_data = each.value
+  depends_on = [google_project_service.api]
 }
 
 # FIREBASE_CONFIG is created by scripts/setup_firebase.sh after Firebase init
 # (Task 0.7) because the apiKey/authDomain are generated, not static.
+# Secret values are intentionally not managed by Terraform because secret_data
+# would be persisted in Terraform state. Populate versions through a controlled
+# release job or Secret Manager after the secret containers exist.

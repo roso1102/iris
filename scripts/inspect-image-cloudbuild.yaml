@@ -4,7 +4,7 @@ steps:
     args:
       - -c
       - |
-        docker create --name iw asia-south1-docker.pkg.dev/naturepivot-rag/iris/ingestion-worker:latest
+        docker create --name iw ${_REPO}/ingestion-worker:latest
         docker cp iw:/app/services/common/ingestion/chunker.py /workspace/chunker.py
         echo '=== deployed chunker head ==='
         head -c 1200 /workspace/chunker.py

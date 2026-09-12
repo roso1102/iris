@@ -4,36 +4,29 @@
 
 # --- Ingestion topic: new upload events.
 resource "google_pubsub_topic" "ingestion" {
-  name    = "iris-ingestion"
-  project = var.project_id
-  labels  = local.labels
+  name       = "iris-ingestion"
+  project    = var.project_id
+  labels     = local.labels
+  depends_on = [google_project_service.api]
 }
 
 # --- Dead-letter topic: exhausted retries land here (pull-only, drained manually).
 resource "google_pubsub_topic" "ingestion_dlq" {
-  name    = "iris-ingestion-dlq"
-  project = var.project_id
-  labels  = local.labels
+  name       = "iris-ingestion-dlq"
+  project    = var.project_id
+  labels     = local.labels
+  depends_on = [google_project_service.api]
 }
 
-# --- Main subscription (push, Eventarc-driven; see iam.tf for the trigger SA).
+# --- Main subscription. Cloud Run is deployed after Terraform, so the
+# authenticated push endpoint is attached by scripts/deploy.sh. Terraform
+# ignores that post-deploy endpoint update to avoid configuration drift.
 resource "google_pubsub_subscription" "ingestion_sub" {
   name    = "iris-ingestion-sub"
   project = var.project_id
   topic   = google_pubsub_topic.ingestion.id
 
   ack_deadline_seconds = 600
-
-  # Push delivery to the ingestion-worker Cloud Run service. This pushConfig
-  # is normally created by `gcloud eventarc triggers create` in deploy.sh, but
-  # declaring it here lets Terraform ADOPT the existing config instead of
-  # detaching it on the next apply (FIX-002).
-  push_config {
-    push_endpoint = "https://ingestion-worker-zzdrfa3kqa-el.a.run.app"
-    oidc_token {
-      service_account_email = "ingest-trigger-sa@${var.project_id}.iam.gserviceaccount.com"
-    }
-  }
 
   # Task 1.8: max delivery attempts, then DLQ. Pub/Sub minimum is 5 (as of 2026).
   retry_policy {
@@ -45,6 +38,12 @@ resource "google_pubsub_subscription" "ingestion_sub" {
     dead_letter_topic     = google_pubsub_topic.ingestion_dlq.id
     max_delivery_attempts = 5
   }
+
+  lifecycle {
+    ignore_changes = [push_config]
+  }
+
+  depends_on = [google_project_service.api]
 }
 
 # --- DLQ pull subscription: exhausted retries land here, drained manually.
@@ -52,13 +51,6 @@ resource "google_pubsub_subscription" "ingestion_dlq_sub" {
   name    = "iris-ingestion-dlq-sub"
   project = var.project_id
   topic   = google_pubsub_topic.ingestion_dlq.id
-}
 
-# --- Billing topic subscription for the kill-switch function (Eventarc-managed).
-# Created here so iam.tf can bind the trigger SA's subscriber role; the actual
-# push wiring is created by `gcloud eventarc triggers create` in deploy.sh.
-resource "google_pubsub_subscription" "billing_trigger" {
-  name    = "billing-alerts-sub"
-  project = var.project_id
-  topic   = google_pubsub_topic.billing_alerts.id
+  depends_on = [google_project_service.api]
 }
