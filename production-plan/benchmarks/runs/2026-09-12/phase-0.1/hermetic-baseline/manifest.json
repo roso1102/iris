@@ -1,0 +1,21 @@
+{
+  "phase": "0.1",
+  "status": "INCONCLUSIVE",
+  "created_at": "2026-09-12T17:48:39.982628+00:00",
+  "parent_git_sha": "2c56312",
+  "candidate_git_sha": "2c56312158fee030cfcd4b7a3fad207597a463cc",
+  "requirements": [
+    "RET-003",
+    "RET-004",
+    "RET-005",
+    "RET-006",
+    "SEC-009",
+    "REL-001"
+  ],
+  "datasets": {
+    "hyde_routing_table": "D:\\iris\\tests\\fixtures\\hyde_routing_table.jsonl",
+    "conversation_v1": "D:\\iris\\tests\\fixtures\\conversation_v1.jsonl"
+  },
+  "command": "python scripts/benchmark_phase01.py",
+  "decision": "INCONCLUSIVE - hermetic suites pass; credentialed quality/latency benchmarks still required for the Phase 0.1 exit gate."
+}

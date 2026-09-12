@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "run_id": "YYYYMMDD-HHMMSS-phase-X.Y-short-name",
+  "status": "PLANNED",
+  "phase": "X.Y",
+  "requirements": ["REQ-ID"],
+  "hypothesis": "State one falsifiable hypothesis.",
+  "change_summary": "Describe exactly what changed.",
+  "baseline_git_sha": "REQUIRED",
+  "candidate_git_sha": "REQUIRED",
+  "feature_flags": {},
+  "dataset": {
+    "name": "REQUIRED",
+    "version": "REQUIRED",
+    "sha256": "REQUIRED",
+    "partition": "held-out",
+    "sample_count": 0
+  },
+  "models": [],
+  "prompts": [],
+  "parsers": [],
+  "index_schema_version": "REQUIRED",
+  "environment": {
+    "name": "staging",
+    "region": "REQUIRED",
+    "machine_shapes": [],
+    "container_digests": []
+  },
+  "commands": [],
+  "metrics": {},
+  "protected_slices": {},
+  "cost": {
+    "currency": "USD",
+    "estimated": null,
+    "billed": null,
+    "per_query": null,
+    "per_page": null
+  },
+  "artifacts": [],
+  "known_limitations": [],
+  "decision": "PENDING",
+  "reviewers": [],
+  "started_at": "RFC3339",
+  "completed_at": null
+}

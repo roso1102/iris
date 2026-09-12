@@ -1,0 +1,6 @@
+{
+  "hyde_top_score_threshold": 0.25,
+  "hyde_margin_threshold": 0.02,
+  "hyde_agreement_threshold": 0.2,
+  "hyde_leg_weight": 0.3
+}

@@ -1,0 +1,77 @@
+{"suite": "hyde_routing", "query": "hi", "label": "bypass", "predicted": "bypass", "bypass_reason": "greeting", "correct": true}
+{"suite": "hyde_routing", "query": "hello", "label": "bypass", "predicted": "bypass", "bypass_reason": "greeting", "correct": true}
+{"suite": "hyde_routing", "query": "hey there", "label": "bypass", "predicted": "bypass", "bypass_reason": "greeting", "correct": true}
+{"suite": "hyde_routing", "query": "thanks", "label": "bypass", "predicted": "bypass", "bypass_reason": "greeting", "correct": true}
+{"suite": "hyde_routing", "query": "thank you", "label": "bypass", "predicted": "bypass", "bypass_reason": "greeting", "correct": true}
+{"suite": "hyde_routing", "query": "good morning", "label": "bypass", "predicted": "bypass", "bypass_reason": "greeting", "correct": true}
+{"suite": "hyde_routing", "query": "go to page 5", "label": "bypass", "predicted": "bypass", "bypass_reason": "navigation", "correct": true}
+{"suite": "hyde_routing", "query": "open the second document", "label": "bypass", "predicted": "bypass", "bypass_reason": "navigation", "correct": true}
+{"suite": "hyde_routing", "query": "navigate to the next page", "label": "bypass", "predicted": "bypass", "bypass_reason": "navigation", "correct": true}
+{"suite": "hyde_routing", "query": "show me the previous page", "label": "bypass", "predicted": "bypass", "bypass_reason": "navigation", "correct": true}
+{"suite": "hyde_routing", "query": "scroll down", "label": "bypass", "predicted": "bypass", "bypass_reason": "navigation", "correct": true}
+{"suite": "hyde_routing", "query": "summarize the emissions policy", "label": "bypass", "predicted": "bypass", "bypass_reason": "summary_request", "correct": true}
+{"suite": "hyde_routing", "query": "summary of the budget", "label": "bypass", "predicted": "bypass", "bypass_reason": "summary_request", "correct": true}
+{"suite": "hyde_routing", "query": "give me an overview", "label": "bypass", "predicted": "bypass", "bypass_reason": "summary_request", "correct": true}
+{"suite": "hyde_routing", "query": "what is this document about", "label": "bypass", "predicted": "bypass", "bypass_reason": "summary_request", "correct": true}
+{"suite": "hyde_routing", "query": "tl;dr", "label": "bypass", "predicted": "bypass", "bypass_reason": "summary_request", "correct": true}
+{"suite": "hyde_routing", "query": "what is the filename", "label": "bypass", "predicted": "bypass", "bypass_reason": "metadata_request", "correct": true}
+{"suite": "hyde_routing", "query": "how many pages does this have", "label": "bypass", "predicted": "bypass", "bypass_reason": "metadata_request", "correct": true}
+{"suite": "hyde_routing", "query": "show upload status", "label": "bypass", "predicted": "bypass", "bypass_reason": "metadata_request", "correct": true}
+{"suite": "hyde_routing", "query": "what is the file size", "label": "bypass", "predicted": "bypass", "bypass_reason": "metadata_request", "correct": true}
+{"suite": "hyde_routing", "query": "when was this uploaded", "label": "bypass", "predicted": "bypass", "bypass_reason": "metadata_request", "correct": true}
+{"suite": "hyde_routing", "query": "\"right to information\" clause", "label": "bypass", "predicted": "bypass", "bypass_reason": "quoted_search", "correct": true}
+{"suite": "hyde_routing", "query": "find \"section 17\"", "label": "bypass", "predicted": "bypass", "bypass_reason": "quoted_search", "correct": true}
+{"suite": "hyde_routing", "query": "the phrase \"due process\"", "label": "bypass", "predicted": "bypass", "bypass_reason": "quoted_search", "correct": true}
+{"suite": "hyde_routing", "query": "search for \"ABC\"", "label": "bypass", "predicted": "bypass", "bypass_reason": "quoted_search", "correct": true}
+{"suite": "hyde_routing", "query": "What is Section 17?", "label": "bypass", "predicted": "bypass", "bypass_reason": "exact_identifier", "correct": true}
+{"suite": "hyde_routing", "query": "Find order number ABC-123", "label": "bypass", "predicted": "bypass", "bypass_reason": "exact_identifier", "correct": true}
+{"suite": "hyde_routing", "query": "Show Rule 4A", "label": "bypass", "predicted": "bypass", "bypass_reason": "exact_identifier", "correct": true}
+{"suite": "hyde_routing", "query": "look up case number 123/2020", "label": "bypass", "predicted": "bypass", "bypass_reason": "exact_identifier", "correct": true}
+{"suite": "hyde_routing", "query": "what does Notification 45 say", "label": "bypass", "predicted": "bypass", "bypass_reason": "exact_identifier", "correct": true}
+{"suite": "hyde_routing", "query": "search invoice INV-9931", "label": "bypass", "predicted": "bypass", "bypass_reason": "exact_identifier", "correct": true}
+{"suite": "hyde_routing", "query": "\u092f\u0939 \u0926\u0938\u094d\u0924\u093e\u0935\u0947\u091c\u093c \u0915\u094d\u092f\u093e \u0939\u0948", "label": "bypass", "predicted": "bypass", "bypass_reason": "devanagari", "correct": true}
+{"suite": "hyde_routing", "query": "\u0926\u0938\u094d\u0924\u093e\u0935\u0947\u091c\u093c \u092e\u0947\u0902 \u0915\u094d\u092f\u093e \u0932\u093f\u0916\u093e \u0939\u0948", "label": "bypass", "predicted": "bypass", "bypass_reason": "devanagari", "correct": true}
+{"suite": "hyde_routing", "query": "\u0928\u0940\u0924\u093f \u0915\u0947 \u092c\u093e\u0930\u0947 \u092e\u0947\u0902 \u092c\u0924\u093e\u090f\u0902", "label": "bypass", "predicted": "bypass", "bypass_reason": "devanagari", "correct": true}
+{"suite": "hyde_routing", "query": "what are the environmental impacts", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "how does the policy address risk", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "explain the funding mechanism", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "what are the limitations", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "compare governance approaches", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "why did revenue decline", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "describe the compliance process", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "what does the report recommend", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "how is performance measured", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "what are the key challenges", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "discuss transparency measures", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "how does this affect stakeholders", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "what are the benefits", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "analyze the trends", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "what is the purpose", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "what factors influence outcomes", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "elaborate on the strategy", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "clarify the scope", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "what are the risks", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "how are decisions made", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "why is this important", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "explain the methodology", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "what are the implications", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "how does the system work", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "describe the framework", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "what are the findings", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "how do these compare", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "what can be improved", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "explain the governance structure", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "what drives the cost", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "hyde_routing", "query": "discuss the tradeoffs", "label": "eligible", "predicted": "eligible", "bypass_reason": null, "correct": true}
+{"suite": "followup_routing", "query": "What about its limitations?", "needs_rewrite": true, "predicted": true, "protected_tokens_preserved": true, "correct": true}
+{"suite": "followup_routing", "query": "Compare that with the second document.", "needs_rewrite": true, "predicted": true, "protected_tokens_preserved": true, "correct": true}
+{"suite": "followup_routing", "query": "Does it mention the same rule?", "needs_rewrite": true, "predicted": true, "protected_tokens_preserved": true, "correct": true}
+{"suite": "followup_routing", "query": "What happened after that?", "needs_rewrite": true, "predicted": true, "protected_tokens_preserved": true, "correct": true}
+{"suite": "followup_routing", "query": "What is Section 17?", "needs_rewrite": false, "predicted": false, "protected_tokens_preserved": true, "correct": true}
+{"suite": "followup_routing", "query": "Summarize the emissions policy.", "needs_rewrite": false, "predicted": false, "protected_tokens_preserved": true, "correct": true}
+{"suite": "followup_routing", "query": "Find order number ABC-123.", "needs_rewrite": false, "predicted": false, "protected_tokens_preserved": true, "correct": true}
+{"suite": "followup_routing", "query": "How does this affect stakeholders?", "needs_rewrite": true, "predicted": true, "protected_tokens_preserved": true, "correct": true}
+{"suite": "followup_routing", "query": "Does it preserve the Rs 1,068 crore figure?", "needs_rewrite": true, "predicted": true, "protected_tokens_preserved": true, "correct": true}
+{"suite": "followup_routing", "query": "Why did that happen?", "needs_rewrite": true, "predicted": true, "protected_tokens_preserved": true, "correct": true}
+{"suite": "followup_routing", "query": "What are the key findings?", "needs_rewrite": false, "predicted": false, "protected_tokens_preserved": true, "correct": true}
+{"suite": "followup_routing", "query": "Expand on that clause.", "needs_rewrite": true, "predicted": true, "protected_tokens_preserved": true, "correct": true}

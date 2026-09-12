@@ -1,0 +1,37 @@
+{
+  "phase": "0.1",
+  "status": "INCONCLUSIVE",
+  "measured_pass": true,
+  "suites": {
+    "hyde_routing": {
+      "metric": "hyde_routing",
+      "n": 65,
+      "routing_accuracy": 1.0,
+      "hyde_invocation_precision": 1.0,
+      "bypass_accuracy": 1.0,
+      "invocations": 31,
+      "gate": 0.95,
+      "pass": true
+    },
+    "followup_routing": {
+      "metric": "followup_routing",
+      "n": 12,
+      "standalone_accuracy": 1.0,
+      "gate": 0.95,
+      "pass": true
+    },
+    "monotonic_clock": {
+      "metric": "monotonic_clock",
+      "samples": 10000,
+      "negative_latencies": 0,
+      "pass": true,
+      "duration_ms": 2.53
+    }
+  },
+  "not_measured": [
+    "retrieval Recall@5 / nDCG before-after (needs retrieval-v1 + credentials)",
+    "HyDE eligible-slice Recall@5 lift (needs hyde-router-v1 labels)",
+    "peak memory for upload and ingestion",
+    "temporary-file residue count under fault injection"
+  ]
+}
