@@ -99,7 +99,9 @@ class TestApiDeleteCascade(unittest.TestCase):
         ])
         fake = self._fake_firestore()
 
-        with patch("services.retrieval_api.app._get_firestore_client", return_value=fake), mock_auth(tenant_id="tenant-a"):
+        with patch("services.retrieval_api.app._get_firestore_client", return_value=fake), patch(
+            "services.retrieval_api.app._get_gcs_client", return_value=MagicMock()
+        ), mock_auth(tenant_id="tenant-a"):
             resp = self.client.delete(
                 "/documents/d1", headers=auth_headers()
             )

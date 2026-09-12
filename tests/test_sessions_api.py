@@ -138,6 +138,8 @@ class TestViewUrl(unittest.TestCase):
             "services.retrieval_api.app._get_firestore_client", return_value=fake
         ), patch(
             "services.retrieval_api.app._get_gcs_client", return_value=gcs
+        ), patch(
+            "services.retrieval_api.app._signing_credentials", return_value=MagicMock()
         ), mock_auth(tenant_id="tenant-a"):
             resp = self.client.get("/documents/d1/view-url", headers=auth_headers())
         self.assertEqual(resp.status_code, 200)
