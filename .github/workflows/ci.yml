@@ -123,3 +123,63 @@ jobs:
             --service-account=retrieval-api-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
             --network=iris-vpc --subnet=iris-subnet --vpc-egress=private-ranges-only \
             --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${{ vars.GCP_PROJECT_ID }},FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},GCS_RAW_BUCKET=${{ vars.GCS_RAW_BUCKET || 'procambrian-iris-staging-raw' }},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://${QDRANT_IP}:6333,CORS_ALLOWED_ORIGINS=${{ vars.CORS_ALLOWED_ORIGINS || 'https://iris-frontend-steel-nine.vercel.app' }},INGEST_URL=${INGEST_URL},INGEST_SA=ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com,RERANK_LOCATION=global,BM25_HINDI_ENABLED=1"
+
+  reliability-linux:
+    # Proves the process-isolation primitive on the real platform. Windows would
+    # silently skip the fork tests, so this job asserts they actually execute.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r services/ingestion-worker/requirements.txt
+          pip install -r services/retrieval_api/requirements.txt
+
+      - name: Fork availability and isolation primitive
+        run: python scripts/ci_reliability_check.py
+
+      - name: Process-isolation tests must execute (not skip)
+        run: |
+          python - <<'PY'
+          import subprocess, sys
+          proc = subprocess.run(
+              [sys.executable, "-m", "pytest",
+               "tests/test_reliability.py::TestProcessIsolation", "-q", "-rs"],
+              capture_output=True, text=True,
+          )
+          print(proc.stdout)
+          print(proc.stderr)
+          if proc.returncode != 0:
+              sys.exit("process-isolation tests failed")
+          if "skipped" in proc.stdout.lower():
+              sys.exit("process-isolation tests were skipped on Linux")
+          print("process-isolation tests executed")
+          PY
+
+      - name: Full suite (with skip reasons and counts)
+        run: python -m pytest tests -q -rs
+
+  containers:
+    # Builds the deployable Cloud Run images so the pinned SDK is proven
+    # in-container. The ingestion-worker build intentionally pulls Docling
+    # weights (~700 MB) — it is the image we ship.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build retrieval-api image
+        run: docker build -f services/retrieval_api/Dockerfile -t iris-retrieval-api:ci .
+
+      - name: Build ingestion-worker image
+        run: docker build -f services/ingestion-worker/Dockerfile -t iris-ingestion-worker:ci .
+
+      - name: Assert pinned SDK inside both images
+        run: |
+          docker run --rm iris-retrieval-api:ci python -c "import importlib.metadata as m; print('retrieval-api aiplatform', m.version('google-cloud-aiplatform'))"
+          docker run --rm iris-ingestion-worker:ci python -c "import importlib.metadata as m; print('ingestion-worker aiplatform', m.version('google-cloud-aiplatform'))"
