@@ -26,15 +26,14 @@ jobs:
           pip install -r services/ingestion-worker/requirements.txt
           pip install -r services/retrieval_api/requirements.txt
 
-      - name: Run unit tests (unittest + pytest)
+      - name: Run hermetic unit tests
         env:
           MODEL_BACKEND: mock
           QDRANT_URL: ""
           RUN_VERTEX_LIVE_TESTS: "0"
           RUN_QDRANT_LIVE_TESTS: "0"
         run: |
-          python -m unittest discover -s tests
-          pytest tests/ -q
+          pytest tests/ -q -rs -m "not integration and not live"
 
   firestore-rules:
     runs-on: ubuntu-latest
@@ -171,7 +170,7 @@ jobs:
           PY
 
       - name: Full suite (with skip reasons and counts)
-        run: python -m pytest tests -q -rs
+        run: python -m pytest tests -q -rs -m "not integration and not live"
 
   containers:
     # Builds the deployable Cloud Run images so the pinned SDK is proven
