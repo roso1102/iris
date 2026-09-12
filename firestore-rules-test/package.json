@@ -4,7 +4,7 @@
   "private": true,
   "description": "Local Firestore security-rules tests for IRIS Phase 4.0 (Firebase Emulator)",
   "scripts": {
-    "test": "mocha --timeout 20000"
+    "test": "mocha --timeout 20000 test/rules.test.js"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^3.0.3",
