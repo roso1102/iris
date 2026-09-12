@@ -13,3 +13,7 @@ import os
 
 # Set before anything imports services.common.retrieval.bm25.
 os.environ.setdefault("IRIS_BM25_OFFLINE", "1")
+
+# The unit suite asserts on SDK call arguments recorded in-process; a forked
+# child would not record them. Dedicated isolation tests pass isolate=True.
+os.environ.setdefault("IRIS_PROCESS_ISOLATION", "0")

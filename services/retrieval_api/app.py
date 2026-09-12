@@ -31,6 +31,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from services.common.auth.jwt import AuthContext, require_auth
+from services.common.cloud import (
+    FIRESTORE_TIMEOUT_SECONDS,
+    fs_delete,
+    fs_get,
+    fs_get_all,
+    fs_set,
+    fs_stream,
+    fs_update,
+    gcs_delete,
+)
 from services.common.auth.rate_limit import limiter
 from services.common.auth.validation import (
     MAX_HISTORY_TURNS,
@@ -144,7 +154,7 @@ def _delete_gcs_blob(tenant_id: str, doc_id: str) -> None:
     try:
         bucket = gcs.bucket(_RAW_BUCKET)
         blob = bucket.blob(f"{tenant_id}/{doc_id}.pdf")
-        blob.delete()
+        gcs_delete(blob)
     except Exception as exc:
         logger.warning("GCS delete failed for %s/%s: %s", tenant_id, doc_id, exc)
 
@@ -155,7 +165,7 @@ def _delete_firestore_doc(doc_path: str) -> None:
         logger.warning("Firestore client unavailable; skipping delete: %s", doc_path)
         return
     try:
-        client.document(doc_path).delete()
+        fs_delete(client.document(doc_path))
     except Exception as exc:
         logger.warning("Firestore delete failed for %s: %s", doc_path, exc)
 
@@ -179,14 +189,17 @@ def _create_firestore_session(tenant_id: str) -> str:
     if client is None:
         raise _session_store_unavailable()
     try:
-        client.document(f"tenants/{tenant_id}/sessions/{session_id}").set({
-            "session_id": session_id,
-            "tenant_id": tenant_id,
-            "name": "",
-            "document_ids": [],
-            "turn_seq": 0,
-            "created_at": _server_timestamp(),
-        })
+        fs_set(
+            client.document(f"tenants/{tenant_id}/sessions/{session_id}"),
+            {
+                "session_id": session_id,
+                "tenant_id": tenant_id,
+                "name": "",
+                "document_ids": [],
+                "turn_seq": 0,
+                "created_at": _server_timestamp(),
+            },
+        )
     except Exception as exc:
         logger.warning("Firestore session create failed: %s", exc)
         raise _session_store_unavailable(exc) from exc
@@ -233,7 +246,9 @@ def _append_firestore_messages(
 
     @firestore.transactional
     def _write(txn) -> int:
-        snapshot = session_ref.get(transaction=txn)
+        snapshot = session_ref.get(
+            transaction=txn, timeout=FIRESTORE_TIMEOUT_SECONDS
+        )
         current = 0
         if snapshot.exists:
             current = int((snapshot.to_dict() or {}).get("turn_seq", 0) or 0)
@@ -243,14 +258,25 @@ def _append_firestore_messages(
             )
         turn_seq = current + 1
         for index, msg in enumerate(messages):
-            txn.set(collection.document(f"{turn_seq:020d}-{index}"), {
-                "role": msg["role"],
-                "content": msg["content"],
-                "turn_seq": turn_seq,
-                "message_index": index,
-                "created_at": datetime.now(timezone.utc),
-            })
-        txn.set(session_ref, {"turn_seq": turn_seq}, merge=True)
+            # Deterministic message ids + a single valued turn_seq make the
+            # retried transaction idempotent: re-running cannot duplicate state.
+            txn.set(
+                collection.document(f"{turn_seq:020d}-{index}"),
+                {
+                    "role": msg["role"],
+                    "content": msg["content"],
+                    "turn_seq": turn_seq,
+                    "message_index": index,
+                    "created_at": datetime.now(timezone.utc),
+                },
+                timeout=FIRESTORE_TIMEOUT_SECONDS,
+            )
+        txn.set(
+            session_ref,
+            {"turn_seq": turn_seq},
+            merge=True,
+            timeout=FIRESTORE_TIMEOUT_SECONDS,
+        )
         return turn_seq
 
     try:
@@ -275,16 +301,15 @@ def _load_session_history(
     if client is None:
         raise _session_store_unavailable()
     try:
-        session_snap = client.document(_session_doc_path(tenant_id, session_id)).get()
+        session_snap = fs_get(client.document(_session_doc_path(tenant_id, session_id)))
         version = 0
         if session_snap.exists:
             version = int((session_snap.to_dict() or {}).get("turn_seq", 0) or 0)
-        docs = list(
+        docs = fs_stream(
             client.collection(_session_messages_path(tenant_id, session_id))
             .order_by("turn_seq", direction="DESCENDING")
             .order_by("message_index", direction="DESCENDING")
             .limit(limit)
-            .stream()
         )
         docs.reverse()  # newest-first → chronological
         messages = [
@@ -314,7 +339,7 @@ def _session_exists(tenant_id: str, session_id: str) -> bool:
     if client is None:
         raise _session_store_unavailable()
     try:
-        doc = client.document(f"tenants/{tenant_id}/sessions/{session_id}").get()
+        doc = fs_get(client.document(f"tenants/{tenant_id}/sessions/{session_id}"))
         return bool(doc.exists)
     except Exception as exc:
         logger.warning("Firestore session existence check failed: %s", exc)
@@ -326,11 +351,11 @@ def _delete_firestore_session(tenant_id: str, session_id: str) -> None:
     client = _get_firestore_client()
     if client is not None:
         try:
-            messages = client.collection(
-                f"tenants/{tenant_id}/sessions/{session_id}/messages"
-            ).get()
+            messages = fs_get_all(
+                client.collection(f"tenants/{tenant_id}/sessions/{session_id}/messages")
+            )
             for msg in messages:
-                msg.reference.delete()
+                fs_delete(msg.reference)
         except Exception as exc:
             logger.warning("Firestore messages delete failed: %s", exc)
 
@@ -342,13 +367,13 @@ def _remove_doc_from_sessions(tenant_id: str, doc_id: str) -> None:
         logger.warning("Firestore client unavailable; skipping session purge for %s", doc_id)
         return
     try:
-        sessions = client.collection(f"tenants/{tenant_id}/sessions").get()
+        sessions = fs_get_all(client.collection(f"tenants/{tenant_id}/sessions"))
         for session in sessions:
             data = session.to_dict() or {}
             doc_ids = list(data.get("document_ids") or [])
             if doc_id in doc_ids:
                 doc_ids.remove(doc_id)
-                session.reference.update({"document_ids": doc_ids})
+                fs_update(session.reference, {"document_ids": doc_ids})
     except Exception as exc:
         logger.warning("Session doc purge failed for %s: %s", doc_id, exc)
 
@@ -414,7 +439,7 @@ def _document_exists(tenant_id: str, doc_id: str) -> bool:
     if client is None:
         raise HTTPException(status_code=503, detail="Firestore unavailable")
     try:
-        snapshot = client.document(f"tenants/{tenant_id}/documents/{doc_id}").get()
+        snapshot = fs_get(client.document(f"tenants/{tenant_id}/documents/{doc_id}"))
     except Exception as exc:  # noqa: BLE001 - provider text must not reach clients
         logger.warning("firestore document ownership lookup failed: %s", type(exc).__name__)
         raise HTTPException(status_code=503, detail="Firestore unavailable") from exc
@@ -477,7 +502,7 @@ async def _stream_upload_to_gcs(tenant_id: str, doc_id: str, file: UploadFile) -
 
 def _safe_delete_blob(blob) -> None:
     try:
-        blob.delete()
+        gcs_delete(blob)
     except Exception:
         pass
 
@@ -491,13 +516,16 @@ def _create_document_record(tenant_id: str, doc_id: str, filename: str) -> None:
     client = _get_firestore_client()
     if client is None:
         raise HTTPException(status_code=503, detail="Firestore unavailable")
-    client.document(f"tenants/{tenant_id}/documents/{doc_id}").set({
-        "doc_id": doc_id,
-        "tenant_id": tenant_id,
-        "status": "processing",
-        "filename": filename,
-        "created_at": _server_timestamp(),
-    })
+    fs_set(
+        client.document(f"tenants/{tenant_id}/documents/{doc_id}"),
+        {
+            "doc_id": doc_id,
+            "tenant_id": tenant_id,
+            "status": "processing",
+            "filename": filename,
+            "created_at": _server_timestamp(),
+        },
+    )
 
 
 def _trigger_ingestion(tenant_id: str, doc_id: str) -> dict:
@@ -713,12 +741,14 @@ def _get_doc_total_pages(client, tenant_id: str, doc_id: str) -> Optional[int]:
     if client is None:
         return None
     try:
-        doc_snap = client.document(f"tenants/{tenant_id}/documents/{doc_id}").get()
+        doc_snap = fs_get(client.document(f"tenants/{tenant_id}/documents/{doc_id}"))
         if doc_snap.exists:
             data = doc_snap.to_dict() or {}
             if "total_pages" in data and data["total_pages"]:
                 return int(data["total_pages"])
-        tracker_snap = client.document(f"tenants/{tenant_id}/documents/{doc_id}/progress/tracker").get()
+        tracker_snap = fs_get(
+            client.document(f"tenants/{tenant_id}/documents/{doc_id}/progress/tracker")
+        )
         if tracker_snap.exists:
             tdata = tracker_snap.to_dict() or {}
             if "total_pages" in tdata and tdata["total_pages"]:
@@ -766,7 +796,7 @@ async def list_documents(
         raise HTTPException(status_code=503, detail="Firestore unavailable")
     documents = []
     try:
-        docs = client.collection(f"tenants/{auth.tenant_id}/documents").get()
+        docs = fs_get_all(client.collection(f"tenants/{auth.tenant_id}/documents"))
         for doc in docs:
             doc_id = doc.id
             data = doc.to_dict() or {}
@@ -1176,7 +1206,7 @@ def _get_filenames(tenant_id: str, doc_ids: list[str]) -> dict[str, str]:
     filenames: dict[str, str] = {}
     for doc_id in doc_ids:
         try:
-            snap = client.document(f"tenants/{tenant_id}/documents/{doc_id}").get()
+            snap = fs_get(client.document(f"tenants/{tenant_id}/documents/{doc_id}"))
             if snap.exists:
                 data = snap.to_dict() or {}
                 filenames[doc_id] = data.get("filename", doc_id)
@@ -1195,7 +1225,7 @@ def _get_summaries(tenant_id: str, doc_ids: list[str]) -> dict[str, str]:
     summaries: dict[str, str] = {}
     for doc_id in doc_ids:
         try:
-            snap = client.document(f"tenants/{tenant_id}/documents/{doc_id}").get()
+            snap = fs_get(client.document(f"tenants/{tenant_id}/documents/{doc_id}"))
             if snap.exists:
                 data = snap.to_dict() or {}
                 summary = data.get("summary", "")
@@ -1272,7 +1302,7 @@ async def delete_all_documents(
     doc_ids = []
     if client:
         try:
-            docs = client.collection(f"tenants/{auth.tenant_id}/documents").get()
+            docs = fs_get_all(client.collection(f"tenants/{auth.tenant_id}/documents"))
             doc_ids = [d.id for d in docs]
         except Exception as exc:
             logger.warning("Failed to list docs for bulk delete: %s", exc)
@@ -1314,13 +1344,16 @@ async def create_session(
     client = _get_firestore_client()
     if client is None:
         raise HTTPException(status_code=503, detail="Firestore unavailable")
-    client.document(doc_path).set({
-        "session_id": session_id,
-        "tenant_id": auth.tenant_id,
-        "name": request.name or "",
-        "document_ids": document_ids,
-        "created_at": _server_timestamp(),
-    })
+    fs_set(
+        client.document(doc_path),
+        {
+            "session_id": session_id,
+            "tenant_id": auth.tenant_id,
+            "name": request.name or "",
+            "document_ids": document_ids,
+            "created_at": _server_timestamp(),
+        },
+    )
     return SessionResponse(session_id=session_id, tenant_id=auth.tenant_id, name=request.name)
 
 
@@ -1335,7 +1368,7 @@ async def list_sessions(
         raise HTTPException(status_code=503, detail="Firestore unavailable")
     sessions = []
     try:
-        docs = client.collection(f"tenants/{auth.tenant_id}/sessions").get()
+        docs = fs_get_all(client.collection(f"tenants/{auth.tenant_id}/sessions"))
         for doc in docs:
             data = doc.to_dict() or {}
             sessions.append({
@@ -1404,7 +1437,9 @@ async def upload_document(
     client = _get_firestore_client()
     if client is None:
         raise DependencyUnavailable("Firestore is unavailable.")
-    existing = client.document(f"tenants/{auth.tenant_id}/documents/{doc_id}").get()
+    existing = fs_get(
+        client.document(f"tenants/{auth.tenant_id}/documents/{doc_id}")
+    )
     if existing.exists:
         raise Conflict("A document with this id already exists; delete it before re-uploading.")
 
@@ -1425,9 +1460,11 @@ async def upload_document(
 
     if "total_pages" in worker_resp and worker_resp["total_pages"]:
         try:
-            client.document(f"tenants/{auth.tenant_id}/documents/{doc_id}").set({
-                "total_pages": int(worker_resp["total_pages"]),
-            }, merge=True)
+            fs_set(
+                client.document(f"tenants/{auth.tenant_id}/documents/{doc_id}"),
+                {"total_pages": int(worker_resp["total_pages"])},
+                merge=True,
+            )
         except Exception as exc:
             logger.debug("Failed saving total_pages to doc record: %s", exc)
 

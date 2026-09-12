@@ -42,6 +42,7 @@ from services.common.ingestion.main import (
 from services.common.ingestion.pdf_splitter import SplitTimeout, compute_sha256, split_pdf
 from services.common.ingestion.preflight import MAX_PAGE_COUNT, PreflightError, check_pdf
 from services.common.ingestion.qa_view import build_qa_response
+from services.common.cloud import fs_get, fs_set, pubsub_publish_future
 from services.common.ingestion.store import get_chunk_store
 from services.common.reliability import RetryPolicy, retry_call
 
@@ -59,6 +60,15 @@ _STAGE_VERSION = "page-v1"
 _MAX_DOWNLOAD_BYTES = int(os.environ.get("MAX_DOWNLOAD_BYTES", str(200 * 1024 * 1024)))
 
 _REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
+_SUMMARY_RETRY_POLICY = RetryPolicy(
+    max_attempts=3,
+    base_delay=0.5,
+    max_delay=8.0,
+    per_attempt_timeout=60.0,
+    overall_deadline=120.0,
+    operation="vertex.summary",
+)
 
 
 @app.before_request
@@ -120,7 +130,7 @@ def _doc_exists(tenant_id: str, doc_id: str) -> bool:
     redeliver once Firestore is reachable again.
     """
     try:
-        doc = _firestore().document(f"tenants/{tenant_id}/documents/{doc_id}").get()
+        doc = fs_get(_firestore().document(f"tenants/{tenant_id}/documents/{doc_id}"))
         return bool(doc.exists)
     except Exception as exc:
         logger.warning("Ownership verification failed for doc_id=%s: %s", doc_id, exc)
@@ -379,7 +389,8 @@ def ingest_document():
         for msg in page_messages:
             event_id = f"{tenant_id}:{doc_id}:{msg['page_number']}:{_STAGE_VERSION}"
             futures.append(
-                publisher.publish(
+                pubsub_publish_future(
+                    publisher,
                     topic_path,
                     json.dumps(msg).encode("utf-8"),
                     gcs_uri=msg["gcs_uri"],
@@ -435,7 +446,7 @@ def ingestion_status(doc_id: str):
     total = 0
     failed: list[int] = []
     if tenant_id:
-        snapshot = _firestore().document(_progress_doc_path(tenant_id, doc_id)).get()
+        snapshot = fs_get(_firestore().document(_progress_doc_path(tenant_id, doc_id)))
         if snapshot.exists:
             data = snapshot.to_dict() or {}
             total = int(data.get("total_pages", 0))
@@ -477,24 +488,29 @@ def memory_view():
 
 
 def _init_progress(tenant_id: str, doc_id: str, total_pages: int):
-    _firestore().document(_progress_doc_path(tenant_id, doc_id)).set({
-        "total_pages": total_pages,
-        "failed_pages": [],
-        "updated_at": firestore.SERVER_TIMESTAMP,
-    })
+    fs_set(
+        _firestore().document(_progress_doc_path(tenant_id, doc_id)),
+        {
+            "total_pages": total_pages,
+            "failed_pages": [],
+            "updated_at": firestore.SERVER_TIMESTAMP,
+        },
+    )
 
 
 def _mark_page_done(tenant_id: str, doc_id: str, page_number: int):
-    _firestore().document(_progress_doc_path(tenant_id, doc_id)).set({
-        "updated_at": firestore.SERVER_TIMESTAMP,
-    }, merge=True)
+    fs_set(
+        _firestore().document(_progress_doc_path(tenant_id, doc_id)),
+        {"updated_at": firestore.SERVER_TIMESTAMP},
+        merge=True,
+    )
 
 
 def _check_all_pages_done(tenant_id: str, doc_id: str) -> bool:
     """Check if all pages for a document have been ingested."""
     if not tenant_id:
         return False
-    snapshot = _firestore().document(_progress_doc_path(tenant_id, doc_id)).get()
+    snapshot = fs_get(_firestore().document(_progress_doc_path(tenant_id, doc_id)))
     if not snapshot.exists:
         return False
     data = snapshot.to_dict() or {}
@@ -539,9 +555,12 @@ def _generate_doc_summary_background(tenant_id: str, doc_id: str):
                 f"DOCUMENT TEXT (excerpt):\n'''\n{full_text[:80000]}\n'''"
             )
 
-            response = model.generate_content(
-                prompt,
-                generation_config={"temperature": 0.2, "max_output_tokens": 512},
+            response = retry_call(
+                lambda: model.generate_content(
+                    prompt,
+                    generation_config={"temperature": 0.2, "max_output_tokens": 512},
+                ),
+                _SUMMARY_RETRY_POLICY,
             )
 
             summary_text = ""
@@ -558,11 +577,15 @@ def _generate_doc_summary_background(tenant_id: str, doc_id: str):
             # Save to Firestore document record
             client = fs.Client()
             doc_ref = client.document(f"tenants/{tenant_id}/documents/{doc_id}")
-            doc_ref.set({
-                "summary": summary_text,
-                "key_topics": key_topics,
-                "summary_generated_at": fs.SERVER_TIMESTAMP,
-            }, merge=True)
+            fs_set(
+                doc_ref,
+                {
+                    "summary": summary_text,
+                    "key_topics": key_topics,
+                    "summary_generated_at": fs.SERVER_TIMESTAMP,
+                },
+                merge=True,
+            )
 
             logger.info("Summary generated for doc_id=%s tenant=%s", doc_id, tenant_id)
 
@@ -574,19 +597,27 @@ def _generate_doc_summary_background(tenant_id: str, doc_id: str):
 
 
 def _mark_page_failed(tenant_id: str, doc_id: str, page_number: int):
-    _firestore().document(_progress_doc_path(tenant_id, doc_id)).set({
-        "failed_pages": firestore.ArrayUnion([page_number]),
-        "updated_at": firestore.SERVER_TIMESTAMP,
-    }, merge=True)
+    fs_set(
+        _firestore().document(_progress_doc_path(tenant_id, doc_id)),
+        {
+            "failed_pages": firestore.ArrayUnion([page_number]),
+            "updated_at": firestore.SERVER_TIMESTAMP,
+        },
+        merge=True,
+    )
 
 
 def _mark_document_failed(tenant_id: str, doc_id: str):
     """Record a partial/failed fan-out so status reflects reality."""
     try:
-        _firestore().document(_progress_doc_path(tenant_id, doc_id)).set({
-            "status": "failed",
-            "updated_at": firestore.SERVER_TIMESTAMP,
-        }, merge=True)
+        fs_set(
+            _firestore().document(_progress_doc_path(tenant_id, doc_id)),
+            {
+                "status": "failed",
+                "updated_at": firestore.SERVER_TIMESTAMP,
+            },
+            merge=True,
+        )
     except Exception:
         logger.warning("Failed to mark document failed doc_id=%s", doc_id)
 

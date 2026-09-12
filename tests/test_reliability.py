@@ -1,11 +1,14 @@
 """Phase 0.1 tests — bounded retry/timeout policy."""
 
+import multiprocessing
+import sys
 import threading
 import time
 import unittest
 from unittest.mock import MagicMock
 
 from services.common.reliability import (
+    _FORK_AVAILABLE,
     CallTimeout,
     PermanentError,
     RetryPolicy,
@@ -14,6 +17,7 @@ from services.common.reliability import (
     is_transient_status,
     retry_after_from_headers,
     retry_call,
+    run_with_timeout,
 )
 
 
@@ -44,6 +48,23 @@ class TestClassification(unittest.TestCase):
 
     def test_unknown_is_permanent(self):
         self.assertEqual(classify_exception(ValueError("bad")), "permanent")
+
+    def test_invalid_embedding_is_permanent(self):
+        from services.common.embeddings import EmbeddingInvalidError
+
+        self.assertEqual(classify_exception(EmbeddingInvalidError("bad")), "permanent")
+
+    def test_auth_and_validation_are_permanent(self):
+        for exc in (FileNotFoundError("x"), PermissionError("x"), ValueError("x")):
+            self.assertEqual(classify_exception(exc), "permanent", type(exc).__name__)
+
+    def test_other_4xx_is_permanent_429_is_transient(self):
+        unauthorized = _Boom("no")
+        unauthorized.status_code = 401
+        self.assertEqual(classify_exception(unauthorized), "permanent")
+        throttled = _Boom("slow")
+        throttled.status_code = 429
+        self.assertEqual(classify_exception(throttled), "transient")
 
 
 class TestRetryAfter(unittest.TestCase):
@@ -170,6 +191,83 @@ class TestBlockingDeadline(unittest.TestCase):
 
         with self.assertRaises(TransientError):
             retry_call(fn, policy)
+
+
+class TestDeadlineStopsRetries(unittest.TestCase):
+
+    def test_overall_deadline_prevents_further_attempts(self):
+        now = {"t": 0.0}
+        calls = {"n": 0}
+
+        def clock():
+            return now["t"]
+
+        def fn():
+            calls["n"] += 1
+            now["t"] += 100.0
+            raise TransientError("slow")
+
+        policy = RetryPolicy(
+            max_attempts=5, base_delay=0.0, max_delay=0.0,
+            per_attempt_timeout=1.0, overall_deadline=60.0, operation="slow",
+        )
+        with self.assertRaises(TransientError):
+            retry_call(fn, policy, sleep=lambda _d: None, clock=clock, isolate=False)
+        self.assertEqual(calls["n"], 1)
+
+
+class TestForkAvailability(unittest.TestCase):
+
+    def test_fork_is_available_on_linux_ci(self):
+        # The isolated-process path must actually run on Ubuntu CI, not be
+        # silently skipped. On Windows (no fork) this asserts the fallback.
+        if sys.platform.startswith("linux"):
+            self.assertTrue(_FORK_AVAILABLE, "fork must be available on Linux CI")
+
+
+@unittest.skipUnless(_FORK_AVAILABLE, "fork required for process-isolation tests")
+class TestProcessIsolation(unittest.TestCase):
+    """Fork-path tests: run on Linux CI, skipped on Windows dev."""
+
+    def test_eight_blocked_calls_do_not_starve_a_healthy_call(self):
+        release = threading.Event()
+
+        def block():
+            release.wait(20.0)
+
+        errors = []
+
+        def worker():
+            try:
+                run_with_timeout(block, 5.0, "blocked", isolate=True)
+            except BaseException as exc:  # noqa: BLE001 - expected timeout
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker, daemon=True) for _ in range(8)]
+        started = time.monotonic()
+        for thread in threads:
+            thread.start()
+        time.sleep(0.5)  # let the blocked calls occupy their processes
+        try:
+            self.assertEqual(
+                run_with_timeout(lambda: "ok", 5.0, "healthy", isolate=True), "ok"
+            )
+            # A healthy call must not queue behind eight blocked ones.
+            self.assertLess(time.monotonic() - started, 5.0)
+        finally:
+            release.set()
+            for thread in threads:
+                thread.join(timeout=15)
+        self.assertTrue(all(isinstance(e, CallTimeout) for e in errors))
+
+    def test_child_processes_are_terminated_and_reaped(self):
+        before = multiprocessing.active_children()
+        release = threading.Event()
+        with self.assertRaises(CallTimeout):
+            run_with_timeout(lambda: release.wait(30.0), 0.3, "blocking", isolate=True)
+        release.set()
+        # The killed child must not linger in the parent's child set.
+        self.assertEqual(len(multiprocessing.active_children()), len(before))
 
 
 if __name__ == "__main__":

@@ -45,7 +45,9 @@ class TestUploadApi(unittest.TestCase):
         self._firestore_patcher = patch(
             "services.retrieval_api.app._get_firestore_client",
             side_effect=lambda: MagicMock(
-                document=lambda *a, **k: MagicMock(get=lambda: _non_existent_snapshot())
+                document=lambda *a, **k: MagicMock(
+                    get=lambda *a, **k: _non_existent_snapshot()
+                )
             ),
         )
         self._ingest_patcher = patch(

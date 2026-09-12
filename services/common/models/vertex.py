@@ -30,6 +30,45 @@ _VISION_RETRY_POLICY = RetryPolicy(
     operation="vertex.gemini_vision",
 )
 
+# Every Vertex operation is deadline-bounded. The Gemini SDK exposes no
+# transport timeout, so these calls rely on the isolation-aware retry helper;
+# rerank is HTTP with a native timeout and never uses process isolation.
+_EMBED_RETRY_POLICY = RetryPolicy(
+    max_attempts=_MAX_RETRIES, base_delay=0.5, max_delay=8.0,
+    per_attempt_timeout=30.0, overall_deadline=90.0, operation="vertex.embed",
+)
+_SYNTHESIS_RETRY_POLICY = RetryPolicy(
+    max_attempts=_MAX_RETRIES, base_delay=0.5, max_delay=8.0,
+    per_attempt_timeout=60.0, overall_deadline=150.0, operation="vertex.synthesize",
+)
+_REWRITE_RETRY_POLICY = RetryPolicy(
+    max_attempts=_MAX_RETRIES, base_delay=0.5, max_delay=8.0,
+    per_attempt_timeout=20.0, overall_deadline=45.0, operation="vertex.rewrite",
+)
+_HYDE_RETRY_POLICY = RetryPolicy(
+    max_attempts=_MAX_RETRIES, base_delay=0.5, max_delay=8.0,
+    per_attempt_timeout=20.0, overall_deadline=45.0, operation="vertex.hyde",
+)
+_ROUTE_RETRY_POLICY = RetryPolicy(
+    max_attempts=_MAX_RETRIES, base_delay=0.5, max_delay=8.0,
+    per_attempt_timeout=20.0, overall_deadline=45.0, operation="vertex.route",
+)
+_RERANK_RETRY_POLICY = RetryPolicy(
+    max_attempts=_MAX_RETRIES, base_delay=0.5, max_delay=8.0,
+    per_attempt_timeout=15.0, overall_deadline=45.0, operation="vertex.rerank",
+)
+
+# Registry asserted by tests: each Vertex operation has a bounded deadline.
+VERTEX_POLICIES = {
+    "embed": _EMBED_RETRY_POLICY,
+    "synthesize": _SYNTHESIS_RETRY_POLICY,
+    "rewrite": _REWRITE_RETRY_POLICY,
+    "hyde": _HYDE_RETRY_POLICY,
+    "route": _ROUTE_RETRY_POLICY,
+    "rerank": _RERANK_RETRY_POLICY,
+    "gemini_vision": _VISION_RETRY_POLICY,
+}
+
 _PROMPT_BOUNDARY_PATTERN = re.compile(
     r"(\[SYSTEM\]|\[OVERRIDE\]|<\|im_start\|>|<\|im_end\|>|"
     r"\[INST\]|\[/INST\]|\(priority:\s*\d+\))",
@@ -211,10 +250,14 @@ class VertexAIProvider(ModelProvider):
         for i in range(0, len(texts), batch_size):
             batch_texts = texts[i : i + batch_size]
             inputs = [TextEmbeddingInput(text=t, task_type=task_type) for t in batch_texts]
-            if dim is not None:
-                embeddings = model.get_embeddings(inputs, output_dimensionality=dim)
-            else:
-                embeddings = model.get_embeddings(inputs)
+            embeddings = retry_call(
+                lambda inputs=inputs, dim=dim: (
+                    model.get_embeddings(inputs, output_dimensionality=dim)
+                    if dim is not None
+                    else model.get_embeddings(inputs)
+                ),
+                _EMBED_RETRY_POLICY,
+            )
             if len(embeddings) != len(batch_texts):
                 raise EmbeddingInvalidError(
                     f"count_mismatch:{len(embeddings)}!={len(batch_texts)}"
@@ -261,10 +304,14 @@ class VertexAIProvider(ModelProvider):
         inputs = [TextEmbeddingInput(text=text, task_type=task_type)]
 
         dim = _DIMENSIONALITY_MAP.get(self.embedding_model_name)
-        if dim is not None:
-            embeddings = model.get_embeddings(inputs, output_dimensionality=dim)
-        else:
-            embeddings = model.get_embeddings(inputs)
+        embeddings = retry_call(
+            lambda inputs=inputs, dim=dim: (
+                model.get_embeddings(inputs, output_dimensionality=dim)
+                if dim is not None
+                else model.get_embeddings(inputs)
+            ),
+            _EMBED_RETRY_POLICY,
+        )
 
         if not embeddings or not embeddings[0].values:
             raise RuntimeError(f"Empty embedding from {self.embedding_model_name}")
@@ -354,11 +401,14 @@ class VertexAIProvider(ModelProvider):
                 "required": ["citations", "answer"],
             }
 
-            response_text = self._safe_generate(
-                model,
-                prompt,
-                response_mime_type="application/json",
-                response_schema=response_schema,
+            response_text = retry_call(
+                lambda: self._safe_generate(
+                    model,
+                    prompt,
+                    response_mime_type="application/json",
+                    response_schema=response_schema,
+                ),
+                _SYNTHESIS_RETRY_POLICY,
             )
 
             try:
@@ -411,13 +461,16 @@ class VertexAIProvider(ModelProvider):
             "STANDALONE QUERY:"
         )
         try:
-            response = model.generate_content(
-                prompt,
-                generation_config={
-                    "temperature": 0.0,
-                    "max_output_tokens": 256,
-                },
-                safety_settings=_get_safety_settings(),
+            response = retry_call(
+                lambda: model.generate_content(
+                    prompt,
+                    generation_config={
+                        "temperature": 0.0,
+                        "max_output_tokens": 256,
+                    },
+                    safety_settings=_get_safety_settings(),
+                ),
+                _REWRITE_RETRY_POLICY,
             )
             if response and response.text:
                 return response.text.strip()
@@ -466,12 +519,15 @@ class VertexAIProvider(ModelProvider):
             "required": ["standalone_query", "confidence"],
         }
         try:
-            raw = self._safe_generate(
-                model,
-                prompt,
-                response_mime_type="application/json",
-                response_schema=response_schema,
-                max_output_tokens=256,
+            raw = retry_call(
+                lambda: self._safe_generate(
+                    model,
+                    prompt,
+                    response_mime_type="application/json",
+                    response_schema=response_schema,
+                    max_output_tokens=256,
+                ),
+                _REWRITE_RETRY_POLICY,
             )
             result = json.loads(raw)
             if not isinstance(result, dict) or not result.get("standalone_query"):
@@ -529,12 +585,15 @@ class VertexAIProvider(ModelProvider):
             },
             "required": ["hypothesis", "keywords"],
         }
-        raw = self._safe_generate(
-            model,
-            prompt,
-            response_mime_type="application/json",
-            response_schema=response_schema,
-            max_output_tokens=256,
+        raw = retry_call(
+            lambda: self._safe_generate(
+                model,
+                prompt,
+                response_mime_type="application/json",
+                response_schema=response_schema,
+                max_output_tokens=256,
+            ),
+            _HYDE_RETRY_POLICY,
         )
         data = json.loads(raw)
         if not isinstance(data, dict):
@@ -631,15 +690,18 @@ class VertexAIProvider(ModelProvider):
         }
 
         try:
-            response = model.generate_content(
-                prompt,
-                generation_config={
-                    "temperature": 0.0,
-                    "max_output_tokens": 512,
-                    "response_mime_type": "application/json",
-                    "response_schema": response_schema,
-                },
-                safety_settings=_get_safety_settings(),
+            response = retry_call(
+                lambda: model.generate_content(
+                    prompt,
+                    generation_config={
+                        "temperature": 0.0,
+                        "max_output_tokens": 512,
+                        "response_mime_type": "application/json",
+                        "response_schema": response_schema,
+                    },
+                    safety_settings=_get_safety_settings(),
+                ),
+                _ROUTE_RETRY_POLICY,
             )
             if response and response.text:
                 result = json.loads(response.text.strip())
@@ -711,14 +773,22 @@ class VertexAIProvider(ModelProvider):
                 {"id": str(i), "content": p} for i, p in enumerate(capped)
             ],
         }
-        try:
-            resp = requests.post(
+
+        def _post():
+            response = requests.post(
                 endpoint,
                 json=body,
                 headers={"Authorization": f"Bearer {self._ranking_token()}"},
                 timeout=10,
             )
-            resp.raise_for_status()
+            response.raise_for_status()
+            return response
+
+        try:
+            # HTTP with a native transport timeout: retry transient failures,
+            # never process-isolate (isolation is only for SDK calls without a
+            # supported deadline).
+            resp = retry_call(_post, _RERANK_RETRY_POLICY, isolate=False)
             records = resp.json().get("records") or []
             scores = [0.0] * len(capped)
             for rank_pos, rec in enumerate(records, start=1):
@@ -773,7 +843,9 @@ class VertexAIProvider(ModelProvider):
             "Hindi translation:"
         )
         try:
-            result = self._safe_generate(model, prompt)
+            result = retry_call(
+                lambda: self._safe_generate(model, prompt), _REWRITE_RETRY_POLICY
+            )
             result = result.strip().strip('"').strip("'").strip("`")
             if not result or result.lower() == safe_query.lower():
                 return []

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from services.common.auth.validation import DOC_ID_PATTERN
+from services.common.cloud import gcs_download, gcs_exists, gcs_upload
 from services.common.errors import RejectionCode
 from services.common.ingestion.preflight import PreflightError
 
@@ -120,13 +121,13 @@ def compute_sha256(
         bucket_name, blob_name = _split_gcs_uri(gcs_uri)
         client = gcs_client or storage.Client()
         blob = client.bucket(bucket_name).blob(blob_name)
-        if not blob.exists():
+        if not gcs_exists(blob):
             return None
 
         sha = hashlib.sha256()
         with tempfile.TemporaryDirectory() as tmpdir:
             local = Path(tmpdir) / "doc.pdf"
-            blob.download_to_filename(str(local))
+            gcs_download(blob, str(local))
             with open(local, "rb") as f:
                 while chunk := f.read(8192):
                     sha.update(chunk)
@@ -151,7 +152,7 @@ def _download_pdf(gcs_uri: str, tmpdir: str, doc_id: str, gcs_client=None) -> Pa
     client = gcs_client or storage.Client()
     blob = client.bucket(bucket_name).blob(blob_name)
     local = Path(tmpdir) / _safe_name(doc_id)
-    blob.download_to_filename(str(local))
+    gcs_download(blob, str(local))
     return local
 
 
@@ -165,7 +166,7 @@ def _upload_blob(local_path: Path, bucket_name: str, blob_name: str, gcs_client=
     client = gcs_client or storage.Client()
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(blob_name)
-    blob.upload_from_filename(str(local_path))
+    gcs_upload(blob, str(local_path))
 
 
 def _split_gcs_uri(uri: str) -> tuple[str, str]:

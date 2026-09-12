@@ -3,7 +3,8 @@
 Guarantees:
 
 * typed transient vs permanent classification — only transient failures retry;
-* connect, per-attempt and overall deadlines;
+* per-attempt and overall deadlines;
+* process isolation for blocking calls that have no native transport timeout;
 * exponential backoff with *full jitter* and ``Retry-After`` support;
 * no fixed multi-second sleeps inside request handling.
 """
@@ -31,15 +32,47 @@ TRANSIENT_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
 _TRANSIENT_NAME_HINTS = (
     "timeout",
     "timedout",
-    "unavailable",
-    "resourceexhausted",
     "deadlineexceeded",
+    "unavailable",
+    "serviceunavailable",
+    "resourceexhausted",
     "internalserver",
     "connectionreset",
     "connectionerror",
     "connectionaborted",
-    "serviceunavailable",
 )
+
+# Never retried: validation, auth/authz, malformed documents, invalid
+# embeddings, and other deterministic failures. Checked BEFORE any transient
+# hint so e.g. a "InvalidArgument" cannot be retried.
+_PERMANENT_NAME_HINTS = (
+    "invalid",
+    "malformed",
+    "reject",
+    "permissiondenied",
+    "unauthenticated",
+    "unauthenticatederror",
+    "failedprecondition",
+    "notfound",
+    "alreadyexists",
+    "outofrange",
+    "unimplemented",
+    "forbidden",
+    "authorization",
+    "authentication",
+)
+
+# Isolation is the production default (fork where available) but is toggled off
+# for the mock-based unit suite, which asserts on SDK call arguments that a
+# forked child would not record in the parent. Dedicated isolation tests pass
+# ``isolate=True`` explicitly.
+_ISOLATION_ENV = "IRIS_PROCESS_ISOLATION"
+
+
+def _default_isolate() -> bool:
+    if not _FORK_AVAILABLE:
+        return False
+    return os.getenv(_ISOLATION_ENV, "1") != "0"
 
 # Deadline isolation. A timed-out blocking call runs in a forked child process
 # that is hard-killed when the deadline passes, so a hung provider call can
@@ -140,7 +173,7 @@ def run_with_timeout(
     """
     if not timeout or timeout <= 0:
         return fn()
-    use_process = _FORK_AVAILABLE if isolate is None else (isolate and _FORK_AVAILABLE)
+    use_process = _default_isolate() if isolate is None else (isolate and _FORK_AVAILABLE)
     if use_process:
         return _run_isolated(fn, timeout, operation)
     return _run_threaded(fn, timeout, operation)
@@ -163,22 +196,40 @@ def is_transient_status(status: int) -> bool:
 
 
 def classify_exception(exc: BaseException) -> str:
-    """Return ``"transient"`` or ``"permanent"`` for an exception."""
+    """Return ``"transient"`` or ``"permanent"`` for an exception.
+
+    Only genuinely retryable failures (429/502/503/504, deadline exceeded,
+    connection resets, service unavailable) are transient. Validation, auth,
+    authorization, malformed-document and invalid-embedding errors are always
+    permanent, even when they carry an HTTP status.
+    """
     if isinstance(exc, PermanentError):
         return "permanent"
     if isinstance(exc, TransientError):
         return "transient"
-    if isinstance(exc, (TimeoutError, asyncio.TimeoutError, ConnectionError, OSError)):
-        return "transient"
+
+    name = type(exc).__name__.lower()
+    if any(hint in name for hint in _PERMANENT_NAME_HINTS):
+        return "permanent"
 
     status = getattr(exc, "status_code", None)
     if status is None:
         status = getattr(exc, "code", None)
-    if isinstance(status, int) and status in TRANSIENT_STATUSES:
+    if isinstance(status, int):
+        if status in TRANSIENT_STATUSES:
+            return "transient"
+        if 400 <= status < 500:
+            return "permanent"
+
+    if any(hint in name for hint in _TRANSIENT_NAME_HINTS):
         return "transient"
 
-    name = type(exc).__name__.lower()
-    if any(hint in name for hint in _TRANSIENT_NAME_HINTS):
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError, ConnectionError)):
+        return "transient"
+    # OSError subclasses that are deterministic must not be retried.
+    if isinstance(exc, (FileNotFoundError, PermissionError, IsADirectoryError, NotADirectoryError)):
+        return "permanent"
+    if isinstance(exc, OSError):
         return "transient"
     return "permanent"
 
@@ -204,7 +255,6 @@ class RetryPolicy:
     max_attempts: int = 3
     base_delay: float = 0.5
     max_delay: float = 8.0
-    connect_timeout: float = 5.0
     per_attempt_timeout: float = 30.0
     overall_deadline: float = 60.0
     operation: str = "operation"

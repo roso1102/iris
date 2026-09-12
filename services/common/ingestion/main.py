@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from services.common.auth.validation import DOC_ID_PATTERN
+from services.common.cloud import gcs_download
 from services.common.embeddings import EmbeddingInvalidError, validate_embedding_batch
 from services.common.errors import RejectionCode
 from services.common.ingestion.chunker import chunk_routed
@@ -214,7 +215,7 @@ class IngestionPipeline:
         client = self._gcs or storage.Client()
         blob = client.bucket(bucket_name).blob(blob_name)
         local = Path(tmpdir) / _safe_local_name(doc_id)
-        blob.download_to_filename(str(local))
+        gcs_download(blob, str(local))
         return local
 
     def _embed(self, chunks: List[Chunk]) -> None:
