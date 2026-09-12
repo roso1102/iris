@@ -20,9 +20,11 @@ import asyncio
 import logging
 import os
 import re
+import tempfile
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
@@ -40,6 +42,7 @@ from services.common.cloud import (
     fs_stream,
     fs_update,
     gcs_delete,
+    gcs_upload,
 )
 from services.common.auth.rate_limit import limiter
 from services.common.auth.validation import (
@@ -465,38 +468,49 @@ def _authorized_doc_ids(tenant_id: str, requested: list[str] | None) -> list[str
 
 
 async def _stream_upload_to_gcs(tenant_id: str, doc_id: str, file: UploadFile) -> int:
-    """Stream an upload to GCS in bounded chunks, enforcing the size cap.
+    """Stream an upload to a temp file, then upload to GCS under a real deadline.
 
-    Phase 0.1 (ING-001): the whole document is never buffered in memory.
-    Returns the byte count written; partial blobs are removed on failure.
+    Phase 0.1 (ING-001): the whole document is never buffered in memory. GCS's
+    ``blob.open()`` exposes no per-operation transport timeout, so the bytes are
+    spooled to a request-scoped temporary file (bounded by the size cap) and sent
+    with ``upload_from_filename(..., timeout=...)``. The temporary file is always
+    removed, and a partial GCS object is deleted on any failure so a retry of the
+    whole operation starts clean.
     """
     gcs = _get_gcs_client()
     if gcs is None:
         raise DependencyUnavailable("Storage is unavailable.")
     blob = gcs.bucket(_RAW_BUCKET).blob(f"{tenant_id}/{doc_id}.pdf")
     total = 0
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    tmp_path = Path(tmp.name)
     try:
-        with blob.open("wb", content_type="application/pdf") as handle:
-            while True:
-                chunk = await file.read(_UPLOAD_CHUNK_BYTES)
-                if not chunk:
-                    break
-                total += len(chunk)
-                if total > _UPLOAD_MAX_BYTES:
-                    raise InvalidInput(
-                        f"File exceeds {_UPLOAD_MAX_BYTES // (1024 * 1024)} MB limit"
-                    )
-                handle.write(chunk)
-    except ServiceError:
-        _safe_delete_blob(blob)
-        raise
-    except Exception as exc:
-        _safe_delete_blob(blob)
-        logger.exception("GCS upload failed for tenant %s doc %s", tenant_id, doc_id)
-        raise BadUpstreamResponse("Storage write failed.") from exc
-    if total == 0:
-        _safe_delete_blob(blob)
-        raise InvalidInput("Empty file")
+        try:
+            with tmp:
+                while True:
+                    chunk = await file.read(_UPLOAD_CHUNK_BYTES)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > _UPLOAD_MAX_BYTES:
+                        raise InvalidInput(
+                            f"File exceeds {_UPLOAD_MAX_BYTES // (1024 * 1024)} MB limit"
+                        )
+                    tmp.write(chunk)
+            if total == 0:
+                raise InvalidInput("Empty file")
+            gcs_upload(blob, str(tmp_path), content_type="application/pdf")
+        except ServiceError:
+            _safe_delete_blob(blob)
+            raise
+        except Exception as exc:
+            _safe_delete_blob(blob)
+            logger.exception(
+                "GCS upload failed for tenant %s doc %s", tenant_id, doc_id
+            )
+            raise BadUpstreamResponse("Storage write failed.") from exc
+    finally:
+        tmp_path.unlink(missing_ok=True)
     return total
 
 

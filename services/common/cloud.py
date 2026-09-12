@@ -117,9 +117,11 @@ def gcs_download(blob, filename) -> Any:
     )
 
 
-def gcs_upload(blob, filename) -> Any:
+def gcs_upload(blob, filename, **kwargs) -> Any:
     return _call(
-        lambda: blob.upload_from_filename(filename, timeout=GCS_TIMEOUT_SECONDS),
+        lambda: blob.upload_from_filename(
+            filename, timeout=GCS_TIMEOUT_SECONDS, **kwargs
+        ),
         GCS_POLICY,
     )
 

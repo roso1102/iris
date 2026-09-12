@@ -250,24 +250,30 @@ class VertexAIProvider(ModelProvider):
         for i in range(0, len(texts), batch_size):
             batch_texts = texts[i : i + batch_size]
             inputs = [TextEmbeddingInput(text=t, task_type=task_type) for t in batch_texts]
-            embeddings = retry_call(
-                lambda inputs=inputs, dim=dim: (
+
+            def _embed_call(inputs=inputs, dim=dim):
+                raw = (
                     model.get_embeddings(inputs, output_dimensionality=dim)
                     if dim is not None
                     else model.get_embeddings(inputs)
-                ),
-                _EMBED_RETRY_POLICY,
-            )
+                )
+                # Convert SDK objects to plain floats inside the (possibly
+                # forked) worker so only picklable primitives cross the pipe.
+                return [
+                    list(e.values) if e and e.values else None for e in (raw or [])
+                ]
+
+            embeddings = retry_call(_embed_call, _EMBED_RETRY_POLICY)
             if len(embeddings) != len(batch_texts):
                 raise EmbeddingInvalidError(
                     f"count_mismatch:{len(embeddings)}!={len(batch_texts)}"
                 )
             for emb in embeddings:
-                if not emb or not emb.values:
+                if not emb:
                     # Phase 0.1: never fabricate a zero vector — a missing
                     # embedding is an invalid response the caller must handle.
                     raise EmbeddingInvalidError("empty_embedding_value")
-                results.append(emb.values)
+                results.append(emb)
 
         return results
 
@@ -304,18 +310,22 @@ class VertexAIProvider(ModelProvider):
         inputs = [TextEmbeddingInput(text=text, task_type=task_type)]
 
         dim = _DIMENSIONALITY_MAP.get(self.embedding_model_name)
-        embeddings = retry_call(
-            lambda inputs=inputs, dim=dim: (
+
+        def _embed_call(inputs=inputs, dim=dim):
+            raw = (
                 model.get_embeddings(inputs, output_dimensionality=dim)
                 if dim is not None
                 else model.get_embeddings(inputs)
-            ),
-            _EMBED_RETRY_POLICY,
-        )
+            )
+            # Return plain floats so the value is picklable across a fork.
+            if not raw or not raw[0] or not raw[0].values:
+                return None
+            return list(raw[0].values)
 
-        if not embeddings or not embeddings[0].values:
+        values = retry_call(_embed_call, _EMBED_RETRY_POLICY)
+        if not values:
             raise RuntimeError(f"Empty embedding from {self.embedding_model_name}")
-        return embeddings[0].values
+        return values
 
     def extract_table(self, image_bytes: bytes) -> str:
         return self._call_gemini_vision(
