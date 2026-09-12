@@ -23,13 +23,17 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Tuple
 
+from services.common.embeddings import (
+    EMBEDDING_DIM,
+    EmbeddingInvalidError,
+    validate_embedding_vector,
+)
 from services.common.ingestion.models import Chunk, ElementType, RouteDecision
 from services.common.retrieval.bm25 import sparse_to_qdrant_indices_values, text_to_sparse
 
 logger = logging.getLogger(__name__)
 
 COLLECTION_NAME = "iris_chunks_v2"
-EMBEDDING_DIM = 768
 
 
 class ChunkStore(ABC):
@@ -114,9 +118,17 @@ class MemoryChunkStore(ChunkStore):
         self._lock = threading.Lock()
 
     def upsert_batch(self, chunks: List[Chunk]) -> int:
+        # Phase 0.1: idempotent by content-addressed chunk id — redelivering the
+        # same page replaces rather than duplicates its chunks.
         with self._lock:
             for chunk in chunks:
-                self._by_doc.setdefault(chunk.doc_id, []).append(chunk)
+                bucket = self._by_doc.setdefault(chunk.doc_id, [])
+                for index, existing in enumerate(bucket):
+                    if existing.id == chunk.id:
+                        bucket[index] = chunk
+                        break
+                else:
+                    bucket.append(chunk)
         return len(chunks)
 
     def get_by_doc(self, doc_id: str, tenant_id: str) -> List[Chunk]:
@@ -260,7 +272,14 @@ class QdrantChunkStore(ChunkStore):
     ) -> None:
         from qdrant_client import QdrantClient, models
 
-        self._client = QdrantClient(url=url, api_key=api_key or os.getenv("QDRANT_API_KEY"))
+        # Explicit per-request transport timeout (REL-001); the client default
+        # is only 5s for some operations.
+        _qdrant_timeout = float(os.getenv("QDRANT_TIMEOUT_SECONDS", "30"))
+        self._client = QdrantClient(
+            url=url,
+            api_key=api_key or os.getenv("QDRANT_API_KEY"),
+            timeout=_qdrant_timeout,
+        )
         self._collection = collection
         try:
             self._client.get_collection(collection_name=collection)
@@ -319,12 +338,17 @@ class QdrantChunkStore(ChunkStore):
             return 0
         points = []
         for chunk in chunks:
+            # Phase 0.1: the Qdrant boundary rejects missing/invalid vectors too,
+            # protecting callers that bypass the ingestion validation path.
+            if not chunk.embedding:
+                raise EmbeddingInvalidError(f"missing_embedding:{chunk.id}")
+            dense = validate_embedding_vector(chunk.embedding)
             sparse = text_to_sparse(chunk.text)
             sp_indices, sp_values = sparse_to_qdrant_indices_values(sparse)
             point = models.PointStruct(
                 id=chunk.id,
                 vector={
-                    "dense": chunk.embedding or [],
+                    "dense": dense,
                     "bm25_sparse": models.SparseVector(
                         indices=sp_indices, values=sp_values
                     ),
@@ -338,6 +362,9 @@ class QdrantChunkStore(ChunkStore):
                     "bbox": chunk.bbox,
                     "text": chunk.text,
                     "source": chunk.source.value,
+                    "page_level": chunk.page_level,
+                    "bbox_source": chunk.bbox_source,
+                    "bbox_confidence": chunk.bbox_confidence,
                     "metadata": chunk.metadata,
                 },
             )
@@ -357,6 +384,12 @@ class QdrantChunkStore(ChunkStore):
             source = RouteDecision(source_raw)
         except ValueError:
             source = RouteDecision.DOCLING_TEXT
+        metadata = dict(p.get("metadata") or {})
+        page_level = bool(p.get("page_level", metadata.get("page_level", False)))
+        bbox_source = p.get("bbox_source") or metadata.get("bbox_source") or (
+            "page_area" if page_level else "element"
+        )
+        bbox_confidence = p.get("bbox_confidence", metadata.get("bbox_confidence", 1.0))
         return Chunk(
             id=str(point_id),
             tenant_id=str(p.get("tenant_id", "")),
@@ -367,7 +400,10 @@ class QdrantChunkStore(ChunkStore):
             text=str(p.get("text", "")),
             bbox=list(p.get("bbox", [])),
             source=source,
-            metadata=dict(p.get("metadata") or {}),
+            page_level=page_level,
+            bbox_source=str(bbox_source),
+            bbox_confidence=float(bbox_confidence or 0.0),
+            metadata=metadata,
         )
 
     def get_by_doc(self, doc_id: str, tenant_id: str) -> List[Chunk]:

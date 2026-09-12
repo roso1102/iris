@@ -70,10 +70,10 @@ def build_qa_response(
     if _enforce_auth():
         try:
             verified_tenant = _verify_admin_token(auth_header)
-        except AuthError as exc:
-            return {"error": str(exc)}, 403
-        except MissingTenantClaimError as exc:
-            return {"error": str(exc)}, 403
+        except AuthError:
+            return {"error": "The authentication token is invalid or expired."}, 403
+        except MissingTenantClaimError:
+            return {"error": "The token is missing a required tenant claim."}, 403
         tenant_id = verified_tenant
 
     if not tenant_id or not doc_id:

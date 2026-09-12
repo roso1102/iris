@@ -40,6 +40,12 @@ logger = logging.getLogger(__name__)
 
 MIN_TEXT_CHARS = 150
 
+# Hard cap on concurrent Gemini Vision calls per instance. Prevents the
+# per-page ThreadPoolExecutor from fanning out enough simultaneous VLM calls
+# to trip Vertex AI 429 rate limits during bulk ingestion. Used for both the
+# semaphore and the executor worker count so the two never drift apart.
+MAX_CONCURRENT_VLM_PER_INSTANCE = 2
+
 # Optional on-disk VLM cache for zero-cost local test replay. Keyed by image
 # SHA256 (content-addressed), so the same crop/page always reuses the same
 # output. Disabled by default; set VLM_CACHE_DIR to enable (local dev only).
@@ -180,7 +186,7 @@ class RouterVlmRouter(VlmRouter):
         self._vlm_cache: Dict[str, str] = {}
         self._lock = threading.Lock()
         self.vlm_calls = 0
-        self._vlm_semaphore = threading.BoundedSemaphore(value=10)
+        self._vlm_semaphore = threading.BoundedSemaphore(value=MAX_CONCURRENT_VLM_PER_INSTANCE)
 
     def route(self, elements: List[ParsedElement], pdf_path: str = "") -> List[RoutingResult]:
         from concurrent.futures import ThreadPoolExecutor
@@ -231,13 +237,19 @@ class RouterVlmRouter(VlmRouter):
                         extracted_text = self._cached_vlm_call(png_bytes, extractor)
                         return i, dec, extracted_text
                     except Exception:
+                        if dec == RouteDecision.VLM_FULL_PAGE:
+                            logger.warning(
+                                "vlm_full_page_failed: doc page %s fell back to Docling text "
+                                "(likely blank for scanned pages)",
+                                page_no,
+                            )
                         logger.warning(
                             "VLM call failed for %s page %s (element %s), falling back to Docling text",
                             pdf_path, page_no, i, exc_info=True,
                         )
                         return i, RouteDecision.DOCLING_TEXT, element.text
 
-                workers = min(8, len(vlm_tasks))
+                workers = min(MAX_CONCURRENT_VLM_PER_INSTANCE, len(vlm_tasks))
                 with ThreadPoolExecutor(max_workers=workers) as executor:
                     for i, final_dec, final_text in executor.map(_run_task, vlm_tasks):
                         page_results[i] = RoutingResult(element=page_elements[i], decision=final_dec, text=final_text)

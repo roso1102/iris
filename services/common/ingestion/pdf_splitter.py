@@ -10,10 +10,25 @@ import hashlib
 import logging
 import os
 import tempfile
+import time
 from pathlib import Path
 from typing import List, Optional
 
+from services.common.auth.validation import DOC_ID_PATTERN
+from services.common.errors import RejectionCode
+from services.common.ingestion.preflight import PreflightError
+
 logger = logging.getLogger(__name__)
+
+
+class SplitTimeout(TimeoutError):
+    """The PDF split exceeded its processing deadline."""
+
+
+def _safe_name(doc_id: str) -> str:
+    if not isinstance(doc_id, str) or not DOC_ID_PATTERN.match(doc_id):
+        raise ValueError("Invalid doc_id")
+    return f"{doc_id}.pdf"
 
 
 def split_pdf(
@@ -21,27 +36,46 @@ def split_pdf(
     doc_id: str,
     tenant_id: str,
     gcs_client=None,
+    local_path: Optional[Path] = None,
+    deadline: Optional[float] = None,
+    max_pages: Optional[int] = None,
 ) -> List[dict]:
     """Split PDF into single-page blobs and upload to GCS.
 
     Returns list of dicts with per-page Pub/Sub attributes:
     {"gcs_uri": "gs://.../page_N.pdf", "tenant_id": ..., "doc_id": ..., "page_number": N, "total_pages": T}
+
+    ``local_path`` lets the caller pass an already-downloaded copy so the
+    source PDF is fetched exactly once per request. ``deadline`` (a
+    ``time.monotonic()`` epoch) and ``max_pages`` are enforced inside the loop,
+    so a long split cannot outlive the request deadline. The surrounding
+    ``TemporaryDirectory`` guarantees page-fragment cleanup on any failure.
     """
     from pypdf import PdfReader, PdfWriter
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        local_path = _download_pdf(gcs_uri, tmpdir, doc_id, gcs_client)
+        if local_path is None:
+            local_path = _download_pdf(gcs_uri, tmpdir, doc_id, gcs_client)
         reader = PdfReader(str(local_path))
         total_pages = len(reader.pages)
 
         if total_pages == 0:
             return []
+        if max_pages is not None and total_pages > max_pages:
+            raise PreflightError(
+                f"Document has {total_pages} pages; max allowed is {max_pages}.",
+                code=RejectionCode.PDF_PAGE_LIMIT_EXCEEDED,
+            )
 
         bucket_name, prefix = _split_gcs_uri(gcs_uri)
         base_dir = f"{tenant_id}/{doc_id}/pages"
 
         messages = []
         for page_idx in range(total_pages):
+            if deadline is not None and time.monotonic() > deadline:
+                raise SplitTimeout(
+                    f"PDF split exceeded its deadline after {page_idx}/{total_pages} pages"
+                )
             writer = PdfWriter()
             writer.add_page(reader.pages[page_idx])
 
@@ -61,13 +95,26 @@ def split_pdf(
                 "total_pages": total_pages,
             })
 
-        logger.info("Split %s into %d page blobs for doc_id=%s", gcs_uri, total_pages, doc_id)
+        logger.info("Split doc_id=%s into %d page blobs", doc_id, total_pages)
         return messages
 
 
-def compute_sha256(gcs_uri: str, gcs_client=None) -> Optional[str]:
-    """Compute SHA256 of a GCS blob for doc dedup."""
+def compute_sha256(
+    gcs_uri: str, gcs_client=None, local_path: Optional[Path] = None
+) -> Optional[str]:
+    """Compute SHA256 of a GCS blob for doc dedup.
+
+    Pass ``local_path`` to hash an already-downloaded copy (avoids a second
+    network fetch).
+    """
     try:
+        if local_path is not None:
+            sha = hashlib.sha256()
+            with open(local_path, "rb") as f:
+                while chunk := f.read(8192):
+                    sha.update(chunk)
+            return sha.hexdigest()
+
         from google.cloud import storage
 
         bucket_name, blob_name = _split_gcs_uri(gcs_uri)
@@ -85,7 +132,7 @@ def compute_sha256(gcs_uri: str, gcs_client=None) -> Optional[str]:
                     sha.update(chunk)
         return sha.hexdigest()
     except Exception:
-        logger.warning("Failed to compute SHA256 for %s", gcs_uri, exc_info=True)
+        logger.warning("Failed to compute SHA256 for doc (uri hidden)", exc_info=True)
         return None
 
 
@@ -103,7 +150,7 @@ def _download_pdf(gcs_uri: str, tmpdir: str, doc_id: str, gcs_client=None) -> Pa
     bucket_name, blob_name = _split_gcs_uri(gcs_uri)
     client = gcs_client or storage.Client()
     blob = client.bucket(bucket_name).blob(blob_name)
-    local = Path(tmpdir) / f"{doc_id}.pdf"
+    local = Path(tmpdir) / _safe_name(doc_id)
     blob.download_to_filename(str(local))
     return local
 

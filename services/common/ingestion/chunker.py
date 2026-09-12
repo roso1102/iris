@@ -21,6 +21,7 @@ from services.common.ingestion.models import (
     ElementType,
     ParsedElement,
     RouteDecision,
+    normalize_bbox,
 )
 from services.common.ingestion.vlm_router import RoutingResult, _valid_word_ratio
 
@@ -53,19 +54,62 @@ def _env_target_tokens() -> int:
         return TARGET_TOKENS
 
 
-def _page_level_metadata(bbox: list[float]) -> dict:
-    if len(bbox) == 4:
-        left, top, right, bottom = bbox
-        if (right - left) * (bottom - top) >= _PAGE_LEVEL_AREA:
-            return {"page_level": True}
-    return {}
+def _element_geometry(rr: RoutingResult) -> tuple[list[float], bool, str, float]:
+    """Normalize an element's bbox and resolve its page-level provenance.
+
+    Explicit page-level flags (scanned OCR fallback) win; otherwise a box
+    covering >=70% of the page is page-level by area. Invalid geometry is
+    downgraded by ``normalize_bbox``.
+    """
+    element = rr.element
+    bbox, page_level, bbox_source, bbox_confidence = normalize_bbox(
+        element.bbox,
+        page_level=bool(element.page_level),
+        source=element.bbox_source or "element",
+        confidence=element.bbox_confidence if element.bbox_confidence is not None else 1.0,
+    )
+    if not page_level and len(bbox) == 4:
+        area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+        if area >= _PAGE_LEVEL_AREA:
+            page_level = True
+            bbox_source = "page_area"
+    return bbox, page_level, bbox_source, bbox_confidence
 
 
-def _chunk_metadata(rr: RoutingResult) -> dict:
+def _chunk_metadata(
+    rr: RoutingResult, page_level: bool, bbox_source: str, bbox_confidence: float
+) -> dict:
     meta = _standard_ocr_metadata(rr)
-    meta.update(_page_level_metadata(rr.element.bbox))
+    if page_level:
+        # Kept in metadata for backward compatibility with existing readers.
+        meta["page_level"] = True
+    meta["bbox_source"] = bbox_source
+    meta["bbox_confidence"] = bbox_confidence
     meta.update(_reference_section_metadata(rr.element.text))
     return meta
+
+
+def _build_chunk(
+    rr: RoutingResult,
+    tenant_id: str,
+    doc_id: str,
+    page_number_override: Optional[int],
+    text: str,
+) -> Chunk:
+    bbox, page_level, bbox_source, bbox_confidence = _element_geometry(rr)
+    return Chunk(
+        tenant_id=tenant_id,
+        doc_id=doc_id,
+        page_number=page_number_override or rr.element.page_number,
+        element_type=rr.element.element_type,
+        text=text,
+        bbox=bbox,
+        source=rr.decision,
+        page_level=page_level,
+        bbox_source=bbox_source,
+        bbox_confidence=bbox_confidence,
+        metadata=_chunk_metadata(rr, page_level, bbox_source, bbox_confidence),
+    )
 
 
 # ── Pipeline: reference section detection ──────────────────────────
@@ -163,15 +207,8 @@ def chunk_routed(
             elif rr.decision in _VLM_SINGLE_CHUNK:
                 if rr.text.strip():
                     chunks.append(
-                        Chunk(
-                            tenant_id=tenant_id,
-                            doc_id=doc_id,
-                            page_number=page_number_override or rr.element.page_number,
-                            element_type=rr.element.element_type,
-                            text=rr.text.strip(),
-                            bbox=rr.element.bbox,
-                            source=rr.decision,
-                            metadata=_chunk_metadata(rr),
+                        _build_chunk(
+                            rr, tenant_id, doc_id, page_number_override, rr.text.strip()
                         )
                     )
                 else:
@@ -222,16 +259,7 @@ def _chunk_text(
         if current:
             joined = " ".join(current).strip()
             chunks.append(
-                Chunk(
-                    tenant_id=tenant_id,
-                    doc_id=doc_id,
-                    page_number=page_number_override or rr.element.page_number,
-                    element_type=rr.element.element_type,
-                    text=joined,
-                    bbox=rr.element.bbox,
-                    source=rr.decision,
-                    metadata=_chunk_metadata(rr),
-                )
+                _build_chunk(rr, tenant_id, doc_id, page_number_override, joined)
             )
             current = []
             current_len = 0
@@ -314,30 +342,12 @@ def _chunk_vlm_table(
     # Oversized header (pathological): emit as its own chunk, no body rows
     # would ever fit with it. Still better than dropping the table.
     if header_len > int(target_tokens * CHARS_PER_TOKEN):
-        return [Chunk(
-            tenant_id=tenant_id,
-            doc_id=doc_id,
-            page_number=page_number_override or rr.element.page_number,
-            element_type=rr.element.element_type,
-            text=header_text,
-            bbox=rr.element.bbox,
-            source=rr.decision,
-            metadata=_chunk_metadata(rr),
-        )]
+        return [_build_chunk(rr, tenant_id, doc_id, page_number_override, header_text)]
 
     def make_chunk(rows: list[str]) -> Chunk:
         body_text = "\n".join(rows).strip()
         combined = f"{header_text}\n{body_text}" if header_text and body_text else (header_text or body_text)
-        return Chunk(
-            tenant_id=tenant_id,
-            doc_id=doc_id,
-            page_number=page_number_override or rr.element.page_number,
-            element_type=rr.element.element_type,
-            text=combined,
-            bbox=rr.element.bbox,
-            source=rr.decision,
-            metadata=_chunk_metadata(rr),
-        )
+        return _build_chunk(rr, tenant_id, doc_id, page_number_override, combined)
 
     groups: list[list[str]] = []
     current: list[str] = []
@@ -355,15 +365,6 @@ def _chunk_vlm_table(
 
     if len(groups) <= 1:
         # Fits the budget: keep the original text byte-identical.
-        return [Chunk(
-            tenant_id=tenant_id,
-            doc_id=doc_id,
-            page_number=page_number_override or rr.element.page_number,
-            element_type=rr.element.element_type,
-            text=text,
-            bbox=rr.element.bbox,
-            source=rr.decision,
-            metadata=_chunk_metadata(rr),
-        )]
+        return [_build_chunk(rr, tenant_id, doc_id, page_number_override, text)]
 
     return [make_chunk(rows) for rows in groups]

@@ -12,26 +12,38 @@ import os
 os.environ.setdefault("TORCH_COMPILE_DISABLE", "1")
 
 import base64
+import concurrent.futures
 import json
 import logging
 import os
+import re
+import tempfile
 import threading
+import time
+import uuid
 from collections import defaultdict
 
-from flask import Flask, jsonify, request
+from flask import Flask, g, jsonify, request
 
 from google.cloud import firestore, pubsub_v1
 
+from services.common.errors import (
+    REJECTION_MESSAGES,
+    ErrorCode,
+    RejectionCode,
+    error_envelope,
+)
 from services.common.ingestion.cache import get_cached_chunks
 from services.common.ingestion.main import (
     IngestionPipeline,
     RejectError,
     RetryError,
 )
-from services.common.ingestion.pdf_splitter import compute_sha256, split_pdf
-from services.common.ingestion.preflight import PreflightError, check_pdf
+from services.common.ingestion.pdf_splitter import SplitTimeout, compute_sha256, split_pdf
+from services.common.ingestion.preflight import MAX_PAGE_COUNT, PreflightError, check_pdf
 from services.common.ingestion.qa_view import build_qa_response
 from services.common.ingestion.store import get_chunk_store
+from services.common.reliability import RetryPolicy, retry_call
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,18 +52,79 @@ app = Flask(__name__)
 PORT = int(os.environ.get("PORT", 8080))
 _pipeline = None
 
+# Phase 0.1 hard limits (bounded fan-out / processing).
+_PUBLISH_TIMEOUT_SECONDS = float(os.environ.get("PUBLISH_TIMEOUT_SECONDS", "30"))
+_MAX_PROCESSING_SECONDS = float(os.environ.get("MAX_PROCESSING_SECONDS", "900"))
+_STAGE_VERSION = "page-v1"
+_MAX_DOWNLOAD_BYTES = int(os.environ.get("MAX_DOWNLOAD_BYTES", str(200 * 1024 * 1024)))
+
+_REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
+
+@app.before_request
+def _assign_request_id():
+    """Accept a safe inbound X-Request-ID or generate one (never trust blindly)."""
+    raw = request.headers.get("X-Request-ID", "")
+    g.request_id = raw if _REQUEST_ID_PATTERN.match(raw) else uuid.uuid4().hex
+
+
+@app.after_request
+def _echo_request_id(response):
+    response.headers["X-Request-ID"] = getattr(g, "request_id", "") or uuid.uuid4().hex
+    return response
+
+
+def _error_json(code: str, message: str, status_code: int):
+    request_id = getattr(g, "request_id", "") if request else ""
+    return jsonify(error_envelope(code, message, request_id)), status_code
+
+
+@app.errorhandler(Exception)
+def _handle_unexpected(exc):
+    # Let Flask's HTTPException (404/405) keep its status.
+    from werkzeug.exceptions import HTTPException
+
+    if isinstance(exc, HTTPException):
+        return _error_json(ErrorCode.NOT_FOUND, "Not found.", exc.code or 404)
+    logger.exception("unhandled worker exception")
+    return _error_json(
+        ErrorCode.INTERNAL_ERROR, "An unexpected internal error occurred.", 500
+    )
+
+
+def _rejection_payload(exc) -> dict:
+    """Map a rejection to an enumerated code + stable public message.
+
+    Never returns exception text — an internal parser/path message must not
+    reach the client.
+    """
+    code = getattr(exc, "code", None) or RejectionCode.INVALID_REQUEST
+    return {
+        "status": "rejected",
+        "code": code,
+        "message": REJECTION_MESSAGES.get(
+            code, REJECTION_MESSAGES[RejectionCode.INVALID_REQUEST]
+        ),
+    }
+
 
 def _firestore() -> firestore.Client:
     return firestore.Client()
 
 
 def _doc_exists(tenant_id: str, doc_id: str) -> bool:
-    """Check if document ownership record still exists in Firestore."""
+    """Verify the document is still owned by this tenant.
+
+    Phase 0.1 (P0): fails CLOSED. If ownership cannot be verified the caller
+    must not process or index the page — a retryable error lets Pub/Sub
+    redeliver once Firestore is reachable again.
+    """
     try:
         doc = _firestore().document(f"tenants/{tenant_id}/documents/{doc_id}").get()
-        return doc.exists
-    except Exception:
-        return True  # if Firestore is down, don't block ingestion
+        return bool(doc.exists)
+    except Exception as exc:
+        logger.warning("Ownership verification failed for doc_id=%s: %s", doc_id, exc)
+        raise RetryError("Document ownership could not be verified") from exc
 
 
 def _progress_doc_path(tenant_id: str, doc_id: str) -> str:
@@ -72,7 +145,7 @@ def _pubsub() -> pubsub_v1.PublisherClient:
 
 
 def _pubsub_topic() -> str:
-    project = os.getenv("GCP_PROJECT", "naturepivot-rag")
+    project = os.getenv("GCP_PROJECT", "procambrian-iris-staging-2026")
     topic = os.getenv("INGESTION_TOPIC", "iris-ingestion")
     return f"projects/{project}/topics/{topic}"
 
@@ -161,14 +234,20 @@ def ingest_page():
     except RejectError as exc:
         _mark_page_failed(tenant_id, doc_id, page_number)
         logger.warning("Rejected %s page %s: %s", doc_id, page_number, exc)
-        return jsonify({"status": "rejected", "reason": str(exc)}), 200
+        return jsonify(_rejection_payload(exc)), 200
     except RetryError as exc:
         logger.warning("Transient failure for %s page %s: %s", doc_id, page_number, exc)
-        return jsonify({"error": str(exc)}), 500
+        return _error_json(
+            ErrorCode.DEPENDENCY_UNAVAILABLE,
+            "Temporary failure processing the page; retry.",
+            503,
+        )
     except Exception as exc:
         _mark_page_failed(tenant_id, doc_id, page_number)
         logger.exception("Pipeline failed for doc_id=%s page=%s", doc_id, page_number)
-        return jsonify({"error": str(exc)}), 500
+        return _error_json(
+            ErrorCode.INTERNAL_ERROR, "An unexpected internal error occurred.", 500
+        )
 
 
 # ── Document-level ingest (fan-out) ────────────────────────────────────────
@@ -189,53 +268,145 @@ def ingest_document():
     doc_id = body.get("doc_id", "")
 
     if not gcs_uri or not tenant_id or not doc_id:
-        return jsonify({"error": "gcs_uri, tenant_id, and doc_id are required"}), 400
-
-    # 1. Doc cache check
-    sha = compute_sha256(gcs_uri)
-    if sha:
-        cached = get_cached_chunks(sha, tenant_id, doc_id)
-        if cached:
-            return jsonify({
-                "status": "already_ingested",
-                "doc_id": doc_id,
-                "total_pages": len({c.page_number for c in cached}),
-                "chunks": len(cached),
-            }), 200
-
-    # 2. Preflight
-    try:
-        _get_pipeline()._download(gcs_uri, os.environ.get("TMPDIR", "/tmp"), doc_id)
-        check_pdf(_get_pipeline()._download(gcs_uri, os.environ.get("TMPDIR", "/tmp"), doc_id))
-    except (PreflightError, RejectError) as exc:
-        return jsonify({"status": "rejected", "reason": str(exc)}), 200
-
-    # 3. Split and fan out
-    try:
-        page_messages = split_pdf(gcs_uri, doc_id, tenant_id)
-    except Exception as exc:
-        logger.exception("Failed to split PDF %s", gcs_uri)
-        return jsonify({"error": str(exc)}), 500
-
-    if not page_messages:
-        return jsonify({"error": "PDF has no pages"}), 400
-
-    # 4. Publish per-page Pub/Sub messages
-    topic_path = _pubsub_topic()
-    publisher = _pubsub()
-    for msg in page_messages:
-        publisher.publish(
-            topic_path,
-            json.dumps(msg).encode("utf-8"),
-            gcs_uri=msg["gcs_uri"],
-            tenant_id=msg["tenant_id"],
-            doc_id=msg["doc_id"],
-            page_number=str(msg["page_number"]),
-            total_pages=str(msg["total_pages"]),
+        return _error_json(
+            ErrorCode.INVALID_REQUEST,
+            "gcs_uri, tenant_id, and doc_id are required.",
+            400,
         )
 
+    deadline = time.monotonic() + _MAX_PROCESSING_SECONDS
+
+    # Download the source PDF exactly once into a request-scoped temp dir and
+    # reuse it for the checksum, preflight and split stages.
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            local_path = _get_pipeline()._download(gcs_uri, tmpdir, doc_id)
+
+            try:
+                size = local_path.stat().st_size
+            except OSError:
+                size = 0
+            if size > _MAX_DOWNLOAD_BYTES:
+                return jsonify({
+                    "status": "rejected",
+                    "code": RejectionCode.PDF_TOO_LARGE,
+                    "message": REJECTION_MESSAGES[RejectionCode.PDF_TOO_LARGE],
+                }), 200
+            if size == 0:
+                return jsonify({
+                    "status": "rejected",
+                    "code": RejectionCode.PDF_EMPTY,
+                    "message": REJECTION_MESSAGES[RejectionCode.PDF_EMPTY],
+                }), 200
+
+            # 1. Doc cache check (hash the already-downloaded bytes).
+            sha = compute_sha256(gcs_uri, local_path=local_path)
+            if sha:
+                cached = get_cached_chunks(sha, tenant_id, doc_id)
+                if cached:
+                    return jsonify({
+                        "status": "already_ingested",
+                        "doc_id": doc_id,
+                        "total_pages": len({c.page_number for c in cached}),
+                        "chunks": len(cached),
+                    }), 200
+
+            # 2. Preflight the same local file.
+            try:
+                check_pdf(local_path)
+            except (PreflightError, RejectError) as exc:
+                return jsonify(_rejection_payload(exc)), 200
+
+            if time.monotonic() > deadline:
+                return _error_json(
+                    ErrorCode.DEPENDENCY_TIMEOUT,
+                    "Ingestion preprocessing timed out.",
+                    504,
+                )
+
+            # 3. Split and upload page blobs, reusing the same local file.
+            try:
+                page_messages = split_pdf(
+                    gcs_uri,
+                    doc_id,
+                    tenant_id,
+                    local_path=local_path,
+                    deadline=deadline,
+                    max_pages=MAX_PAGE_COUNT,
+                )
+            except PreflightError as exc:
+                return jsonify(_rejection_payload(exc)), 200
+            except SplitTimeout:
+                return _error_json(
+                    ErrorCode.DEPENDENCY_TIMEOUT,
+                    "Document processing timed out.",
+                    504,
+                )
+            except Exception:
+                logger.exception("Failed to split PDF doc_id=%s", doc_id)
+                return _error_json(
+                    ErrorCode.BAD_UPSTREAM_RESPONSE,
+                    "Failed to process the document.",
+                    502,
+                )
+    except RetryError:
+        return _error_json(
+            ErrorCode.DEPENDENCY_UNAVAILABLE, "Failed to fetch the document; retry.", 503
+        )
+    except RejectError as exc:
+        return jsonify(_rejection_payload(exc)), 200
+    except Exception:
+        logger.exception("Preprocessing failed for doc_id=%s", doc_id)
+        return _error_json(
+            ErrorCode.INTERNAL_ERROR, "An unexpected internal error occurred.", 500
+        )
+
+    if not page_messages:
+        return _error_json(ErrorCode.INVALID_REQUEST, "The PDF has no pages.", 422)
+
+    # 4. Record expected pages BEFORE dispatching work (no completion race).
     total_pages = page_messages[0]["total_pages"]
     _init_progress(tenant_id, doc_id, total_pages)
+
+    # 5. Publish every page event and await them under ONE overall deadline.
+    # Publish creation and waiting both live inside the error handler so a
+    # synchronous publish failure cannot bypass partial-failure handling.
+    topic_path = _pubsub_topic()
+    publisher = _pubsub()
+    publish_deadline = max(0.001, min(_PUBLISH_TIMEOUT_SECONDS, deadline - time.monotonic()))
+    futures = []
+    try:
+        for msg in page_messages:
+            event_id = f"{tenant_id}:{doc_id}:{msg['page_number']}:{_STAGE_VERSION}"
+            futures.append(
+                publisher.publish(
+                    topic_path,
+                    json.dumps(msg).encode("utf-8"),
+                    gcs_uri=msg["gcs_uri"],
+                    tenant_id=msg["tenant_id"],
+                    doc_id=msg["doc_id"],
+                    page_number=str(msg["page_number"]),
+                    total_pages=str(msg["total_pages"]),
+                    event_id=event_id,
+                )
+            )
+        done, not_done = concurrent.futures.wait(futures, timeout=publish_deadline)
+        failed = [f for f in done if f.exception() is not None]
+        if not_done or failed:
+            raise RuntimeError(
+                f"publish incomplete: {len(not_done)} pending, {len(failed)} failed"
+            )
+    except Exception:
+        logger.exception(
+            "Publish failed for doc_id=%s (published=%d/%d)",
+            doc_id, len(futures), len(page_messages),
+        )
+        _mark_document_failed(tenant_id, doc_id)
+        return _error_json(
+            ErrorCode.DEPENDENCY_UNAVAILABLE,
+            "Failed to dispatch ingestion work; retry.",
+            503,
+        )
 
     logger.info("Fanned out %d pages for doc_id=%s", total_pages, doc_id)
     return jsonify({
@@ -407,6 +578,17 @@ def _mark_page_failed(tenant_id: str, doc_id: str, page_number: int):
         "failed_pages": firestore.ArrayUnion([page_number]),
         "updated_at": firestore.SERVER_TIMESTAMP,
     }, merge=True)
+
+
+def _mark_document_failed(tenant_id: str, doc_id: str):
+    """Record a partial/failed fan-out so status reflects reality."""
+    try:
+        _firestore().document(_progress_doc_path(tenant_id, doc_id)).set({
+            "status": "failed",
+            "updated_at": firestore.SERVER_TIMESTAMP,
+        }, merge=True)
+    except Exception:
+        logger.warning("Failed to mark document failed doc_id=%s", doc_id)
 
 
 if __name__ == "__main__":

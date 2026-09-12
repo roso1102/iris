@@ -14,6 +14,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
+from services.common.auth.validation import DOC_ID_PATTERN
+from services.common.embeddings import EmbeddingInvalidError, validate_embedding_batch
+from services.common.errors import RejectionCode
 from services.common.ingestion.chunker import chunk_routed
 from services.common.ingestion.models import Chunk, ElementType, ParsedElement
 from services.common.ingestion.parser import DoclingParser, MockDocParser
@@ -29,7 +32,14 @@ _ALLOWED_URI_PATTERN = re.compile(r"^gs://[a-z0-9][a-z0-9._-]{2,61}/.+$")
 
 
 class RejectError(Exception):
-    """Payload must be rejected forever (never queued / straight to DLQ)."""
+    """Payload must be rejected forever (never queued / straight to DLQ).
+
+    Carries an enumerated :class:`RejectionCode` for a stable public reason.
+    """
+
+    def __init__(self, message: str, code: str = "INVALID_REQUEST") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class RetryError(Exception):
@@ -83,7 +93,7 @@ class IngestionPipeline:
         self._parser = parser or self._default_parser()
         self._router = router or self._default_router()
         self._gcs = gcs_client
-        self._bucket = bucket or os.getenv("GCS_RAW_BUCKET", "iris-raw-pdfs")
+        self._bucket = bucket or os.getenv("GCS_RAW_BUCKET", "procambrian-iris-staging-raw")
 
     @staticmethod
     def _default_parser():
@@ -110,7 +120,10 @@ class IngestionPipeline:
     ) -> IngestResult:
         """Full pipeline for one uploaded document or single-page blob."""
         if not gcs_uri or not tenant_id or not doc_id:
-            raise RejectError("Missing gcs_uri/tenant_id/doc_id in message")
+            raise RejectError(
+                "Missing gcs_uri/tenant_id/doc_id in message",
+                code=RejectionCode.INVALID_REQUEST,
+            )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             local_path = self._download(gcs_uri, tmpdir, doc_id)
@@ -119,7 +132,7 @@ class IngestionPipeline:
                 meta = check_pdf(local_path)
             except PreflightError as exc:
                 # Reject forever: oversized or corrupt payload never enters pipeline.
-                raise RejectError(str(exc)) from exc
+                raise RejectError(str(exc), code=getattr(exc, "code", RejectionCode.PDF_CORRUPT)) from exc
 
             vlm_calls_before = getattr(self._router, "vlm_calls", 0)
 
@@ -144,6 +157,9 @@ class IngestionPipeline:
                         element_type=ElementType.TEXT,
                         text="",
                         bbox=[0.0, 0.0, 1.0, 1.0],
+                        page_level=True,
+                        bbox_source="page_ocr_fallback",
+                        bbox_confidence=0.0,
                     )
                 ]
             routed = self._router.route(elements, pdf_path=str(local_path))
@@ -175,24 +191,29 @@ class IngestionPipeline:
         if os.getenv("IRIS_LOCAL_DEV", "0") == "1":
             path = Path(gcs_uri)
             if not path.is_absolute():
-                raise RejectError(f"Local dev: path must be absolute: {gcs_uri}")
+                raise RejectError(
+                    "Local dev: path must be absolute", code=RejectionCode.UNSUPPORTED_PDF
+                )
             resolved = path.resolve()
             allowed_root = Path(__file__).resolve().parents[3] / "trueassort"
             if not str(resolved).startswith(str(allowed_root)):
-                raise RejectError(f"Local dev: path outside trueassort: {gcs_uri}")
+                raise RejectError(
+                    "Local dev: path outside the allowed root",
+                    code=RejectionCode.UNSUPPORTED_PDF,
+                )
             if not resolved.exists():
                 raise RetryError(f"Local file not found: {resolved}")
             return resolved
 
         if not _ALLOWED_URI_PATTERN.match(gcs_uri):
-            raise RejectError(f"Invalid GCS URI: {gcs_uri}")
+            raise RejectError("Invalid GCS URI", code=RejectionCode.UNSUPPORTED_PDF)
 
         from google.cloud import storage
 
         bucket_name, blob_name = _split_gcs_uri(gcs_uri)
         client = self._gcs or storage.Client()
         blob = client.bucket(bucket_name).blob(blob_name)
-        local = Path(tmpdir) / f"{doc_id}.pdf"
+        local = Path(tmpdir) / _safe_local_name(doc_id)
         blob.download_to_filename(str(local))
         return local
 
@@ -202,20 +223,36 @@ class IngestionPipeline:
         texts = [c.text for c in chunks]
         try:
             embeddings = self._provider.embed_batch(texts)
-            for chunk, emb in zip(chunks, embeddings):
-                chunk.embedding = emb
-        except Exception:
-            logger.warning("Batch embedding failed; falling back to individual embeddings", exc_info=True)
-            for chunk in chunks:
-                try:
-                    chunk.embedding = self._provider.embed(chunk.text)
-                except Exception:
-                    logger.warning("Embedding failed for chunk %s, using zero vector fallback", chunk.id, exc_info=True)
-                    chunk.embedding = [0.0] * 768
+        except EmbeddingInvalidError as exc:
+            # A malformed provider response is deterministic — redelivery will
+            # not fix it. Reject rather than loop.
+            raise RejectError(f"Invalid embedding response: {exc.reason}") from exc
+        except Exception as exc:
+            # Transient provider failure: redeliver (DLQ bounds the retries).
+            logger.warning("Batch embedding failed; requesting redelivery", exc_info=True)
+            raise RetryError(f"Embedding failed: {exc}") from exc
+
+        # Validate the WHOLE batch before assigning any vector, so a short or
+        # malformed response can never leave half the chunks unembedded or write
+        # zero-vectors to Qdrant.
+        try:
+            validated = validate_embedding_batch(chunks, embeddings)
+        except EmbeddingInvalidError as exc:
+            raise RejectError(f"Invalid embedding response: {exc.reason}") from exc
+
+        for chunk, emb in zip(chunks, validated):
+            chunk.embedding = emb
+
+
+def _safe_local_name(doc_id: str) -> str:
+    """Build a temp filename from a validated internal id (never client text)."""
+    if not isinstance(doc_id, str) or not DOC_ID_PATTERN.match(doc_id):
+        raise RejectError("Invalid doc_id", code=RejectionCode.INVALID_REQUEST)
+    return f"{doc_id}.pdf"
 
 
 def _split_gcs_uri(uri: str) -> tuple[str, str]:
     if not uri.startswith("gs://"):
-        raise RejectError(f"Not a GCS URI: {uri}")
+        raise RejectError("Not a GCS URI", code=RejectionCode.UNSUPPORTED_PDF)
     parts = uri[5:].split("/", 1)
     return parts[0], parts[1]
