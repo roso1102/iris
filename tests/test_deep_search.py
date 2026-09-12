@@ -35,11 +35,11 @@ class RecordingProvider(MockModelProvider):
 
     def rewrite_query(self, query: str, history: list):
         self.rewrite_calls.append((query, history))
-        return f"REWRITTEN: {query}"
+        return f"resolved {query}"
 
     def generate_hyde(self, query: str):
         self.hyde_calls.append(query)
-        return f"HYDE ANSWER about {query}"
+        return {"hypothesis": f"hypothetical answer about {query}", "keywords": []}
 
 
 def _chunk(doc_id: str, text: str, tenant_id: str = "tenant-a") -> Chunk:
@@ -80,30 +80,41 @@ class TestDeepSearch(unittest.TestCase):
         history = [{"role": "user", "content": "earlier question"}]
         self._run(
             self.orchestrator.deep_search(
-                "what is the funding", "tenant-a", history=history, top_k=5
+                "what does it do", "tenant-a", history=history, top_k=5
             )
         )
         self.assertEqual(len(self.provider.rewrite_calls), 1)
         query, h = self.provider.rewrite_calls[0]
-        self.assertEqual(query, "what is the funding")
+        self.assertEqual(query, "what does it do")
         self.assertEqual(h, history)
 
-    def test_generate_hyde_called_with_rewritten_query(self):
+    def test_standalone_query_is_not_rewritten_in_deep(self):
+        # Deep mode does NOT rewrite context-free queries (same gate as standard).
         self._run(
             self.orchestrator.deep_search("funding rules", "tenant-a", top_k=5)
+        )
+        self.assertEqual(self.provider.rewrite_calls, [])
+
+    def test_generate_hyde_called_with_rewritten_query(self):
+        history = [{"role": "user", "content": "explain the funding rules"}]
+        self._run(
+            self.orchestrator.deep_search(
+                "what does it require", "tenant-a", history=history, top_k=5
+            )
         )
         self.assertEqual(len(self.provider.hyde_calls), 1)
-        self.assertEqual(self.provider.hyde_calls[0], "REWRITTEN: funding rules")
+        self.assertEqual(self.provider.hyde_calls[0], "resolved what does it require")
 
     def test_embed_uses_hyde_not_raw_query(self):
+        history = [{"role": "user", "content": "explain the funding rules"}]
         self._run(
-            self.orchestrator.deep_search("funding rules", "tenant-a", top_k=5)
+            self.orchestrator.deep_search(
+                "what does it require", "tenant-a", history=history, top_k=5
+            )
         )
-        # embed must have been called with the HyDE answer, not the raw query
-        self.assertEqual(len(self.provider.embed_calls), 1)
-        embedded = self.provider.embed_calls[0]
-        self.assertIn("HYDE ANSWER", embedded)
-        self.assertNotEqual(embedded, "funding rules")
+        # The HyDE leg embeds the hypothetical answer, not the raw query.
+        self.assertTrue(any("hypothetical answer" in c for c in self.provider.embed_calls))
+        self.assertNotIn("what does it require", self.provider.embed_calls)
 
     def test_deep_search_returns_results_from_store(self):
         results = self._run(
@@ -125,12 +136,14 @@ class TestDeepSearch(unittest.TestCase):
             raise RuntimeError("provider down")
 
         self.provider.generate_hyde = boom
+        history = [{"role": "user", "content": "explain the funding rules"}]
         results = self._run(
-            self.orchestrator.deep_search("funding rules", "tenant-a", top_k=5)
+            self.orchestrator.deep_search(
+                "what does it require", "tenant-a", history=history, top_k=5
+            )
         )
-        # embed fallback: it should embed the rewritten query
-        self.assertEqual(len(self.provider.embed_calls), 1)
-        self.assertEqual(self.provider.embed_calls[0], "REWRITTEN: funding rules")
+        # HyDE failure falls back to embedding the rewritten query.
+        self.assertIn("resolved what does it require", self.provider.embed_calls)
         self.assertGreaterEqual(len(results), 1)
 
 

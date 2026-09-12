@@ -28,7 +28,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # scripts/
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo root
 
-PROJECT = "naturepivot-rag"
+PROJECT = os.environ.get("GCP_PROJECT", "procambrian-iris-staging-2026")
 DEFAULT_TENANT = "test-tenant"
 
 

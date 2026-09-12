@@ -13,9 +13,10 @@ import urllib.request
 import json
 
 os.environ.setdefault("EVAL_USER_PASSWORD", "EvalPass!2026x")
-os.environ.setdefault("FIREBASE_CONFIG", "naturepivot-rag")
+PROJECT = os.environ.get("GCP_PROJECT", "procambrian-iris-staging-2026")
+os.environ.setdefault("FIREBASE_CONFIG", PROJECT)
 
-API_URL = os.environ.get("RETRIEVAL_URL", "https://retrieval-api-zzdrfa3kqa-el.a.run.app")
+API_URL = os.environ.get("RETRIEVAL_URL", "")
 
 
 def _firebase_id_token():
@@ -27,7 +28,7 @@ def _firebase_id_token():
         try:
             result = subprocess.run(
                 ["gcloud", "secrets", "versions", "access", "latest",
-                 "--secret=FIREBASE_CONFIG", "--project=naturepivot-rag"],
+                 "--secret=FIREBASE_CONFIG", f"--project={PROJECT}"],
                 capture_output=True, text=True, timeout=10
             )
             config = json.loads(result.stdout)
@@ -35,8 +36,8 @@ def _firebase_id_token():
         except Exception:
             pass
 
-    email = os.environ.get("EVAL_USER_EMAIL", "rohit.soni@naturepivot.com")
-    password = os.environ.get("EVAL_USER_PASSWORD", "RohitPC2026")
+    email = os.environ.get("EVAL_USER_EMAIL", "eval@iris.local")
+    password = os.environ.get("EVAL_USER_PASSWORD", "")
 
     url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
     data = json.dumps({"email": email, "password": password, "returnSecureToken": True}).encode()

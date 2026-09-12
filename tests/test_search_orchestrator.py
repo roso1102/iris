@@ -49,7 +49,7 @@ class TestSearchOrchestrator(unittest.TestCase):
         return asyncio.run(coro)
 
     def test_standard_search_returns_results(self):
-        results = self._run(
+        results, _trace = self._run(
             self.orchestrator.standard_search(
                 "committee funding", "tenant-a", top_k=5
             )
@@ -57,7 +57,7 @@ class TestSearchOrchestrator(unittest.TestCase):
         self.assertGreaterEqual(len(results), 1)
 
     def test_standard_search_tenant_isolation(self):
-        results = self._run(
+        results, _trace = self._run(
             self.orchestrator.standard_search(
                 "private data", "tenant-a", top_k=10
             )
@@ -67,7 +67,7 @@ class TestSearchOrchestrator(unittest.TestCase):
             self.assertNotEqual(r.doc_id, "d3")
 
     def test_standard_search_doc_filter(self):
-        results = self._run(
+        results, _trace = self._run(
             self.orchestrator.standard_search(
                 "petition", "tenant-a", doc_ids=["d2"], top_k=5
             )
@@ -97,12 +97,12 @@ class TestSearchOrchestrator(unittest.TestCase):
         # Mock rerank scores passages in REVERSE order. Pure rerank (blend=1.0)
         # must invert the hybrid ranking so the mock's top-scored chunk lands
         # first — proving the reranker leg is wired into standard_search.
-        hybrid = self._run(
+        hybrid, _ = self._run(
             self.orchestrator.standard_search(
                 "committee funding", "tenant-a", top_k=3, rerank_blend=0.0
             )
         )
-        reranked = self._run(
+        reranked, _ = self._run(
             self.orchestrator.standard_search(
                 "committee funding", "tenant-a", top_k=3, rerank_blend=1.0
             )
@@ -148,7 +148,15 @@ class TestSearchOrchestrator(unittest.TestCase):
         self._run(orch.deep_search("deep query", "tenant-a", top_k=3))
         self.assertEqual(len(provider.doc_embeds), 1)
         self.assertIn("Hypothetical", provider.doc_embeds[0])
-        self.assertEqual(provider.query_embeds, ["what does the document say about section five"])
+        # Deep search runs the original-query dense leg (query task). A
+        # standalone "deep query" is NOT rewritten (context-dependence gate).
+        self.assertEqual(
+            provider.query_embeds,
+            [
+                "what does the document say about section five",
+                "deep query",
+            ],
+        )
 
     def test_doc_scoped_search_skips_diversity(self):
         # Doc-scoped sessions (doc_ids set) bypass the diversity pass; every

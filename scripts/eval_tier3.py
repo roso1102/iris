@@ -37,7 +37,7 @@ from eval_phase2 import (  # noqa: E402
 )
 
 DOC_ID = "doc_006"
-GCS_URI = f"gs://iris-raw-pdfs/{TENANT_ID}/{DOC_ID}.pdf"
+GCS_URI = f"gs://{os.environ.get('GCS_RAW_BUCKET', 'procambrian-iris-staging-raw')}/{TENANT_ID}/{DOC_ID}.pdf"
 WRONG_TENANT = "tier3-wrong-tenant"
 QUERY = (
     "Who are the authors of Digital corporate reporting research developments "

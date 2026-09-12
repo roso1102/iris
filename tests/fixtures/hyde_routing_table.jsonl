@@ -1,0 +1,65 @@
+{"query": "hi", "label": "bypass", "reason": "greeting"}
+{"query": "hello", "label": "bypass", "reason": "greeting"}
+{"query": "hey there", "label": "bypass", "reason": "greeting"}
+{"query": "thanks", "label": "bypass", "reason": "greeting"}
+{"query": "thank you", "label": "bypass", "reason": "greeting"}
+{"query": "good morning", "label": "bypass", "reason": "greeting"}
+{"query": "go to page 5", "label": "bypass", "reason": "navigation"}
+{"query": "open the second document", "label": "bypass", "reason": "navigation"}
+{"query": "navigate to the next page", "label": "bypass", "reason": "navigation"}
+{"query": "show me the previous page", "label": "bypass", "reason": "navigation"}
+{"query": "scroll down", "label": "bypass", "reason": "navigation"}
+{"query": "summarize the emissions policy", "label": "bypass", "reason": "summary_request"}
+{"query": "summary of the budget", "label": "bypass", "reason": "summary_request"}
+{"query": "give me an overview", "label": "bypass", "reason": "summary_request"}
+{"query": "what is this document about", "label": "bypass", "reason": "summary_request"}
+{"query": "tl;dr", "label": "bypass", "reason": "summary_request"}
+{"query": "what is the filename", "label": "bypass", "reason": "metadata_request"}
+{"query": "how many pages does this have", "label": "bypass", "reason": "metadata_request"}
+{"query": "show upload status", "label": "bypass", "reason": "metadata_request"}
+{"query": "what is the file size", "label": "bypass", "reason": "metadata_request"}
+{"query": "when was this uploaded", "label": "bypass", "reason": "metadata_request"}
+{"query": "\"right to information\" clause", "label": "bypass", "reason": "quoted_search"}
+{"query": "find \"section 17\"", "label": "bypass", "reason": "quoted_search"}
+{"query": "the phrase \"due process\"", "label": "bypass", "reason": "quoted_search"}
+{"query": "search for \"ABC\"", "label": "bypass", "reason": "quoted_search"}
+{"query": "What is Section 17?", "label": "bypass", "reason": "exact_identifier"}
+{"query": "Find order number ABC-123", "label": "bypass", "reason": "exact_identifier"}
+{"query": "Show Rule 4A", "label": "bypass", "reason": "exact_identifier"}
+{"query": "look up case number 123/2020", "label": "bypass", "reason": "exact_identifier"}
+{"query": "what does Notification 45 say", "label": "bypass", "reason": "exact_identifier"}
+{"query": "search invoice INV-9931", "label": "bypass", "reason": "exact_identifier"}
+{"query": "यह दस्तावेज़ क्या है", "label": "bypass", "reason": "devanagari"}
+{"query": "दस्तावेज़ में क्या लिखा है", "label": "bypass", "reason": "devanagari"}
+{"query": "नीति के बारे में बताएं", "label": "bypass", "reason": "devanagari"}
+{"query": "what are the environmental impacts", "label": "eligible", "reason": null}
+{"query": "how does the policy address risk", "label": "eligible", "reason": null}
+{"query": "explain the funding mechanism", "label": "eligible", "reason": null}
+{"query": "what are the limitations", "label": "eligible", "reason": null}
+{"query": "compare governance approaches", "label": "eligible", "reason": null}
+{"query": "why did revenue decline", "label": "eligible", "reason": null}
+{"query": "describe the compliance process", "label": "eligible", "reason": null}
+{"query": "what does the report recommend", "label": "eligible", "reason": null}
+{"query": "how is performance measured", "label": "eligible", "reason": null}
+{"query": "what are the key challenges", "label": "eligible", "reason": null}
+{"query": "discuss transparency measures", "label": "eligible", "reason": null}
+{"query": "how does this affect stakeholders", "label": "eligible", "reason": null}
+{"query": "what are the benefits", "label": "eligible", "reason": null}
+{"query": "analyze the trends", "label": "eligible", "reason": null}
+{"query": "what is the purpose", "label": "eligible", "reason": null}
+{"query": "what factors influence outcomes", "label": "eligible", "reason": null}
+{"query": "elaborate on the strategy", "label": "eligible", "reason": null}
+{"query": "clarify the scope", "label": "eligible", "reason": null}
+{"query": "what are the risks", "label": "eligible", "reason": null}
+{"query": "how are decisions made", "label": "eligible", "reason": null}
+{"query": "why is this important", "label": "eligible", "reason": null}
+{"query": "explain the methodology", "label": "eligible", "reason": null}
+{"query": "what are the implications", "label": "eligible", "reason": null}
+{"query": "how does the system work", "label": "eligible", "reason": null}
+{"query": "describe the framework", "label": "eligible", "reason": null}
+{"query": "what are the findings", "label": "eligible", "reason": null}
+{"query": "how do these compare", "label": "eligible", "reason": null}
+{"query": "what can be improved", "label": "eligible", "reason": null}
+{"query": "explain the governance structure", "label": "eligible", "reason": null}
+{"query": "what drives the cost", "label": "eligible", "reason": null}
+{"query": "discuss the tradeoffs", "label": "eligible", "reason": null}

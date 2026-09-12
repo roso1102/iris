@@ -92,7 +92,11 @@ class TestApiDeleteCascade(unittest.TestCase):
         return fake
 
     def test_delete_document_cascades_to_store_and_firestore(self):
-        store.upsert_batch([_chunk("d1", "tenant-a"), _chunk("d1", "tenant-a")])
+        # Distinct content -> distinct content-addressed ids (both retained).
+        store.upsert_batch([
+            _chunk("d1", "tenant-a", "alpha"),
+            _chunk("d1", "tenant-a", "beta"),
+        ])
         fake = self._fake_firestore()
 
         with patch("services.retrieval_api.app._get_firestore_client", return_value=fake), mock_auth(tenant_id="tenant-a"):

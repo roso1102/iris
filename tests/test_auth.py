@@ -2,7 +2,7 @@
 
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 # Must set env vars before importing app (VertexAIProvider reads at init).
 os.environ["GCP_PROJECT"] = "test-project"
@@ -76,7 +76,14 @@ class TestAuthDependency(unittest.TestCase):
 
     def test_valid_token_returns_200(self):
         store.upsert_batch([self._chunk("tenant-a", "d1", "government funds committee provides funding")])
-        with mock_auth(tenant_id="tenant-a"):
+        # Phase 0.1: /query now requires a working session store (no fake
+        # session), so provide a usable Firestore mock.
+        fake = MagicMock()
+        fake.document.return_value.get.return_value.exists = True
+        fake.document.return_value.get.return_value.to_dict.return_value = {"turn_seq": 0}
+        with patch(
+            "services.retrieval_api.app._get_firestore_client", return_value=fake
+        ), mock_auth(tenant_id="tenant-a"):
             resp = self.client.post(
                 "/query",
                 json={"query": "government funds committee funding", "mode": "standard"},

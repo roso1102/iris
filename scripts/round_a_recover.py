@@ -37,7 +37,7 @@ BACKOFF_S = 75
 def main() -> None:
     failed = []
     for doc_id in DOCS:
-        gcs_uri = f"gs://iris-raw-pdfs/{TENANT_ID}/{doc_id}.pdf"
+        gcs_uri = f"gs://{os.environ.get('GCS_RAW_BUCKET', 'procambrian-iris-staging-raw')}/{TENANT_ID}/{doc_id}.pdf"
         done = False
         for attempt in range(1, MAX_ATTEMPTS + 1):
             token = _id_token(INGEST_SA, INGEST_URL)

@@ -19,6 +19,13 @@ from services.common.ingestion.models import Chunk, ElementType, RouteDecision
 from tests.auth_testing import auth_headers, mock_auth
 
 
+def _firestore_mock() -> MagicMock:
+    """Firestore mock whose session document reports turn_seq=0."""
+    fake = MagicMock()
+    fake.document.return_value.get.return_value.to_dict.return_value = {"turn_seq": 0}
+    return fake
+
+
 class TestRetrievalApi(unittest.TestCase):
 
     @classmethod
@@ -33,7 +40,7 @@ class TestRetrievalApi(unittest.TestCase):
         )
         self._firestore_patcher = patch(
             "services.retrieval_api.app._get_firestore_client",
-            return_value=MagicMock(),
+            return_value=_firestore_mock(),
         )
         self._gcs_patcher.start()
         self._firestore_patcher.start()

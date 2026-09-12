@@ -17,6 +17,7 @@ from services.retrieval_api.app import (
     _load_firestore_messages,
     _session_exists,
 )
+from services.common.errors import ErrorCode, ServiceError
 from services.common.ingestion.models import Chunk, ElementType, RouteDecision
 from tests.auth_testing import auth_headers, mock_auth
 
@@ -25,10 +26,19 @@ def _fake_firestore():
     """Firestore mock with configurable document/collection behavior."""
     fake = MagicMock()
     fake.document.return_value.get.return_value.exists = False
+    fake.document.return_value.get.return_value.to_dict.return_value = {"turn_seq": 0}
     fake.document.return_value.set.return_value = None
     fake.document.return_value.delete.return_value = None
     fake.collection.return_value.stream.return_value = []
     return fake
+
+
+def _history_stream(fake):
+    """The messages query stream, after order_by(turn_seq).order_by(index)."""
+    return (
+        fake.collection.return_value.order_by.return_value.order_by.return_value
+        .limit.return_value.stream
+    )
 
 
 # ── Helper unit tests ───────────────────────────────────────────────
@@ -60,16 +70,19 @@ class TestFirestoreHelpers(unittest.TestCase):
         self.assertEqual(written["tenant_id"], "tenant-a")
         self.assertEqual(written["session_id"], sid)
 
-    def test_create_firestore_session_survives_write_failure(self):
+    def test_create_firestore_session_raises_on_write_failure(self):
+        # Phase 0.1: a failed write must NOT return a phantom session id.
         fake = _fake_firestore()
         fake.document.return_value.set.side_effect = Exception("write failed")
         with patch(
             "services.retrieval_api.app._get_firestore_client", return_value=fake
         ):
-            sid = _create_firestore_session("tenant-a")
-        self.assertIsInstance(sid, str)
+            with self.assertRaises(ServiceError) as ctx:
+                _create_firestore_session("tenant-a")
+        self.assertEqual(ctx.exception.status_code, 503)
+        self.assertEqual(ctx.exception.code, ErrorCode.SESSION_STORE_UNAVAILABLE)
 
-    def test_append_firestore_messages_writes_two_docs(self):
+    def test_append_firestore_messages_writes_one_atomic_transaction(self):
         fake = _fake_firestore()
         with patch(
             "services.retrieval_api.app._get_firestore_client", return_value=fake
@@ -78,21 +91,27 @@ class TestFirestoreHelpers(unittest.TestCase):
                 {"role": "user", "content": "hello"},
                 {"role": "assistant", "content": "hi there"},
             ])
-        col = fake.collection.return_value
-        self.assertEqual(col.add.call_count, 2)
-        first_msg = col.add.call_args_list[0].args[0]
-        self.assertEqual(first_msg["role"], "user")
-        self.assertEqual(first_msg["content"], "hello")
-        second_msg = col.add.call_args_list[1].args[0]
-        self.assertEqual(second_msg["role"], "assistant")
+        txn = fake.transaction.return_value
+        writes = [c.args[1] for c in txn.set.call_args_list if "role" in c.args[1]]
+        self.assertEqual(len(writes), 2)
+        txn._commit.assert_called_once()
+        self.assertEqual(writes[0]["role"], "user")
+        self.assertEqual(writes[0]["content"], "hello")
+        self.assertEqual(writes[1]["role"], "assistant")
+        self.assertEqual(writes[0]["message_index"], 0)
+        self.assertEqual(writes[1]["message_index"], 1)
 
-    def test_append_firestore_messages_survives_failure(self):
+    def test_append_firestore_messages_raises_on_failure(self):
         fake = _fake_firestore()
-        fake.collection.return_value.add.side_effect = Exception("write failed")
-        # Should not raise
-        _append_firestore_messages("tenant-a", "s1", [
-            {"role": "user", "content": "hello"},
-        ])
+        fake.transaction.return_value._commit.side_effect = Exception("write failed")
+        with patch(
+            "services.retrieval_api.app._get_firestore_client", return_value=fake
+        ):
+            with self.assertRaises(ServiceError) as ctx:
+                _append_firestore_messages("tenant-a", "s1", [
+                    {"role": "user", "content": "hello"},
+                ])
+        self.assertEqual(ctx.exception.status_code, 503)
 
     def test_load_firestore_messages_returns_chronological(self):
         fake = _fake_firestore()
@@ -105,7 +124,7 @@ class TestFirestoreHelpers(unittest.TestCase):
 
         msg_newest = _make_doc({"role": "assistant", "content": "B"})
         msg_oldest = _make_doc({"role": "user", "content": "A"})
-        fake.collection.return_value.order_by.return_value.limit.return_value.stream.return_value = [
+        _history_stream(fake).return_value = [
             msg_newest,
             msg_oldest,
         ]
@@ -120,18 +139,20 @@ class TestFirestoreHelpers(unittest.TestCase):
         self.assertEqual(result[1]["role"], "assistant")
         self.assertEqual(result[1]["content"], "B")
 
-    def test_load_firestore_messages_empty_on_query_failure(self):
+    def test_load_firestore_messages_raises_on_query_failure(self):
+        # Phase 0.1: a store failure must be visible, not silently empty.
         fake = _fake_firestore()
-        fake.collection.return_value.order_by.return_value.limit.return_value.stream.side_effect = Exception("query failed")
+        _history_stream(fake).side_effect = Exception("query failed")
         with patch(
             "services.retrieval_api.app._get_firestore_client", return_value=fake
         ):
-            result = _load_firestore_messages("tenant-a", "s1")
-        self.assertEqual(result, [])
+            with self.assertRaises(ServiceError) as ctx:
+                _load_firestore_messages("tenant-a", "s1")
+        self.assertEqual(ctx.exception.status_code, 503)
 
     def test_load_firestore_messages_empty_when_no_docs(self):
         fake = _fake_firestore()
-        fake.collection.return_value.order_by.return_value.limit.return_value.stream.return_value = []
+        _history_stream(fake).return_value = []
         with patch(
             "services.retrieval_api.app._get_firestore_client", return_value=fake
         ):
@@ -154,14 +175,25 @@ class TestFirestoreHelpers(unittest.TestCase):
         ):
             self.assertFalse(_session_exists("tenant-a", "s1"))
 
-    def test_session_exists_returns_true_when_query_fails(self):
+    def test_session_exists_raises_when_query_fails(self):
+        # Phase 0.1: fail closed — an unverifiable session is never "exists".
         fake = _fake_firestore()
         fake.document.return_value.get.side_effect = Exception("query failed")
         with patch(
             "services.retrieval_api.app._get_firestore_client", return_value=fake
         ):
-            # Graceful: don't block the request
-            self.assertTrue(_session_exists("tenant-a", "s1"))
+            with self.assertRaises(ServiceError) as ctx:
+                _session_exists("tenant-a", "s1")
+        self.assertEqual(ctx.exception.status_code, 503)
+        self.assertEqual(ctx.exception.code, ErrorCode.SESSION_STORE_UNAVAILABLE)
+
+    def test_session_exists_raises_when_firestore_unavailable(self):
+        with patch(
+            "services.retrieval_api.app._get_firestore_client", return_value=None
+        ):
+            with self.assertRaises(ServiceError) as ctx:
+                _session_exists("tenant-a", "s1")
+        self.assertEqual(ctx.exception.status_code, 503)
 
 
 # ── /query endpoint integration tests ───────────────────────────────
@@ -277,15 +309,15 @@ class TestQuerySessionMemory(unittest.TestCase):
                 headers=auth_headers(),
             )
         self.assertEqual(resp.status_code, 200)
-        # Messages sub-collection should have 2 writes (user + assistant)
-        col = fake.collection.return_value
-        self.assertEqual(col.add.call_count, 2)
-        first_msg = col.add.call_args_list[0].args[0]
-        self.assertEqual(first_msg["role"], "user")
-        self.assertEqual(first_msg["content"], "government funds")
-        second_msg = col.add.call_args_list[1].args[0]
-        self.assertEqual(second_msg["role"], "assistant")
-        self.assertIn("content", second_msg)
+        # Messages are written atomically inside one Firestore transaction.
+        txn = fake.transaction.return_value
+        writes = [c.args[1] for c in txn.set.call_args_list if "role" in c.args[1]]
+        self.assertEqual(len(writes), 2)
+        txn._commit.assert_called_once()
+        self.assertEqual(writes[0]["role"], "user")
+        self.assertEqual(writes[0]["content"], "government funds")
+        self.assertEqual(writes[1]["role"], "assistant")
+        self.assertIn("content", writes[1])
 
     def test_query_loads_server_history_when_session_provided(self):
         self._seed_chunk()
@@ -296,7 +328,7 @@ class TestQuerySessionMemory(unittest.TestCase):
         msg1.get.return_value = {"role": "user", "content": "previous question"}
         msg2 = MagicMock()
         msg2.get.return_value = {"role": "assistant", "content": "previous answer"}
-        fake.collection.return_value.order_by.return_value.limit.return_value.stream.return_value = [
+        _history_stream(fake).return_value = [
             msg2,
             msg1,
         ]
@@ -314,7 +346,7 @@ class TestQuerySessionMemory(unittest.TestCase):
             )
         self.assertEqual(resp.status_code, 200)
         # Verify the history was loaded (reversed to chronological)
-        stream_call = fake.collection.return_value.order_by.return_value.limit.return_value.stream
+        stream_call = _history_stream(fake)
         stream_call.assert_called_once()
 
     def test_query_validates_session_id_format(self):
@@ -372,7 +404,7 @@ class TestGetSessionMessages(unittest.TestCase):
             _make_doc({"role": "assistant", "content": "answer 1"}),
             _make_doc({"role": "user", "content": "question 1"}),
         ]
-        fake.collection.return_value.order_by.return_value.limit.return_value.stream.return_value = docs
+        _history_stream(fake).return_value = docs
         with patch(
             "services.retrieval_api.app._get_firestore_client", return_value=fake
         ), mock_auth(tenant_id="tenant-a"):
@@ -411,7 +443,7 @@ class TestGetSessionMessages(unittest.TestCase):
     def test_get_messages_empty_session(self):
         fake = _fake_firestore()
         fake.document.return_value.get.return_value.exists = True
-        fake.collection.return_value.order_by.return_value.limit.return_value.stream.return_value = []
+        _history_stream(fake).return_value = []
         with patch(
             "services.retrieval_api.app._get_firestore_client", return_value=fake
         ), mock_auth(tenant_id="tenant-a"):

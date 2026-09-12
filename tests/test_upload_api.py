@@ -118,7 +118,7 @@ class TestUploadApi(unittest.TestCase):
                 headers=auth_headers(),
             )
         self.assertEqual(resp.status_code, 422)
-        self.assertIn("MB limit", resp.json()["detail"])
+        self.assertIn("MB limit", resp.json()["error"]["message"])
 
     # ── Duplicate ───────────────────────────────────────────────────────────
 

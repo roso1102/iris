@@ -2,7 +2,7 @@
 
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 os.environ["GCP_PROJECT"] = "test-project"
 os.environ["MODEL_BACKEND"] = "mock"
@@ -72,7 +72,8 @@ class TestRateLimitEndpoint(unittest.TestCase):
             "services.retrieval_api.app._get_gcs_client", return_value=None
         )
         self._fs = patch(
-            "services.retrieval_api.app._get_firestore_client", return_value=None
+            "services.retrieval_api.app._get_firestore_client",
+            return_value=self._firestore_mock(),
         )
         self._gcs.start()
         self._fs.start()
@@ -80,6 +81,12 @@ class TestRateLimitEndpoint(unittest.TestCase):
         limiter.reset()
         self._orig_limit = limiter.limit
         limiter.limit = 2
+
+    @staticmethod
+    def _firestore_mock() -> MagicMock:
+        fake = MagicMock()
+        fake.document.return_value.get.return_value.to_dict.return_value = {"turn_seq": 0}
+        return fake
 
     def tearDown(self):
         limiter.limit = self._orig_limit

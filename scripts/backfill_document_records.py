@@ -16,7 +16,7 @@ import os
 import sys
 import urllib.request
 
-PROJECT = "naturepivot-rag"
+PROJECT = os.environ.get("GCP_PROJECT", "procambrian-iris-staging-2026")
 BASE = f"https://firestore.googleapis.com/v1/projects/{PROJECT}/databases/(default)/documents"
 DEFAULT_DOCS = [f"doc_{i:03d}" for i in range(1, 9)]
 

@@ -36,14 +36,17 @@ import urllib.request
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-PROJECT = "naturepivot-rag"
-REGION = "asia-south1"
+PROJECT = os.environ.get("GCP_PROJECT", "procambrian-iris-staging-2026")
+REGION = os.environ.get("GCP_REGION", "asia-south1")
 TENANT_ID = "test-tenant"
-RETRIEVAL_URL = "https://retrieval-api-zzdrfa3kqa-el.a.run.app"
-INGEST_URL = "https://ingestion-worker-zzdrfa3kqa-el.a.run.app"
+RETRIEVAL_URL = os.environ.get("RETRIEVAL_URL", "")
+INGEST_URL = os.environ.get("INGEST_URL", "")
+RAW_BUCKET = os.environ.get("GCS_RAW_BUCKET", "procambrian-iris-staging-raw")
 
 # Service account for ingestion-worker impersonation (Cloud Run IAM).
-INGEST_SA = "ingestion-worker-sa@naturepivot-rag.iam.gserviceaccount.com"
+INGEST_SA = os.environ.get(
+    "INGEST_SA", "ingestion-worker-sa@procambrian-iris-staging-2026.iam.gserviceaccount.com"
+)
 
 # Dedicated eval Firebase user (must have tenant_id=test-tenant claim).
 EVAL_USER_EMAIL = os.environ.get("EVAL_USER_EMAIL", "eval@iris.local")
@@ -180,7 +183,7 @@ def _ingest(url_path: str, method: str = "GET", timeout: int = 60, json_body: Op
 def trigger_ingestion():
     """Call /ingest endpoint for all 8 docs with idempotent SHA256 cache skip."""
     for doc_id in DOC_IDS:
-        gcs_uri = f"gs://iris-raw-pdfs/{TENANT_ID}/{doc_id}.pdf"
+        gcs_uri = f"gs://{RAW_BUCKET}/{TENANT_ID}/{doc_id}.pdf"
         resp = _ingest(
             "/ingest",
             method="POST",
