@@ -590,7 +590,6 @@ class VertexAIProvider(ModelProvider):
                 "keywords": {
                     "type": "ARRAY",
                     "items": {"type": "STRING"},
-                    "maxItems": 5,
                 },
             },
             "required": ["hypothesis", "keywords"],
@@ -692,7 +691,6 @@ class VertexAIProvider(ModelProvider):
                         },
                         "required": ["query", "type"],
                     },
-                    "maxItems": 3,
                 },
             },
             "required": ["intent", "target_doc_ids", "rewritten_query",
