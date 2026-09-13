@@ -1,6 +1,7 @@
 # IRIS — Ingestion Worker runtime dependencies (Phase 1.0).
 
 flask==3.*
+fastapi==0.115.*  # shared validation module uses HTTPException
 pydantic==2.*
 google-cloud-storage==3.*
 google-cloud-pubsub==2.*
