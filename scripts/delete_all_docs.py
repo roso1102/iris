@@ -11,6 +11,7 @@ import sys
 import time
 import urllib.request
 import json
+import shutil
 
 os.environ.setdefault("EVAL_USER_PASSWORD", "EvalPass!2026x")
 PROJECT = os.environ.get("GCP_PROJECT", "procambrian-iris-staging-2026")
@@ -26,8 +27,9 @@ def _firebase_id_token():
         # Read from gcloud secret
         import subprocess
         try:
+            gcloud = shutil.which("gcloud.cmd") or shutil.which("gcloud") or "gcloud"
             result = subprocess.run(
-                ["gcloud", "secrets", "versions", "access", "latest",
+                [gcloud, "secrets", "versions", "access", "latest",
                  "--secret=FIREBASE_CONFIG", f"--project={PROJECT}"],
                 capture_output=True, text=True, timeout=10
             )

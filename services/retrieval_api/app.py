@@ -1488,3 +1488,35 @@ async def upload_document(
         raise InvalidInput(worker_resp.get("message") or "Ingestion rejected the file")
 
     return UploadResponse(doc_id=doc_id, status=status)
+
+
+@app.post("/documents/{doc_id}/retry", response_model=UploadResponse)
+async def retry_document(
+    doc_id: str,
+    auth: AuthContext = Depends(require_auth),
+):
+    """Retry ingestion for an already-owned document.
+
+    Upload persists ownership before dispatching work. If the upstream worker
+    or Pub/Sub is temporarily unavailable, clients must be able to retry the
+    dispatch without re-uploading the PDF or receiving a permanent 409.
+    Deterministic page event IDs and idempotent stores make a retry safe.
+    """
+    validate_tenant_id(auth.tenant_id)
+    validate_doc_id(doc_id)
+    client = _get_firestore_client()
+    if client is None:
+        raise DependencyUnavailable("Firestore is unavailable.")
+    snapshot = fs_get(client.document(f"tenants/{auth.tenant_id}/documents/{doc_id}"))
+    if not snapshot.exists:
+        raise NotFound("Document not found")
+
+    worker_resp = _trigger_ingestion(auth.tenant_id, doc_id)
+    total_pages = worker_resp.get("total_pages")
+    if total_pages:
+        fs_set(
+            client.document(f"tenants/{auth.tenant_id}/documents/{doc_id}"),
+            {"total_pages": int(total_pages), "status": "processing"},
+            merge=True,
+        )
+    return UploadResponse(doc_id=doc_id, status=worker_resp.get("status", "processing"))

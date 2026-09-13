@@ -67,7 +67,9 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    needs: [test, firestore-rules]
+    # Never deploy if the Linux fork gate or container reproducibility checks
+    # failed. A green unit job alone is not a release gate.
+    needs: [test, firestore-rules, reliability-linux, containers]
     # Deployment is an explicit manual action until the staging plan has been
     # reviewed. Pull requests and normal pushes only run tests/build checks.
     if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
@@ -132,7 +134,7 @@ jobs:
           gcloud run deploy ingestion-worker \
             --image=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/iris/ingestion-worker:latest \
             --region=${{ vars.GCP_REGION }} --project=${{ vars.GCP_PROJECT_ID }} \
-            --no-allow-unauthenticated --ingress=all --cpu=2 --memory=8Gi --max-instances=10 --min-instances=0 --concurrency=1 --timeout=900 \
+            --no-allow-unauthenticated --ingress=all --cpu=2 --memory=8Gi --max-instances=2 --min-instances=0 --concurrency=1 --timeout=900 \
             --service-account=ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
             --network=iris-vpc --subnet=iris-subnet --vpc-egress=private-ranges-only \
             --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${{ vars.GCP_PROJECT_ID }},FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},GCS_RAW_BUCKET=${{ vars.GCS_RAW_BUCKET || 'procambrian-iris-staging-raw' }},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,VERTEX_VISION_LOCATION=us-central1,QDRANT_URL=http://${QDRANT_IP}:6333,RETRIEVAL_COLLECTION=iris_chunks_v2,CHUNK_TARGET_TOKENS=256,BM25_HINDI_ENABLED=1"
@@ -148,13 +150,29 @@ jobs:
             --push-endpoint="${INGEST_URL}/" \
             --push-auth-service-account="ingest-trigger-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --push-auth-token-audience="${INGEST_URL}"
+          # Runtime IAM required by the authenticated upload path. Keep these
+          # bindings explicit because Cloud Run services are deployed by CLI,
+          # not managed as Terraform resources in this project.
+          gcloud run services add-iam-policy-binding ingestion-worker \
+            --region="${{ vars.GCP_REGION }}" --project="${{ vars.GCP_PROJECT_ID }}" \
+            --member="serviceAccount:retrieval-api-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --role="roles/run.invoker"
+          gcloud iam service-accounts add-iam-policy-binding \
+            ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --member="serviceAccount:retrieval-api-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --role="roles/iam.serviceAccountTokenCreator"
+          gcloud pubsub topics add-iam-policy-binding iris-ingestion \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --member="serviceAccount:ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --role="roles/pubsub.publisher"
           echo "INGEST_URL=$INGEST_URL" >> "$GITHUB_ENV"
       - name: Deploy retrieval-api
         run: |
           gcloud run deploy retrieval-api \
             --image=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/iris/retrieval-api:latest \
             --region=${{ vars.GCP_REGION }} --project=${{ vars.GCP_PROJECT_ID }} \
-            --allow-unauthenticated --ingress=all --cpu=2 --memory=2Gi --max-instances=10 --min-instances=1 \
+            --allow-unauthenticated --ingress=all --cpu=2 --memory=2Gi --max-instances=3 --min-instances=0 --concurrency=8 \
             --service-account=retrieval-api-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
             --network=iris-vpc --subnet=iris-subnet --vpc-egress=private-ranges-only \
             --set-env-vars="^|^MODEL_BACKEND=vertex|GCP_PROJECT=${{ vars.GCP_PROJECT_ID }}|FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}|GCS_RAW_BUCKET=${{ vars.GCS_RAW_BUCKET || 'procambrian-iris-staging-raw' }}|EMBEDDING_MODEL=text-embedding-004|SYNTHESIS_MODEL=gemini-2.5-flash|LITE_MODEL=gemini-2.5-flash-lite|RETRIEVAL_COLLECTION=iris_chunks_v2|QDRANT_URL=http://${QDRANT_IP}:6333|CORS_ALLOWED_ORIGINS=${{ vars.CORS_ALLOWED_ORIGINS || 'https://iris-frontend-steel-nine.vercel.app' }}|INGEST_URL=${INGEST_URL}|INGEST_SA=ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com|RERANK_LOCATION=global|BM25_HINDI_ENABLED=1"
