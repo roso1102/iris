@@ -6,6 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Required for google-github-actions/auth to exchange GitHub's OIDC token
+# through Workload Identity Federation. No long-lived GCP key is used.
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
