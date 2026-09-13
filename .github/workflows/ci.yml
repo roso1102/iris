@@ -150,18 +150,14 @@ jobs:
             --push-endpoint="${INGEST_URL}/" \
             --push-auth-service-account="ingest-trigger-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --push-auth-token-audience="${INGEST_URL}"
-          # Runtime IAM required by the authenticated upload path. Keep these
-          # bindings explicit because Cloud Run services are deployed by CLI,
-          # not managed as Terraform resources in this project.
+          # Runtime IAM required by the authenticated upload path. The service
+          # invoker binding is applied here because Cloud Run services are
+          # deployed by CLI; the service-account token-creator binding is
+          # managed by Terraform and is intentionally not changed here.
           gcloud run services add-iam-policy-binding ingestion-worker \
             --region="${{ vars.GCP_REGION }}" --project="${{ vars.GCP_PROJECT_ID }}" \
             --member="serviceAccount:retrieval-api-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --role="roles/run.invoker"
-          gcloud iam service-accounts add-iam-policy-binding \
-            ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
-            --project="${{ vars.GCP_PROJECT_ID }}" \
-            --member="serviceAccount:retrieval-api-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
-            --role="roles/iam.serviceAccountTokenCreator"
           gcloud pubsub topics add-iam-policy-binding iris-ingestion \
             --project="${{ vars.GCP_PROJECT_ID }}" \
             --member="serviceAccount:ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
