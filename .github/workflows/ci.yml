@@ -87,10 +87,12 @@ jobs:
       - name: Build ingestion-worker
         run: |
           gcloud builds submit --config=services/ingestion-worker/cloudbuild.yaml \
+            --gcs-source-staging-dir=gs://${{ vars.GCS_BUILD_BUCKET }}/source \
             --substitutions=_REPO=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/iris .
       - name: Build retrieval-api
         run: |
           gcloud builds submit --config=services/retrieval_api/cloudbuild.yaml \
+            --gcs-source-staging-dir=gs://${{ vars.GCS_BUILD_BUCKET }}/source \
             --substitutions=_REPO=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/iris .
 
       - name: Resolve private service addresses
