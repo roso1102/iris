@@ -157,7 +157,7 @@ jobs:
             --allow-unauthenticated --ingress=all --cpu=2 --memory=2Gi --max-instances=10 --min-instances=1 \
             --service-account=retrieval-api-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
             --network=iris-vpc --subnet=iris-subnet --vpc-egress=private-ranges-only \
-            --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${{ vars.GCP_PROJECT_ID }},FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},GCS_RAW_BUCKET=${{ vars.GCS_RAW_BUCKET || 'procambrian-iris-staging-raw' }},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://${QDRANT_IP}:6333,CORS_ALLOWED_ORIGINS=${{ vars.CORS_ALLOWED_ORIGINS || 'https://iris-frontend-steel-nine.vercel.app' }},INGEST_URL=${INGEST_URL},INGEST_SA=ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com,RERANK_LOCATION=global,BM25_HINDI_ENABLED=1"
+            --set-env-vars="^|^MODEL_BACKEND=vertex|GCP_PROJECT=${{ vars.GCP_PROJECT_ID }}|FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}|GCS_RAW_BUCKET=${{ vars.GCS_RAW_BUCKET || 'procambrian-iris-staging-raw' }}|EMBEDDING_MODEL=text-embedding-004|SYNTHESIS_MODEL=gemini-2.5-flash|LITE_MODEL=gemini-2.5-flash-lite|RETRIEVAL_COLLECTION=iris_chunks_v2|QDRANT_URL=http://${QDRANT_IP}:6333|CORS_ALLOWED_ORIGINS=${{ vars.CORS_ALLOWED_ORIGINS || 'https://iris-frontend-steel-nine.vercel.app' }}|INGEST_URL=${INGEST_URL}|INGEST_SA=ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com|RERANK_LOCATION=global|BM25_HINDI_ENABLED=1"
 
   reliability-linux:
     # Proves the process-isolation primitive on the real platform. Windows would
