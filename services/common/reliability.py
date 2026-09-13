@@ -87,6 +87,13 @@ _DEADLINE_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
     max_workers=8, thread_name_prefix="iris-deadline"
 )
 
+# ``multiprocessing.Process.start()`` mutates process-wide descriptor ownership
+# bookkeeping. Concurrent starts from request threads can race on Linux/Python
+# 3.12 and raise ``RuntimeError: os.fork is unsafe while filelock is changing
+# descriptor ownership``. Serialize only the short fork/start critical section;
+# child execution remains fully parallel.
+_FORK_START_LOCK = threading.Lock()
+
 _CHILD_PEAK_RSS_MB: contextvars.ContextVar[float] = contextvars.ContextVar(
     "iris_child_peak_rss_mb", default=0.0
 )
@@ -171,7 +178,15 @@ def _run_isolated(fn: Callable[[], T], timeout: float, operation: str) -> T:
     ctx = multiprocessing.get_context("fork")
     parent_conn, child_conn = ctx.Pipe(duplex=False)
     proc = ctx.Process(target=_isolated_entry, args=(child_conn, fn), daemon=True)
-    proc.start()
+    try:
+        with _FORK_START_LOCK:
+            proc.start()
+    except BaseException as exc:  # noqa: BLE001 - normalize process-start races
+        child_conn.close()
+        parent_conn.close()
+        raise TransientError(
+            f"{operation}: isolated worker failed to start"
+        ) from exc
     child_conn.close()
     try:
         if not parent_conn.poll(timeout):

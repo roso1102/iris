@@ -293,6 +293,28 @@ class TestProcessIsolation(unittest.TestCase):
         # transient isolated-call failure. Neither outcome may leak a worker.
         self.assertTrue(all(isinstance(e, TransientError) for e in errors), errors)
 
+    def test_concurrent_fork_start_race_is_not_exposed(self):
+        """Repeated concurrent starts remain inside the transient contract."""
+        failures = []
+
+        def invoke():
+            try:
+                self.assertEqual(
+                    run_with_timeout(lambda: "ok", 5.0, "fork-race", isolate=True),
+                    "ok",
+                )
+            except BaseException as exc:  # noqa: BLE001 - asserted below
+                failures.append(exc)
+
+        threads = [threading.Thread(target=invoke) for _ in range(16)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+
+        self.assertFalse(any(thread.is_alive() for thread in threads))
+        self.assertTrue(all(isinstance(exc, TransientError) for exc in failures), failures)
+
     def test_child_processes_are_terminated_and_reaped(self):
         before = multiprocessing.active_children()
         release = threading.Event()
