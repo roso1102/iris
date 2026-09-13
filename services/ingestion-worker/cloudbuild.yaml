@@ -1,8 +1,18 @@
 # IRIS — Ingestion Worker build config (Cloud Build).
 steps:
+  # Reuse the previous image's layers. The pull is allowed to fail on the
+  # first build, when the cache image does not exist yet.
+  - name: "gcr.io/cloud-builders/docker"
+    id: "pull-cache"
+    args:
+      - "pull"
+      - "${_REPO}/ingestion-worker:latest"
+    allowFailure: true
   - name: "gcr.io/cloud-builders/docker"
     args:
       - "build"
+      - "--cache-from"
+      - "${_REPO}/ingestion-worker:latest"
       - "-t"
       - "${_REPO}/ingestion-worker:latest"
       - "-f"

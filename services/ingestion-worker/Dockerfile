@@ -23,12 +23,14 @@ ENV FASTEMBED_CACHE_PATH=/app/models
 RUN mkdir -p /app/models && \
     python -c "from fastembed.sparse.bm25 import Bm25; Bm25(model_name='Qdrant/bm25', cache_dir='/app/models', language='english')"
 
-COPY services/ingestion-worker/ ./services/ingestion-worker/
-COPY services/common/ ./services/common/
-
 # Warm Docling layout model weights at build time (~700 MB).
 # Without this, every Cloud Run cold start re-downloads them (60s+ delay).
+# Keep this layer before application source COPY so normal code changes reuse
+# the expensive model layer from the registry cache.
 RUN python -c "from docling.document_converter import DocumentConverter; DocumentConverter()"
+
+COPY services/ingestion-worker/ ./services/ingestion-worker/
+COPY services/common/ ./services/common/
 
 ENV PYTHONPATH=/app
 ENV PORT=8080
