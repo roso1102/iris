@@ -81,7 +81,7 @@ gcloud run deploy retrieval-api \
   --network=iris-vpc --subnet=iris-subnet --vpc-egress=private-ranges-only \
   --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${PROJECT_ID},FIREBASE_PROJECT_ID=${PROJECT_ID},GCS_RAW_BUCKET=${GCS_RAW_BUCKET},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,RETRIEVAL_COLLECTION=iris_chunks_v2,QDRANT_URL=http://${QDRANT_IP}:6333,CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS},RERANK_LOCATION=global,BM25_HINDI_ENABLED=1"
 
-echo "==> Granting Cloud Run IAM (kill-switch run.admin, trigger run.invoker)"
+echo "==> Granting Cloud Run IAM (kill-switch run.admin, trigger and worker invoker)"
 gcloud run services add-iam-policy-binding ingestion-worker \
   --region="${REGION}" --project="${PROJECT_ID}" \
   --member="serviceAccount:billing-kill-switch-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
@@ -89,6 +89,10 @@ gcloud run services add-iam-policy-binding ingestion-worker \
 gcloud run services add-iam-policy-binding ingestion-worker \
   --region="${REGION}" --project="${PROJECT_ID}" \
   --member="serviceAccount:ingest-trigger-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/run.invoker"
+gcloud run services add-iam-policy-binding ingestion-worker \
+  --region="${REGION}" --project="${PROJECT_ID}" \
+  --member="serviceAccount:ingestion-worker-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/run.invoker"
 
 echo "==> Deploying billing kill-switch function"
