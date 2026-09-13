@@ -1,8 +1,17 @@
 # IRIS — Retrieval API build config (Cloud Build).
 steps:
+  # Reuse the previous image's layers; harmless on the first build.
+  - name: "gcr.io/cloud-builders/docker"
+    id: "pull-cache"
+    args:
+      - "pull"
+      - "${_REPO}/retrieval-api:latest"
+    allowFailure: true
   - name: "gcr.io/cloud-builders/docker"
     args:
       - "build"
+      - "--cache-from"
+      - "${_REPO}/retrieval-api:latest"
       - "-t"
       - "${_REPO}/retrieval-api:latest"
       - "-f"
