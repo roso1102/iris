@@ -181,21 +181,42 @@ def _ingest(url_path: str, method: str = "GET", timeout: int = 60, json_body: Op
 
 
 def trigger_ingestion():
-    """Call /ingest endpoint for all 8 docs with idempotent SHA256 cache skip."""
+    """Upload all corpus PDFs through the authenticated production path.
+
+    Directly calling the worker's /ingest endpoint is invalid for a clean
+    evaluation: the worker intentionally fails closed unless the retrieval API
+    has first created the tenant ownership record. Uploading through the public
+    API exercises that production path and avoids orphaned page events.
+    """
+    import requests
     for doc_id in DOC_IDS:
-        gcs_uri = f"gs://{RAW_BUCKET}/{TENANT_ID}/{doc_id}.pdf"
-        resp = _ingest(
-            "/ingest",
-            method="POST",
-            timeout=120,
-            json_body={"gcs_uri": gcs_uri, "tenant_id": TENANT_ID, "doc_id": doc_id},
-        )
+        pdf_path = ROOT / "trueassort" / f"{doc_id}.pdf"
+        if not pdf_path.exists():
+            raise RuntimeError(f"Evaluation corpus file is missing: {pdf_path}")
+        with pdf_path.open("rb") as pdf:
+            resp = requests.post(
+                f"{RETRIEVAL_URL}/documents/upload",
+                headers=_retrieval_headers(),
+                data={"doc_id": doc_id},
+                files={"file": (pdf_path.name, pdf, "application/pdf")},
+                timeout=240,
+            )
+        # A previous run may have persisted ownership before a transient
+        # dispatch failure. Retry that dispatch instead of treating 409 as a
+        # terminal benchmark failure.
+        if resp.status_code == 409:
+            retry = requests.post(
+                f"{RETRIEVAL_URL}/documents/{doc_id}/retry",
+                headers=_retrieval_headers(),
+                timeout=120,
+            )
+            resp = retry
         try:
             data = resp.json()
             status = data.get("status", data.get("error", str(resp.status_code)))
         except Exception:
             status = f"HTTP {resp.status_code}"
-        _log(f"Triggered {doc_id}: {status}")
+        _log(f"Uploaded/triggered {doc_id}: {status}")
 
 
 def _retrieval_status(doc_id: str, timeout: int = 30):

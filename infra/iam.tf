@@ -70,6 +70,24 @@ resource "google_project_iam_member" "ingestion_firestore" {
   member  = google_service_account.ingestion_worker.member
 }
 
+# The worker publishes one event per page to the ingestion topic. Keep this
+# topic-scoped; the worker must not publish to arbitrary project topics.
+resource "google_pubsub_topic_iam_member" "ingestion_publisher" {
+  project = var.project_id
+  topic   = google_pubsub_topic.ingestion.name
+  role    = "roles/pubsub.publisher"
+  member  = google_service_account.ingestion_worker.member
+}
+
+# Retrieval API mints a short-lived Cloud Run identity token for the worker.
+# This is deliberately scoped to the worker service account rather than the
+# whole project.
+resource "google_service_account_iam_member" "retrieval_to_ingestion_token_creator" {
+  service_account_id = google_service_account.ingestion_worker.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = google_service_account.retrieval_api.member
+}
+
 # --- Phase 4.0: Firebase JWT verification (retrieval_api + ingestion-worker
 # --- verify Firebase ID tokens with firebase-admin via ADC).
 # --- Phase 4.0: retrieval_api signs V4 GCS URLs with its own ADC identity.
