@@ -86,14 +86,38 @@ jobs:
           driver-opts: network=host
       - name: Build ingestion-worker
         run: |
-          gcloud builds submit --config=services/ingestion-worker/cloudbuild.yaml \
+          BUILD_ID="$(gcloud builds submit --async --format='value(id)' \
+            --config=services/ingestion-worker/cloudbuild.yaml \
             --gcs-source-staging-dir=gs://${{ vars.GCS_BUILD_BUCKET }}/source \
-            --substitutions=_REPO=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/iris .
+            --substitutions=_REPO=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/iris .)"
+          test -n "$BUILD_ID"
+          for attempt in $(seq 1 360); do
+            STATUS="$(gcloud builds describe "$BUILD_ID" --format='value(status)')"
+            echo "ingestion-worker build $BUILD_ID: $STATUS"
+            case "$STATUS" in
+              SUCCESS) break ;;
+              FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED) exit 1 ;;
+            esac
+            sleep 10
+          done
+          test "$STATUS" = SUCCESS
       - name: Build retrieval-api
         run: |
-          gcloud builds submit --config=services/retrieval_api/cloudbuild.yaml \
+          BUILD_ID="$(gcloud builds submit --async --format='value(id)' \
+            --config=services/retrieval_api/cloudbuild.yaml \
             --gcs-source-staging-dir=gs://${{ vars.GCS_BUILD_BUCKET }}/source \
-            --substitutions=_REPO=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/iris .
+            --substitutions=_REPO=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/iris .)"
+          test -n "$BUILD_ID"
+          for attempt in $(seq 1 360); do
+            STATUS="$(gcloud builds describe "$BUILD_ID" --format='value(status)')"
+            echo "retrieval-api build $BUILD_ID: $STATUS"
+            case "$STATUS" in
+              SUCCESS) break ;;
+              FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED) exit 1 ;;
+            esac
+            sleep 10
+          done
+          test "$STATUS" = SUCCESS
 
       - name: Resolve private service addresses
         run: |
