@@ -153,15 +153,12 @@ jobs:
           # Runtime IAM required by the authenticated upload path. The service
           # invoker binding is applied here because Cloud Run services are
           # deployed by CLI; the service-account token-creator binding is
-          # managed by Terraform and is intentionally not changed here.
+          # managed by Terraform and is intentionally not changed here. The
+          # worker's topic publisher binding is also Terraform-managed.
           gcloud run services add-iam-policy-binding ingestion-worker \
             --region="${{ vars.GCP_REGION }}" --project="${{ vars.GCP_PROJECT_ID }}" \
             --member="serviceAccount:retrieval-api-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --role="roles/run.invoker"
-          gcloud pubsub topics add-iam-policy-binding iris-ingestion \
-            --project="${{ vars.GCP_PROJECT_ID }}" \
-            --member="serviceAccount:ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
-            --role="roles/pubsub.publisher"
           echo "INGEST_URL=$INGEST_URL" >> "$GITHUB_ENV"
       - name: Deploy retrieval-api
         run: |
