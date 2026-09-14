@@ -244,6 +244,9 @@ class SearchOrchestrator:
         hyde_text = ""
         hyde_keywords = ""
         hyde_latency_ms = 0.0
+        hyde_generation_ms = 0.0
+        hyde_embedding_ms = 0.0
+        embed_ms = 0.0
         rewrite_ms = 0.0
         # Cross-lingual variant legs remain disabled (regression note below).
         needs_xling = False
@@ -271,9 +274,11 @@ class SearchOrchestrator:
                     rewritten_query = query
 
             # ── Phase 2: Original-query embedding ───────────────────────
+            t_embed = time.perf_counter()
             embedding = validate_embedding_vector(
                 await asyncio.to_thread(self.provider.embed_query, query)
             )
+            embed_ms = round((time.perf_counter() - t_embed) * 1000, 1)
             synonym_query = _expand_synonyms(query)
 
             from services.common.retrieval.hindi import (
@@ -367,14 +372,18 @@ class SearchOrchestrator:
             if eligible and weak:
                 t_hyde = time.perf_counter()
                 try:
+                    t_hg = time.perf_counter()
                     raw = await asyncio.to_thread(self.provider.generate_hyde, query)
+                    hyde_generation_ms = round((time.perf_counter() - t_hg) * 1000, 1)
                     parsed = hyde_gating.validate_hyde_output(raw, query)
                     if parsed:
+                        t_he = time.perf_counter()
                         hyde_embedding = validate_embedding_vector(
                             await asyncio.to_thread(
                                 self.provider.embed, hyde_gating.hyde_text_of(parsed)
                             )
                         )
+                        hyde_embedding_ms = round((time.perf_counter() - t_he) * 1000, 1)
                         hyde_text = parsed["hypothesis"]
                         hyde_keywords = " ".join(parsed["keywords"])
                         hyde_trace["used"] = True
@@ -439,7 +448,10 @@ class SearchOrchestrator:
             "synonym_query": synonym_query,
             "latency": {
                 "rewrite_ms": rewrite_ms if rewritten_query else 0.0,
+                "embed_ms": embed_ms,
                 "hyde_ms": hyde_latency_ms,
+                "hyde_generation_ms": hyde_generation_ms,
+                "hyde_embedding_ms": hyde_embedding_ms,
                 "search_ms": search_ms,
                 "rerank_ms": rerank_ms,
                 "diversity_ms": diversity_ms,
@@ -536,14 +548,18 @@ class SearchOrchestrator:
         if reason is None:
             t_hyde = time.perf_counter()
             try:
+                t_hg = time.perf_counter()
                 raw = await asyncio.to_thread(self.provider.generate_hyde, rewritten)
+                hyde_trace["generation_ms"] = round((time.perf_counter() - t_hg) * 1000, 1)
                 parsed = hyde_gating.validate_hyde_output(raw, rewritten)
                 if parsed:
+                    t_he = time.perf_counter()
                     hyde_embedding = validate_embedding_vector(
                         await asyncio.to_thread(
                             self.provider.embed, hyde_gating.hyde_text_of(parsed)
                         )
                     )
+                    hyde_trace["embedding_ms"] = round((time.perf_counter() - t_he) * 1000, 1)
                     hyde_trace["used"] = True
                     hyde_trace["estimated_cost"] = hyde_gating.HYDE_ESTIMATED_COST_USD
             except Exception as exc:
@@ -618,7 +634,10 @@ class SearchOrchestrator:
             trace["rewrite"] = rewrite_meta
             trace["latency"] = {
                 "rewrite_ms": rewrite_ms,
+                "embed_ms": 0.0,
                 "hyde_ms": hyde_trace["latency_ms"],
+                "hyde_generation_ms": hyde_trace.get("generation_ms", 0.0),
+                "hyde_embedding_ms": hyde_trace.get("embedding_ms", 0.0),
                 "total_ms": latency,
             }
         logger.info(

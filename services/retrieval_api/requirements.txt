@@ -7,6 +7,10 @@ fastembed==0.8.0
 rank-bm25==0.2.*
 
 google-cloud-aiplatform==1.163.0
+# Native Vertex transport with configurable HTTP deadlines. The legacy
+# GenerativeModel/TextEmbeddingModel wrappers are retained only as a local
+# fallback and are not used in production.
+google-genai==2.16.0
 google-cloud-storage>=2.0
 google-cloud-firestore==2.28.1
 firebase-admin==6.*

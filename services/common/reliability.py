@@ -369,7 +369,9 @@ def retry_call(
     """
     started = clock()
     last_exc: Optional[BaseException] = None
+    attempts = 0
     for attempt in range(policy.max_attempts):
+        attempts = attempt + 1
         remaining = policy.overall_deadline - (clock() - started)
         if remaining <= 0:
             if last_exc is not None:
@@ -384,6 +386,10 @@ def retry_call(
             result = run_with_timeout(fn, attempt_timeout, policy.operation, isolate)
             if clock() - started > policy.overall_deadline:
                 raise CallTimeout(f"{policy.operation}: overall deadline exceeded")
+            logger.info(
+                "reliability_completed operation=%s attempts=%d latency_ms=%.1f timeout=false",
+                policy.operation, attempts, (clock() - started) * 1000.0,
+            )
             return result
         except (KeyboardInterrupt, SystemExit):
             raise
@@ -391,6 +397,11 @@ def retry_call(
             last_exc = exc
             is_transient = retry_on(exc) if retry_on is not None else classify_exception(exc) == "transient"
             if not is_transient or attempt >= policy.max_attempts - 1:
+                logger.info(
+                    "reliability_completed operation=%s attempts=%d latency_ms=%.1f timeout=%s success=false",
+                    policy.operation, attempts, (clock() - started) * 1000.0,
+                    isinstance(exc, CallTimeout),
+                )
                 raise
             remaining = policy.overall_deadline - (clock() - started)
             if remaining <= 0:

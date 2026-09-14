@@ -42,6 +42,7 @@ from services.common.cloud import (
     fs_stream,
     fs_update,
     gcs_delete,
+    gcs_list,
     gcs_upload,
 )
 from services.common.auth.rate_limit import limiter
@@ -156,10 +157,26 @@ def _delete_gcs_blob(tenant_id: str, doc_id: str) -> None:
         return
     try:
         bucket = gcs.bucket(_RAW_BUCKET)
-        blob = bucket.blob(f"{tenant_id}/{doc_id}.pdf")
-        gcs_delete(blob)
+        blobs = [bucket.blob(f"{tenant_id}/{doc_id}.pdf")]
+        blobs.extend(gcs_list(bucket, prefix=f"{tenant_id}/{doc_id}/"))
+        for blob in blobs:
+            gcs_delete(blob)
     except Exception as exc:
         logger.warning("GCS delete failed for %s/%s: %s", tenant_id, doc_id, exc)
+
+
+def _delete_gcs_tenant(tenant_id: str) -> None:
+    """Delete every object under a tenant prefix, including orphaned pages."""
+    gcs = _get_gcs_client()
+    if gcs is None:
+        logger.warning("GCS client unavailable; skipping tenant cleanup: %s", tenant_id)
+        return
+    try:
+        bucket = gcs.bucket(_RAW_BUCKET)
+        for blob in gcs_list(bucket, prefix=f"{tenant_id}/"):
+            gcs_delete(blob)
+    except Exception as exc:
+        logger.warning("GCS tenant cleanup failed for %s: %s", tenant_id, exc)
 
 
 def _delete_firestore_doc(doc_path: str) -> None:
@@ -929,6 +946,11 @@ async def query(
         history = validate_history(request.history)
         session_version = 0
     top_k = validate_top_k(request.top_k, for_synthesis=True)
+    # Keep ordinary prompts cheap and responsive. Callers can raise this cap
+    # explicitly through an environment change during evaluation; deep search
+    # retains the validated request value.
+    if request.mode == "standard":
+        top_k = min(top_k, int(os.getenv("SYNTHESIS_TOP_K_DEFAULT", "6")))
     try:
         t0 = time.perf_counter()
         trace = None
@@ -946,6 +968,7 @@ async def query(
         }
         query_to_use = request.query
         doc_ids_filter = authorized_doc_ids or None
+        route_latency_ms = 0.0
 
         # Fallback: if active_docs is empty but query references a specific document,
         # warn the user instead of searching blindly across all docs
@@ -954,7 +977,36 @@ async def query(
                 if trace is not None:
                     trace["warning"] = "Document reference detected but no active_docs provided. Upload documents first."
 
-        if request.active_docs and request.mode != "deep":
+        # A single authorized document is already an unambiguous routing
+        # decision. Avoid a paid model call for the common one-document flow;
+        # summary wording is deterministic and uses the precomputed summary.
+        summary_question = bool(re.search(
+            r"\b(what\s+is|what's|describe|overview|summary|about|purpose)\b",
+            request.query,
+            re.IGNORECASE,
+        )) and bool(re.search(r"\b(document|file|report|pdf|this)\b", request.query, re.IGNORECASE))
+        if (
+            request.active_docs
+            and request.mode != "deep"
+            and len(active_docs) == 1
+            and len(authorized_active_ids) == 1
+        ):
+            only_id = authorized_active_ids[0] if authorized_active_ids else None
+            if only_id:
+                intent = {
+                    "intent": "DOCUMENT_SUMMARY" if summary_question else "SPECIFIC_SEARCH",
+                    "target_doc_ids": [only_id],
+                    "rewritten_query": request.query,
+                    "needs_decomposition": False,
+                    "search_queries": [],
+                    "router_skipped": True,
+                }
+                doc_ids_filter = [only_id]
+                if trace is not None:
+                    trace["intent"] = intent
+                    trace["router_skipped_reason"] = "single_active_document"
+        elif request.active_docs and request.mode != "deep":
+            t_route = time.perf_counter()
             try:
                 intent = await asyncio.to_thread(
                     provider.route_query, request.query, active_docs
@@ -965,6 +1017,8 @@ async def query(
                 ]
                 if trace is not None:
                     trace["intent"] = intent
+                    route_latency_ms = round((time.perf_counter() - t_route) * 1000, 1)
+                    trace.setdefault("latency", {})["route_ms"] = route_latency_ms
 
                 if intent["intent"] == "DOCUMENT_SUMMARY" and intent["target_doc_ids"]:
                     # Fetch pre-computed summaries, skip Qdrant
@@ -1032,6 +1086,9 @@ async def query(
 
             except Exception as exc:
                 logger.warning("Intent routing failed, falling back: %s", exc)
+                if trace is not None:
+                    route_latency_ms = round((time.perf_counter() - t_route) * 1000, 1)
+                    trace.setdefault("latency", {})["route_ms"] = route_latency_ms
 
         if request.mode == "deep":
             retrieved = await orchestrator.deep_search(
@@ -1092,6 +1149,9 @@ async def query(
                 rerank_blend=_env_rerank_blend(),
                 history=history,
             )
+
+        if trace is not None and route_latency_ms:
+            trace.setdefault("latency", {})["route_ms"] = route_latency_ms
 
         expanded = await asyncio.to_thread(
             _expand_to_parent_pages, retrieved, auth.tenant_id
@@ -1302,6 +1362,7 @@ async def delete_document(
     deleted = store.delete_by_doc(doc_id, auth.tenant_id)
     _delete_gcs_blob(auth.tenant_id, doc_id)
     _delete_firestore_doc(f"tenants/{auth.tenant_id}/documents/{doc_id}")
+    _delete_firestore_doc(f"ingestion_progress/{auth.tenant_id}/documents/{doc_id}")
     _remove_doc_from_sessions(auth.tenant_id, doc_id)
     return DeleteResponse(deleted_chunks=deleted, resource_id=doc_id)
 
@@ -1317,23 +1378,39 @@ async def delete_all_documents(
     """
     validate_tenant_id(auth.tenant_id)
 
-    # 1. List all doc_ids from Firestore before deleting
+    # 1. List all records from Firestore before deleting. A failed listing is
+    # fatal: never report a successful cascade while ownership remains.
     client = _get_firestore_client()
-    doc_ids = []
-    if client:
-        try:
-            docs = fs_get_all(client.collection(f"tenants/{auth.tenant_id}/documents"))
-            doc_ids = [d.id for d in docs]
-        except Exception as exc:
-            logger.warning("Failed to list docs for bulk delete: %s", exc)
+    if client is None:
+        raise DependencyUnavailable("Firestore is unavailable.")
+    try:
+        docs = fs_get_all(client.collection(f"tenants/{auth.tenant_id}/documents"))
+        doc_ids = [d.id for d in docs]
+        progress_docs = fs_get_all(
+            client.collection(f"ingestion_progress/{auth.tenant_id}/documents")
+        )
+    except Exception as exc:
+        logger.warning("Failed to list records for bulk delete: %s", type(exc).__name__)
+        raise DependencyUnavailable("Could not enumerate documents for deletion.") from exc
 
     # 2. Delete all Qdrant chunks for this tenant at once
     deleted = store.delete_all_by_tenant(auth.tenant_id)
 
-    # 3. Delete GCS blobs and Firestore records for each doc
+    # 3. Delete every tenant-prefixed object, including orphaned page blobs.
+    _delete_gcs_tenant(auth.tenant_id)
     for doc_id in doc_ids:
-        _delete_gcs_blob(auth.tenant_id, doc_id)
         _delete_firestore_doc(f"tenants/{auth.tenant_id}/documents/{doc_id}")
+    for progress in progress_docs:
+        _delete_firestore_doc(progress.reference.path)
+
+    # 4. Keep sessions, but remove references to deleted documents.
+    try:
+        sessions = fs_get_all(client.collection(f"tenants/{auth.tenant_id}/sessions"))
+        for session in sessions:
+            if (session.to_dict() or {}).get("document_ids"):
+                fs_update(session.reference, {"document_ids": []})
+    except Exception as exc:
+        logger.warning("Session reference cleanup failed: %s", type(exc).__name__)
 
     logger.info("Bulk delete tenant=%s docs=%d chunks=%d", auth.tenant_id, len(doc_ids), deleted)
     return DeleteResponse(deleted_chunks=deleted, resource_id=auth.tenant_id)

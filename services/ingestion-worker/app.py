@@ -538,6 +538,7 @@ def generate_summary_text(model, full_text: str) -> tuple[str, list[str]]:
             generation_config={"temperature": 0.2, "max_output_tokens": 512},
         ),
         _SUMMARY_RETRY_POLICY,
+        isolate=False,
     )
     summary_text = ""
     key_topics: list[str] = []
@@ -573,8 +574,12 @@ def _generate_doc_summary_background(tenant_id: str, doc_id: str):
 
             provider = VertexAIProvider()
             model_name = os.environ.get("LITE_MODEL", "gemini-2.5-flash-lite")
-            from vertexai.generative_models import GenerativeModel
-            model = GenerativeModel(model_name)
+            # Use the provider's Google Gen AI client (native HTTP timeout;
+            # no inherited gRPC state) instead of constructing a legacy
+            # GenerativeModel directly in the worker.
+            model = provider._get_model(
+                model_name, timeout_seconds=_SUMMARY_RETRY_POLICY.per_attempt_timeout
+            )
 
             summary_text, key_topics = generate_summary_text(model, full_text)
 
@@ -593,8 +598,8 @@ def _generate_doc_summary_background(tenant_id: str, doc_id: str):
 
             logger.info("Summary generated for doc_id=%s tenant=%s", doc_id, tenant_id)
 
-        except Exception as exc:
-            logger.warning("Summary generation failed for %s/%s: %s", tenant_id, doc_id, exc)
+        except Exception:
+            logger.exception("Summary generation failed for %s/%s", tenant_id, doc_id)
 
     thread = threading.Thread(target=_worker, daemon=True)
     thread.start()

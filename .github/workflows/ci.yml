@@ -137,7 +137,7 @@ jobs:
             --no-allow-unauthenticated --ingress=all --cpu=2 --memory=8Gi --max-instances=2 --min-instances=0 --concurrency=1 --timeout=900 \
             --service-account=ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
             --network=iris-vpc --subnet=iris-subnet --vpc-egress=private-ranges-only \
-            --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${{ vars.GCP_PROJECT_ID }},FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},GCS_RAW_BUCKET=${{ vars.GCS_RAW_BUCKET || 'procambrian-iris-staging-raw' }},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,VERTEX_VISION_LOCATION=us-central1,QDRANT_URL=http://${QDRANT_IP}:6333,RETRIEVAL_COLLECTION=iris_chunks_v2,CHUNK_TARGET_TOKENS=256,BM25_HINDI_ENABLED=1"
+            --set-env-vars="MODEL_BACKEND=vertex,GCP_PROJECT=${{ vars.GCP_PROJECT_ID }},FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},GCS_RAW_BUCKET=${{ vars.GCS_RAW_BUCKET || 'procambrian-iris-staging-raw' }},EMBEDDING_MODEL=text-embedding-004,SYNTHESIS_MODEL=gemini-2.5-flash,LITE_MODEL=gemini-2.5-flash-lite,VERTEX_VISION_LOCATION=us-central1,QDRANT_URL=http://${QDRANT_IP}:6333,RETRIEVAL_COLLECTION=iris_chunks_v2,CHUNK_TARGET_TOKENS=256,BM25_HINDI_ENABLED=1,IRIS_USE_GOOGLE_GENAI=1,SYNTHESIS_MAX_CONTEXT_BYTES=60000,SYNTHESIS_MAX_OUTPUT_TOKENS=1536,SYNTHESIS_TOP_K_DEFAULT=6"
 
           INGEST_URL="$(gcloud run services describe ingestion-worker \
             --region="${{ vars.GCP_REGION }}" --project="${{ vars.GCP_PROJECT_ID }}" \
@@ -174,7 +174,7 @@ jobs:
             --allow-unauthenticated --ingress=all --cpu=2 --memory=2Gi --max-instances=3 --min-instances=0 --concurrency=8 \
             --service-account=retrieval-api-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
             --network=iris-vpc --subnet=iris-subnet --vpc-egress=private-ranges-only \
-            --set-env-vars="^|^MODEL_BACKEND=vertex|GCP_PROJECT=${{ vars.GCP_PROJECT_ID }}|FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}|GCS_RAW_BUCKET=${{ vars.GCS_RAW_BUCKET || 'procambrian-iris-staging-raw' }}|EMBEDDING_MODEL=text-embedding-004|SYNTHESIS_MODEL=gemini-2.5-flash|LITE_MODEL=gemini-2.5-flash-lite|RETRIEVAL_COLLECTION=iris_chunks_v2|QDRANT_URL=http://${QDRANT_IP}:6333|CORS_ALLOWED_ORIGINS=${{ vars.CORS_ALLOWED_ORIGINS || 'https://iris-frontend-steel-nine.vercel.app' }}|INGEST_URL=${INGEST_URL}|INGEST_SA=ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com|RERANK_LOCATION=global|BM25_HINDI_ENABLED=1"
+            --set-env-vars="^|^MODEL_BACKEND=vertex|GCP_PROJECT=${{ vars.GCP_PROJECT_ID }}|FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}|GCS_RAW_BUCKET=${{ vars.GCS_RAW_BUCKET || 'procambrian-iris-staging-raw' }}|EMBEDDING_MODEL=text-embedding-004|SYNTHESIS_MODEL=gemini-2.5-flash|LITE_MODEL=gemini-2.5-flash-lite|RETRIEVAL_COLLECTION=iris_chunks_v2|QDRANT_URL=http://${QDRANT_IP}:6333|CORS_ALLOWED_ORIGINS=${{ vars.CORS_ALLOWED_ORIGINS || 'https://iris-frontend-steel-nine.vercel.app' }}|INGEST_URL=${INGEST_URL}|INGEST_SA=ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com|RERANK_LOCATION=global|BM25_HINDI_ENABLED=1|IRIS_USE_GOOGLE_GENAI=1|SYNTHESIS_MAX_CONTEXT_BYTES=60000|SYNTHESIS_MAX_OUTPUT_TOKENS=1536|SYNTHESIS_TOP_K_DEFAULT=6"
 
   reliability-linux:
     # Proves the process-isolation primitive on the real platform. Windows would
@@ -237,5 +237,5 @@ jobs:
 
       - name: Assert pinned SDK inside both images
         run: |
-          docker run --rm iris-retrieval-api:ci python -c "import importlib.metadata as m; print('retrieval-api aiplatform', m.version('google-cloud-aiplatform'))"
-          docker run --rm iris-ingestion-worker:ci python -c "import importlib.metadata as m; print('ingestion-worker aiplatform', m.version('google-cloud-aiplatform'))"
+          docker run --rm iris-retrieval-api:ci python -c "import importlib.metadata as m; print('retrieval-api aiplatform', m.version('google-cloud-aiplatform')); assert m.version('google-genai') == '2.16.0'"
+          docker run --rm iris-ingestion-worker:ci python -c "import importlib.metadata as m; print('ingestion-worker aiplatform', m.version('google-cloud-aiplatform')); assert m.version('google-genai') == '2.16.0'"
