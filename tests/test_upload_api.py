@@ -210,6 +210,32 @@ class TestUploadApi(unittest.TestCase):
         self.assertEqual(ingest_call.kwargs["headers"]["Authorization"], "Bearer minted-id-token")
         self.assertEqual(ingest_call.kwargs["json"]["gcs_uri"], "gs://iris-raw-pdfs/tenant-a/d1.pdf")
 
+    def test_trigger_ingestion_retries_worker_capacity_429(self):
+        """A saturated Cloud Run worker must not strand an uploaded PDF."""
+        import services.retrieval_api.app as app_module
+
+        creds = MagicMock()
+        creds.token = "source-access-token"
+        token_resp = MagicMock(status_code=200)
+        token_resp.json.return_value = {"token": "minted-id-token"}
+        busy_resp = MagicMock(status_code=429)
+        busy_resp.headers = {"Retry-After": "0"}
+        success_resp = MagicMock(status_code=200)
+        success_resp.json.return_value = {
+            "status": "processing", "doc_id": "d1", "total_pages": 7
+        }
+
+        with patch.object(app_module, "_INGEST_URL", "https://ingest.example"), \
+             patch.object(app_module, "_RAW_BUCKET", "iris-raw-pdfs"), \
+             patch.object(app_module, "_INGEST_TRIGGER_BACKOFF_SECONDS", 0), \
+             patch("google.auth.default", return_value=(creds, None)), \
+             patch("requests.post") as post_mock:
+            post_mock.side_effect = [token_resp, busy_resp, success_resp]
+            result = _trigger_ingestion("tenant-a", "d1")
+
+        self.assertEqual(result["total_pages"], 7)
+        self.assertEqual(post_mock.call_count, 3)
+
 
 if __name__ == "__main__":
     unittest.main()

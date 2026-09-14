@@ -112,6 +112,10 @@ _INGEST_SA = os.environ.get(
     "INGEST_SA", "ingestion-worker-sa@procambrian-iris-staging-2026.iam.gserviceaccount.com"
 )
 _GCP_PROJECT = os.environ.get("GCP_PROJECT", "procambrian-iris-staging-2026")
+_INGEST_TRIGGER_ATTEMPTS = max(1, int(os.environ.get("INGEST_TRIGGER_ATTEMPTS", "3")))
+_INGEST_TRIGGER_BACKOFF_SECONDS = max(
+    0.0, float(os.environ.get("INGEST_TRIGGER_BACKOFF_SECONDS", "1.0"))
+)
 
 
 def _env_rerank_blend() -> Optional[float]:
@@ -614,21 +618,44 @@ def _trigger_ingestion(tenant_id: str, doc_id: str) -> dict:
     if not isinstance(id_token, str) or not id_token:
         raise BadUpstreamResponse("The ingestion service authentication returned no token.")
 
-    try:
-        resp = requests.post(
-            f"{_INGEST_URL}/ingest",
-            json={
-                "gcs_uri": f"gs://{_RAW_BUCKET}/{tenant_id}/{doc_id}.pdf",
-                "tenant_id": tenant_id,
-                "doc_id": doc_id,
-            },
-            headers={"Authorization": f"Bearer {id_token}"},
-            timeout=(5, 120),
-        )
-    except requests.Timeout as exc:
-        raise DependencyTimeout("The ingestion service timed out.") from exc
-    except requests.RequestException as exc:
-        raise DependencyUnavailable("The ingestion service is unavailable.") from exc
+    ingest_payload = {
+        "gcs_uri": f"gs://{_RAW_BUCKET}/{tenant_id}/{doc_id}.pdf",
+        "tenant_id": tenant_id,
+        "doc_id": doc_id,
+    }
+    resp = None
+    for attempt in range(_INGEST_TRIGGER_ATTEMPTS):
+        try:
+            resp = requests.post(
+                f"{_INGEST_URL}/ingest",
+                json=ingest_payload,
+                headers={"Authorization": f"Bearer {id_token}"},
+                timeout=(5, 120),
+            )
+        except requests.Timeout as exc:
+            raise DependencyTimeout("The ingestion service timed out.") from exc
+        except requests.RequestException as exc:
+            if attempt + 1 >= _INGEST_TRIGGER_ATTEMPTS:
+                raise DependencyUnavailable("The ingestion service is unavailable.") from exc
+            time.sleep(_INGEST_TRIGGER_BACKOFF_SECONDS * (2**attempt))
+            continue
+
+        # Cloud Run can briefly return 429 while all worker instances are
+        # occupied. Retry the dispatch before surfacing a recoverable failure;
+        # Pub/Sub retries page events, but it cannot retry this control call.
+        if resp.status_code in (429, 500, 502, 503, 504) and attempt + 1 < _INGEST_TRIGGER_ATTEMPTS:
+            retry_after = resp.headers.get("Retry-After", "")
+            try:
+                delay = max(0.0, min(float(retry_after), 10.0)) if retry_after else 0.0
+            except ValueError:
+                delay = 0.0
+            delay = max(delay, _INGEST_TRIGGER_BACKOFF_SECONDS * (2**attempt))
+            time.sleep(delay)
+            continue
+        break
+
+    if resp is None:  # pragma: no cover - defensive loop guard
+        raise DependencyUnavailable("The ingestion service is unavailable.")
 
     if resp.status_code in (401, 403):
         raise DependencyUnavailable("The ingestion service rejected our credentials.")
@@ -795,6 +822,28 @@ def _get_doc_total_pages(client, tenant_id: str, doc_id: str) -> Optional[int]:
     return None
 
 
+def _record_dispatch_failure(client, tenant_id: str, doc_id: str, code: str) -> None:
+    """Persist a failed dispatch so the UI cannot show a zombie job forever.
+
+    The PDF and ownership record are intentionally retained for a later retry.
+    This status is separate from a page-processing failure because no page
+    events may have been published yet (for example, when Cloud Run returns
+    ``429 no available instance``).
+    """
+    try:
+        fs_set(
+            client.document(f"tenants/{tenant_id}/documents/{doc_id}"),
+            {
+                "status": "dispatch_failed",
+                "error_code": code,
+                "updated_at": _server_timestamp(),
+            },
+            merge=True,
+        )
+    except Exception as exc:  # pragma: no cover - defensive telemetry path
+        logger.warning("Failed recording dispatch failure for %s: %s", doc_id, type(exc).__name__)
+
+
 @app.get("/doc-status/{doc_id}", response_model=DocStatusResponse)
 async def doc_status(
     doc_id: str,
@@ -805,9 +854,21 @@ async def doc_status(
     validate_doc_id(doc_id)
     client = _get_firestore_client()
     total_pages = _get_doc_total_pages(client, auth.tenant_id, doc_id) if client else None
+    record_status = None
+    if client is not None:
+        try:
+            snapshot = fs_get(
+                client.document(f"tenants/{auth.tenant_id}/documents/{doc_id}")
+            )
+            if snapshot.exists:
+                record_status = (snapshot.to_dict() or {}).get("status")
+        except Exception as exc:  # status is best-effort; counts remain useful
+            logger.debug("Failed reading document status for %s: %s", doc_id, type(exc).__name__)
     chunks = store.get_by_doc(doc_id, tenant_id=auth.tenant_id)
     page_count = len({c.page_number for c in chunks})
-    if total_pages and total_pages > 0:
+    if record_status in {"dispatch_failed", "failed", "rejected"}:
+        status = record_status
+    elif total_pages and total_pages > 0:
         status = "completed" if page_count >= total_pages else "processing"
     else:
         status = "completed" if len(chunks) > 0 else "processing"
@@ -840,9 +901,12 @@ async def list_documents(
             total_pages = data.get("total_pages")
             if total_pages is None:
                 total_pages = _get_doc_total_pages(client, auth.tenant_id, doc_id)
+            record_status = data.get("status")
             chunks = store.get_by_doc(doc_id, tenant_id=auth.tenant_id)
             page_count = len({c.page_number for c in chunks})
-            if total_pages and total_pages > 0:
+            if record_status in {"dispatch_failed", "failed", "rejected"}:
+                status = record_status
+            elif total_pages and total_pages > 0:
                 status = "completed" if page_count >= total_pages else "processing"
             else:
                 status = "completed" if len(chunks) > 0 else "processing"
@@ -1546,10 +1610,13 @@ async def upload_document(
     _create_document_record(auth.tenant_id, doc_id, filename)
 
     try:
-        worker_resp = _trigger_ingestion(auth.tenant_id, doc_id)
+        worker_resp = await asyncio.to_thread(
+            _trigger_ingestion, auth.tenant_id, doc_id
+        )
     except ServiceError as exc:
         # The PDF + record are persisted; report the trigger failure but don't
         # delete them — a retry of /ingest (or manual trigger) can recover.
+        _record_dispatch_failure(client, auth.tenant_id, doc_id, exc.public_code)
         logger.warning(
             "Ingestion trigger failed for %s/%s: %s", auth.tenant_id, doc_id, exc.public_code
         )
@@ -1594,12 +1661,26 @@ async def retry_document(
     if not snapshot.exists:
         raise NotFound("Document not found")
 
-    worker_resp = _trigger_ingestion(auth.tenant_id, doc_id)
+    try:
+        # The trigger performs network I/O and must not block the FastAPI event
+        # loop. Blocking here made concurrent uploads serialize on one API
+        # instance while the worker was busy.
+        worker_resp = await asyncio.to_thread(
+            _trigger_ingestion, auth.tenant_id, doc_id
+        )
+    except ServiceError as exc:
+        _record_dispatch_failure(client, auth.tenant_id, doc_id, exc.public_code)
+        raise
     total_pages = worker_resp.get("total_pages")
     if total_pages:
         fs_set(
             client.document(f"tenants/{auth.tenant_id}/documents/{doc_id}"),
-            {"total_pages": int(total_pages), "status": "processing"},
+            {
+                "total_pages": int(total_pages),
+                "status": "processing",
+                "error_code": None,
+                "updated_at": _server_timestamp(),
+            },
             merge=True,
         )
     return UploadResponse(doc_id=doc_id, status=worker_resp.get("status", "processing"))

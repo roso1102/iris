@@ -493,6 +493,7 @@ def _init_progress(tenant_id: str, doc_id: str, total_pages: int):
         {
             "total_pages": total_pages,
             "failed_pages": [],
+            "status": "processing",
             "updated_at": firestore.SERVER_TIMESTAMP,
         },
     )
@@ -619,10 +620,22 @@ def _mark_page_failed(tenant_id: str, doc_id: str, page_number: int):
 def _mark_document_failed(tenant_id: str, doc_id: str):
     """Record a partial/failed fan-out so status reflects reality."""
     try:
+        # Keep both the progress tracker and the document ownership record in
+        # sync. The retrieval API lists the latter, while page workers consult
+        # the former; updating only one produced indefinite "Processing" rows.
         fs_set(
             _firestore().document(_progress_doc_path(tenant_id, doc_id)),
             {
                 "status": "failed",
+                "updated_at": firestore.SERVER_TIMESTAMP,
+            },
+            merge=True,
+        )
+        fs_set(
+            _firestore().document(f"tenants/{tenant_id}/documents/{doc_id}"),
+            {
+                "status": "failed",
+                "error_code": ErrorCode.DEPENDENCY_UNAVAILABLE,
                 "updated_at": firestore.SERVER_TIMESTAMP,
             },
             merge=True,
