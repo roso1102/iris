@@ -26,3 +26,4 @@ firebase-admin==6.*
 
 # Vertex AI SDK for Gemini Vision + text embeddings (ACTIONPLAN 1.6-1.7).
 google-cloud-aiplatform[vertexai]==1.163.0
+google-genai==2.16.0

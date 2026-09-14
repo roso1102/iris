@@ -112,8 +112,12 @@ class TestApiDeleteCascade(unittest.TestCase):
         self.assertEqual(body["deleted_chunks"], 2)
         self.assertEqual(store.get_by_doc("d1", "tenant-a"), [])
         # Firestore cascade: tenants/tenant-a/documents/d1
-        fake.document.assert_called_with("tenants/tenant-a/documents/d1")
-        fake.document("tenants/tenant-a/documents/d1").delete.assert_called_once()
+        document_paths = [call.args[0] for call in fake.document.call_args_list]
+        self.assertIn("tenants/tenant-a/documents/d1", document_paths)
+        self.assertIn("ingestion_progress/tenant-a/documents/d1", document_paths)
+        # Source and progress records are both deleted (the fake returns one
+        # shared reference for every path).
+        self.assertEqual(fake.document.return_value.delete.call_count, 2)
 
     def test_delete_session_cascades_to_firestore(self):
         store.upsert_batch([_chunk("d1", "tenant-a", session_id="s1")])
@@ -130,6 +134,32 @@ class TestApiDeleteCascade(unittest.TestCase):
         # Firestore cascade: tenants/tenant-a/sessions/s1
         fake.document.assert_called_with("tenants/tenant-a/sessions/s1")
         fake.document("tenants/tenant-a/sessions/s1").delete.assert_called_once()
+
+    def test_delete_all_cascades_pages_progress_and_session_references(self):
+        store.upsert_batch([_chunk("d1", "tenant-a"), _chunk("d2", "tenant-a")])
+        fake = MagicMock()
+        docs = [MagicMock(id="d1"), MagicMock(id="d2")]
+        progress = [MagicMock(reference=MagicMock(path="ingestion_progress/tenant-a/documents/d1"))]
+        session = MagicMock()
+        session.to_dict.return_value = {"document_ids": ["d1", "d2"]}
+        sessions = [session]
+
+        with patch("services.retrieval_api.app._get_firestore_client", return_value=fake), \
+            patch("services.retrieval_api.app.fs_get_all", side_effect=[docs, progress, sessions]), \
+            patch("services.retrieval_api.app._delete_gcs_tenant") as delete_gcs, \
+            patch("services.retrieval_api.app._delete_firestore_doc") as delete_fs, \
+            patch("services.retrieval_api.app.fs_update") as update_fs, \
+            mock_auth(tenant_id="tenant-a"):
+            resp = self.client.delete("/documents", headers=auth_headers())
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["deleted_chunks"], 2)
+        delete_gcs.assert_called_once_with("tenant-a")
+        deleted_paths = [call.args[0] for call in delete_fs.call_args_list]
+        self.assertIn("tenants/tenant-a/documents/d1", deleted_paths)
+        self.assertIn("tenants/tenant-a/documents/d2", deleted_paths)
+        self.assertIn("ingestion_progress/tenant-a/documents/d1", deleted_paths)
+        update_fs.assert_called_once_with(session.reference, {"document_ids": []})
 
     def test_delete_document_missing_token(self):
         resp = self.client.delete("/documents/d1")

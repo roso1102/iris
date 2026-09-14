@@ -1,6 +1,7 @@
-"""
-VertexAIProvider wrapping Google Cloud Vertex AI SDK.
-Uses text-embedding-004 (768-d) and Gemini Flash models.
+"""Vertex AI model provider with native Google Gen AI HTTP deadlines.
+
+Uses text-embedding-004 (768-d) and Gemini Flash models. The deprecated
+Vertex SDK is retained only as an explicit local-test fallback.
 """
 
 import json
@@ -17,7 +18,7 @@ from services.common.reliability import RetryPolicy, retry_call
 logger = logging.getLogger(__name__)
 
 
-_MAX_CONTEXT_BYTES = 100_000
+_MAX_CONTEXT_BYTES = int(os.getenv("SYNTHESIS_MAX_CONTEXT_BYTES", "60000"))
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
 _MAX_RETRIES = 3
 
@@ -30,9 +31,8 @@ _VISION_RETRY_POLICY = RetryPolicy(
     operation="vertex.gemini_vision",
 )
 
-# Every Vertex operation is deadline-bounded. The Gemini SDK exposes no
-# transport timeout, so these calls rely on the isolation-aware retry helper;
-# rerank is HTTP with a native timeout and never uses process isolation.
+# Every Vertex operation is deadline-bounded. The Google Gen AI client provides
+# a native HTTP timeout; calls therefore never fork an initialized gRPC client.
 _EMBED_RETRY_POLICY = RetryPolicy(
     max_attempts=_MAX_RETRIES, base_delay=0.5, max_delay=8.0,
     per_attempt_timeout=30.0, overall_deadline=90.0, operation="vertex.embed",
@@ -104,11 +104,46 @@ def _get_safety_settings():
     }
 
 
+class _GenAIModelAdapter:
+    """Small compatibility adapter exposing the legacy ``generate_content`` shape.
+
+    Keeping this adapter lets the provider migrate to google-genai without
+    changing the public ModelProvider contract or all prompt call sites at once.
+    The legacy SDK remains a local-test fallback when google-genai is absent.
+    """
+
+    def __init__(self, client, model_name: str):
+        self.client = client
+        self.model_name = model_name
+
+    def generate_content(self, contents, generation_config=None, safety_settings=None):
+        from google.genai import types
+
+        cfg = dict(generation_config or {})
+        config = types.GenerateContentConfig(
+            temperature=cfg.get("temperature", 0.0),
+            max_output_tokens=cfg.get("max_output_tokens"),
+            response_mime_type=cfg.get("response_mime_type"),
+            response_schema=cfg.get("response_schema"),
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        )
+        # google-genai accepts text and Part objects directly.  The legacy
+        # Part.from_data object is converted by the vision caller below.
+        return self.client.models.generate_content(
+            model=self.model_name, contents=contents, config=config
+        )
+
+
 def _sanitize_context(text: str) -> str:
     cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]", "", text)
     cleaned = _PROMPT_BOUNDARY_PATTERN.sub("[REDACTED]", cleaned)
     encoded = cleaned.encode("utf-8")[:_MAX_CONTEXT_BYTES]
     return encoded.decode("utf-8", errors="ignore")
+
+
+def _safety_for(model):
+    """Return legacy safety enum values only for the legacy client path."""
+    return None if isinstance(model, _GenAIModelAdapter) else _get_safety_settings()
 
 
 class VertexAIProvider(ModelProvider):
@@ -142,18 +177,59 @@ class VertexAIProvider(ModelProvider):
         self._vision_initialized = False
         self._embedding_model_client = None
         self._ranking_creds = None
+        self._genai_clients = {}
+        # Explicit opt-in keeps existing local/mocked development environments
+        # stable; deployment manifests set IRIS_USE_GOOGLE_GENAI=1.
+        self._use_genai = os.getenv("IRIS_USE_GOOGLE_GENAI", "0").lower() not in {"0", "false", "no"}
 
     def _ensure_init(self):
+        # google-genai clients are created lazily in the request process. This
+        # avoids inheriting initialized gRPC state across a fork and supports a
+        # native per-request HTTP timeout. Legacy initialization is retained
+        # only as a fallback for local environments without google-genai.
         if not self._initialized:
-            import vertexai
-            vertexai.init(project=self.project_id, location=self.location)
+            if not self._use_genai:
+                import vertexai
+                vertexai.init(project=self.project_id, location=self.location)
             self._initialized = True
 
     def _ensure_vision_init(self):
         if not self._vision_initialized:
-            import vertexai as vision_ai
-            vision_ai.init(project=self.project_id, location=self.vision_location)
+            if not self._use_genai:
+                import vertexai as vision_ai
+                vision_ai.init(project=self.project_id, location=self.vision_location)
             self._vision_initialized = True
+
+    def _get_genai_client(self, location: str, timeout_seconds: float):
+        key = (location, int(timeout_seconds * 1000))
+        if key not in self._genai_clients:
+            from google import genai
+            from google.genai import types
+            self._genai_clients[key] = genai.Client(
+                vertexai=True,
+                project=self.project_id,
+                location=location,
+                http_options=types.HttpOptions(timeout=key[1], api_version="v1"),
+            )
+        return self._genai_clients[key]
+
+    def _get_model(self, model_name: str, *, vision: bool = False,
+                   timeout_seconds: Optional[float] = None):
+        location = self.vision_location if vision else self.location
+        policy = _VISION_RETRY_POLICY if vision else _SYNTHESIS_RETRY_POLICY
+        timeout_seconds = timeout_seconds or policy.per_attempt_timeout
+        if self._use_genai:
+            try:
+                return _GenAIModelAdapter(
+                    self._get_genai_client(location, timeout_seconds),
+                    model_name,
+                )
+            except ImportError:
+                # Unit-test/dev fallback; production requirements include
+                # google-genai and will take the native-timeout path.
+                pass
+        from vertexai.generative_models import GenerativeModel
+        return GenerativeModel(model_name)
 
     def _safe_generate(
         self,
@@ -180,7 +256,8 @@ class VertexAIProvider(ModelProvider):
         response = model.generate_content(
             contents,
             generation_config=generation_config,
-            safety_settings=_get_safety_settings(),
+            safety_settings=(None if isinstance(model, _GenAIModelAdapter)
+                             else _get_safety_settings()),
         )
 
         if not response:
@@ -214,10 +291,17 @@ class VertexAIProvider(ModelProvider):
             raise ValueError("Empty image bytes")
 
         self._ensure_vision_init()
-        from vertexai.generative_models import GenerativeModel, Part
-
-        image_part = Part.from_data(data=image_bytes, mime_type="image/png")
-        model = GenerativeModel(self.synthesis_model_name)
+        if self._use_genai:
+            try:
+                from google.genai import types
+                image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
+            except ImportError:
+                from vertexai.generative_models import Part
+                image_part = Part.from_data(data=image_bytes, mime_type="image/png")
+        else:
+            from vertexai.generative_models import Part
+            image_part = Part.from_data(data=image_bytes, mime_type="image/png")
+        model = self._get_model(self.synthesis_model_name, vision=True)
 
         # Phase 0.1: retry ONLY transient failures, with exponential backoff and
         # full jitter and an overall deadline. Permanent failures (safety
@@ -226,6 +310,7 @@ class VertexAIProvider(ModelProvider):
             return retry_call(
                 lambda: self._safe_generate(model, prompt, image_part),
                 _VISION_RETRY_POLICY,
+                isolate=False,
             )
         except Exception as exc:
             raise RuntimeError(
@@ -239,8 +324,6 @@ class VertexAIProvider(ModelProvider):
         if not texts:
             return []
         self._ensure_init()
-        from vertexai.language_models import TextEmbeddingInput
-
         model = self._get_embedding_model()
         dim = _DIMENSIONALITY_MAP.get(self.embedding_model_name)
         results: List[List[float]] = []
@@ -249,21 +332,28 @@ class VertexAIProvider(ModelProvider):
         batch_size = 250
         for i in range(0, len(texts), batch_size):
             batch_texts = texts[i : i + batch_size]
-            inputs = [TextEmbeddingInput(text=t, task_type=task_type) for t in batch_texts]
+            if self._use_genai and hasattr(model, "models"):
+                def _embed_call(batch_texts=batch_texts, dim=dim, task_type=task_type):
+                    from google.genai import types
+                    config = types.EmbedContentConfig(
+                        output_dimensionality=dim, task_type=task_type
+                    )
+                    response = model.models.embed_content(
+                        model=self.embedding_model_name,
+                        contents=batch_texts,
+                        config=config,
+                    )
+                    items = getattr(response, "embeddings", None) or []
+                    return [list(getattr(e, "values", []) or []) or None for e in items]
+            else:
+                from vertexai.language_models import TextEmbeddingInput
+                inputs = [TextEmbeddingInput(text=t, task_type=task_type) for t in batch_texts]
+                def _embed_call(inputs=inputs, dim=dim):
+                    raw = (model.get_embeddings(inputs, output_dimensionality=dim)
+                           if dim is not None else model.get_embeddings(inputs))
+                    return [list(e.values) if e and e.values else None for e in (raw or [])]
 
-            def _embed_call(inputs=inputs, dim=dim):
-                raw = (
-                    model.get_embeddings(inputs, output_dimensionality=dim)
-                    if dim is not None
-                    else model.get_embeddings(inputs)
-                )
-                # Convert SDK objects to plain floats inside the (possibly
-                # forked) worker so only picklable primitives cross the pipe.
-                return [
-                    list(e.values) if e and e.values else None for e in (raw or [])
-                ]
-
-            embeddings = retry_call(_embed_call, _EMBED_RETRY_POLICY)
+            embeddings = retry_call(_embed_call, _EMBED_RETRY_POLICY, isolate=False)
             if len(embeddings) != len(batch_texts):
                 raise EmbeddingInvalidError(
                     f"count_mismatch:{len(embeddings)}!={len(batch_texts)}"
@@ -295,34 +385,49 @@ class VertexAIProvider(ModelProvider):
         """Cached TextEmbeddingModel — from_pretrained per call re-resolves
         the endpoint and shows up as tens of ms on every search."""
         if self._embedding_model_client is None:
-            from vertexai.language_models import TextEmbeddingModel
-
-            self._embedding_model_client = TextEmbeddingModel.from_pretrained(
-                self.embedding_model_name
-            )
+            if self._use_genai:
+                try:
+                    self._embedding_model_client = self._get_genai_client(
+                        self.location, _EMBED_RETRY_POLICY.per_attempt_timeout
+                    )
+                except ImportError:
+                    self._use_genai = False
+            if self._embedding_model_client is None:
+                from vertexai.language_models import TextEmbeddingModel
+                self._embedding_model_client = TextEmbeddingModel.from_pretrained(
+                    self.embedding_model_name
+                )
         return self._embedding_model_client
 
     def _embed_task(self, text: str, task_type: str) -> List[float]:
         self._ensure_init()
-        from vertexai.language_models import TextEmbeddingInput
-
         model = self._get_embedding_model()
-        inputs = [TextEmbeddingInput(text=text, task_type=task_type)]
-
         dim = _DIMENSIONALITY_MAP.get(self.embedding_model_name)
 
-        def _embed_call(inputs=inputs, dim=dim):
-            raw = (
-                model.get_embeddings(inputs, output_dimensionality=dim)
-                if dim is not None
-                else model.get_embeddings(inputs)
-            )
-            # Return plain floats so the value is picklable across a fork.
-            if not raw or not raw[0] or not raw[0].values:
-                return None
-            return list(raw[0].values)
+        if self._use_genai and hasattr(model, "models"):
+            def _embed_call():
+                from google.genai import types
+                config = types.EmbedContentConfig(
+                    output_dimensionality=dim,
+                    task_type=task_type,
+                )
+                response = model.models.embed_content(
+                    model=self.embedding_model_name, contents=[text], config=config
+                )
+                items = getattr(response, "embeddings", None) or []
+                values = getattr(items[0], "values", None) if items else None
+                return list(values) if values else None
+        else:
+            from vertexai.language_models import TextEmbeddingInput
+            inputs = [TextEmbeddingInput(text=text, task_type=task_type)]
+            def _embed_call():
+                raw = (model.get_embeddings(inputs, output_dimensionality=dim)
+                       if dim is not None else model.get_embeddings(inputs))
+                if not raw or not raw[0] or not raw[0].values:
+                    return None
+                return list(raw[0].values)
 
-        values = retry_call(_embed_call, _EMBED_RETRY_POLICY)
+        values = retry_call(_embed_call, _EMBED_RETRY_POLICY, isolate=False)
         if not values:
             raise RuntimeError(f"Empty embedding from {self.embedding_model_name}")
         return values
@@ -349,15 +454,13 @@ class VertexAIProvider(ModelProvider):
             import json
 
             self._ensure_init()
-            from vertexai.generative_models import GenerativeModel
-
             safe_context = _sanitize_context(context)
             safe_query = _sanitize_context(query)
 
             ref_to_chunk = {
                 str(i): c for i, c in enumerate(source_chunks, start=1) if c.get("chunk_id")
             }
-            model = GenerativeModel(self.synthesis_model_name)
+            model = self._get_model(self.synthesis_model_name)
             prompt = (
                 "You are a document analysis assistant. Answer using ONLY the document "
                 "context below. The context labels each source with a simple integer in "
@@ -417,8 +520,10 @@ class VertexAIProvider(ModelProvider):
                     prompt,
                     response_mime_type="application/json",
                     response_schema=response_schema,
+                    max_output_tokens=int(os.getenv("SYNTHESIS_MAX_OUTPUT_TOKENS", "1536")),
                 ),
                 _SYNTHESIS_RETRY_POLICY,
+                isolate=False,
             )
 
             try:
@@ -453,8 +558,6 @@ class VertexAIProvider(ModelProvider):
 
     def rewrite_query(self, query: str, history: List[dict]) -> str:
         self._ensure_init()
-        from vertexai.generative_models import GenerativeModel
-
         safe_history = [
             {"role": h.get("role", "user")[:20],
              "content": _sanitize_context(h.get("content", ""))}
@@ -462,7 +565,7 @@ class VertexAIProvider(ModelProvider):
         ]
         safe_query = _sanitize_context(query)
 
-        model = GenerativeModel(self.lite_model_name)
+        model = self._get_model(self.lite_model_name, timeout_seconds=_REWRITE_RETRY_POLICY.per_attempt_timeout)
         prompt = (
             "Rewrite the follow-up question into a standalone query by resolving "
             "pronouns and references from the chat history.\n\n"
@@ -478,9 +581,10 @@ class VertexAIProvider(ModelProvider):
                         "temperature": 0.0,
                         "max_output_tokens": 256,
                     },
-                    safety_settings=_get_safety_settings(),
+                    safety_settings=_safety_for(model),
                 ),
                 _REWRITE_RETRY_POLICY,
+                isolate=False,
             )
             if response and response.text:
                 return response.text.strip()
@@ -496,8 +600,6 @@ class VertexAIProvider(ModelProvider):
         before using it.
         """
         self._ensure_init()
-        from vertexai.generative_models import GenerativeModel
-
         safe_history = [
             {"role": h.get("role", "user")[:20],
              "content": _sanitize_context(h.get("content", ""))}
@@ -505,7 +607,7 @@ class VertexAIProvider(ModelProvider):
         ]
         safe_query = _sanitize_context(query)
 
-        model = GenerativeModel(self.lite_model_name)
+        model = self._get_model(self.lite_model_name, timeout_seconds=_REWRITE_RETRY_POLICY.per_attempt_timeout)
         prompt = (
             "Rewrite the follow-up question into a standalone query by resolving "
             "pronouns and references from the chat history.\n"
@@ -538,6 +640,7 @@ class VertexAIProvider(ModelProvider):
                     max_output_tokens=256,
                 ),
                 _REWRITE_RETRY_POLICY,
+                isolate=False,
             )
             result = json.loads(raw)
             if not isinstance(result, dict) or not result.get("standalone_query"):
@@ -568,11 +671,9 @@ class VertexAIProvider(ModelProvider):
         validates the content (no new entities/numbers) and may skip HyDE.
         """
         self._ensure_init()
-        from vertexai.generative_models import GenerativeModel
-
         safe_query = _sanitize_context(query)
 
-        model = GenerativeModel(self.lite_model_name)
+        model = self._get_model(self.lite_model_name, timeout_seconds=_HYDE_RETRY_POLICY.per_attempt_timeout)
         prompt = (
             "Write a short hypothetical passage (2-4 sentences) that directly "
             "answers the question below, as if quoting a relevant document.\n"
@@ -603,6 +704,7 @@ class VertexAIProvider(ModelProvider):
                 max_output_tokens=256,
             ),
             _HYDE_RETRY_POLICY,
+            isolate=False,
         )
         data = json.loads(raw)
         if not isinstance(data, dict):
@@ -622,12 +724,10 @@ class VertexAIProvider(ModelProvider):
              "target_doc_ids": [...], "rewritten_query": "..."}
         """
         self._ensure_init()
-        from vertexai.generative_models import GenerativeModel
-
         safe_query = _sanitize_context(query)
         docs_json = json.dumps(active_docs, indent=2)
 
-        model = GenerativeModel(self.lite_model_name)
+        model = self._get_model(self.lite_model_name, timeout_seconds=_ROUTE_RETRY_POLICY.per_attempt_timeout)
         prompt = (
             "You are a query router for a document search system. Given the user's "
             "query and a list of available documents, classify the intent and resolve "
@@ -707,9 +807,10 @@ class VertexAIProvider(ModelProvider):
                         "response_mime_type": "application/json",
                         "response_schema": response_schema,
                     },
-                    safety_settings=_get_safety_settings(),
+                    safety_settings=_safety_for(model),
                 ),
                 _ROUTE_RETRY_POLICY,
+                isolate=False,
             )
             if response and response.text:
                 result = json.loads(response.text.strip())
@@ -831,10 +932,8 @@ class VertexAIProvider(ModelProvider):
         (romanized Hindi→Devanagari). Returns [] on failure.
         """
         self._ensure_init()
-        from vertexai.generative_models import GenerativeModel
-
         safe_query = _sanitize_context(query)
-        model = GenerativeModel(self.lite_model_name)
+        model = self._get_model(self.lite_model_name, timeout_seconds=_REWRITE_RETRY_POLICY.per_attempt_timeout)
         prompt = (
             "Translate the following English search query into Hindi "
             "(Devanagari script). If the query is already Hindi written "
@@ -852,7 +951,8 @@ class VertexAIProvider(ModelProvider):
         )
         try:
             result = retry_call(
-                lambda: self._safe_generate(model, prompt), _REWRITE_RETRY_POLICY
+                lambda: self._safe_generate(model, prompt), _REWRITE_RETRY_POLICY,
+                isolate=False,
             )
             result = result.strip().strip('"').strip("'").strip("`")
             if not result or result.lower() == safe_query.lower():

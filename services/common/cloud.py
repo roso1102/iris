@@ -130,6 +130,14 @@ def gcs_delete(blob) -> Any:
     return _call(lambda: blob.delete(timeout=GCS_TIMEOUT_SECONDS), GCS_POLICY)
 
 
+def gcs_list(bucket, **kwargs) -> list:
+    """List bucket objects with bounded timeout/retry semantics."""
+    return _call(
+        lambda: list(bucket.list_blobs(timeout=GCS_TIMEOUT_SECONDS, **kwargs)),
+        GCS_POLICY,
+    )
+
+
 def pubsub_publish(publisher, topic: str, data: bytes, **attributes) -> Any:
     """Publish with a native RPC timeout; returns the result (blocking)."""
     def _do():

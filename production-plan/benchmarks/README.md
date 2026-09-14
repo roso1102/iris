@@ -20,6 +20,15 @@ Every run contains:
 - `logs/` — sanitized benchmark logs.
 - `artifacts/` — small approved visual overlays or pointers/checksums for large GCS artifacts.
 
+## Warm-query latency runs
+
+Use `scripts/benchmark_warm_queries.py` for a lightweight staging benchmark. It
+executes authenticated `/query` calls repeatedly and records p50, p95, max,
+mean, first-request latency, per-stage traces, failures, and the exact query in
+the generated JSON. Store the JSON under the date/phase run directory together
+with a `CHANGE.md` describing code/config changes; never include ID tokens or
+raw customer document content.
+
 Large/customer-sensitive artifacts remain in a dedicated versioned GCS benchmark bucket. The manifest stores exact object generation, checksum, classification and retention policy. Never commit tokens, raw production queries or customer documents.
 
 ## Status values
