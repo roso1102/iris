@@ -12,6 +12,7 @@ import importlib.util
 import os
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -137,6 +138,7 @@ class TestPubSubFutureFailureRedelivery(unittest.TestCase):
         store.upsert_batch([_chunk()])  # redelivery
         self.assertEqual(len(store.get_by_doc("d", "t")), 1)
         self.assertEqual(_chunk().id, _chunk().id)
+        uuid.UUID(_chunk().id)  # Qdrant-compatible canonical UUID
 
 
 if __name__ == "__main__":
