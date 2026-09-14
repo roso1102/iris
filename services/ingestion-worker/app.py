@@ -231,6 +231,14 @@ def ingest_page():
             doc_id=doc_id,
             page_number=page_number or None,
         )
+        # A delete can race a page that already passed the initial existence
+        # check. Remove any chunks produced by that in-flight page and do not
+        # recreate progress state for a document that no longer belongs to the
+        # tenant.
+        if not _doc_exists(tenant_id, doc_id):
+            get_chunk_store().delete_by_doc(doc_id, tenant_id)
+            logger.info("Doc deleted during page processing, cleaning up %s/%s", doc_id, page_number)
+            return jsonify({"status": "skipped", "doc_id": doc_id, "page_number": page_number}), 200
         _mark_page_done(tenant_id, doc_id, page_number)
         logger.info(
             "Ingested doc_id=%s page=%s/%s tenant=%s chunks=%s vlm_calls=%s",
