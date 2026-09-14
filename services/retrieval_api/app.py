@@ -272,13 +272,11 @@ def _append_firestore_messages(
                     "message_index": index,
                     "created_at": datetime.now(timezone.utc),
                 },
-                timeout=FIRESTORE_TIMEOUT_SECONDS,
             )
         txn.set(
             session_ref,
             {"turn_seq": turn_seq},
             merge=True,
-            timeout=FIRESTORE_TIMEOUT_SECONDS,
         )
         return turn_seq
 
