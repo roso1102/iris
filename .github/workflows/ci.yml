@@ -159,6 +159,12 @@ jobs:
             --region="${{ vars.GCP_REGION }}" --project="${{ vars.GCP_PROJECT_ID }}" \
             --member="serviceAccount:retrieval-api-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --role="roles/run.invoker"
+          # _trigger_ingestion mints the ID token as ingestion-worker-sa;
+          # grant that exact token principal access to the private worker.
+          gcloud run services add-iam-policy-binding ingestion-worker \
+            --region="${{ vars.GCP_REGION }}" --project="${{ vars.GCP_PROJECT_ID }}" \
+            --member="serviceAccount:ingestion-worker-sa@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --role="roles/run.invoker"
           echo "INGEST_URL=$INGEST_URL" >> "$GITHUB_ENV"
       - name: Deploy retrieval-api
         run: |
