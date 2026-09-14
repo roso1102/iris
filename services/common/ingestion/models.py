@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import uuid
 from enum import Enum
 from typing import Dict, List, Optional
 
@@ -127,5 +128,9 @@ class Chunk(BaseModel):
                 self.text,
                 CHUNKER_VERSION,
             ])
-            self.id = "c_" + hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
+            # Qdrant accepts unsigned integers or canonical UUIDs as point
+            # IDs. Preserve the SHA-256 content address while representing it
+            # as a deterministic UUID so retries remain idempotent.
+            digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+            self.id = str(uuid.UUID(hex=digest[:32]))
         return self
