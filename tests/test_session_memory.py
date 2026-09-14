@@ -116,10 +116,10 @@ class TestFirestoreHelpers(unittest.TestCase):
     def test_load_firestore_messages_returns_chronological(self):
         fake = _fake_firestore()
         # Simulate Firestore returning newest-first (as ORDER BY desc does)
-        # DocumentSnapshot.get(field) returns the field value
+        # Production returns DocumentSnapshot objects, not dictionaries.
         def _make_doc(data):
             m = MagicMock()
-            m.get.side_effect = lambda field, *a: data.get(field, *a[0:]) if a else data[field]
+            m.to_dict.return_value = data
             return m
 
         msg_newest = _make_doc({"role": "assistant", "content": "B"})
@@ -393,7 +393,7 @@ class TestGetSessionMessages(unittest.TestCase):
         # Simulate 3 messages (newest-first as Firestore returns them)
         def _make_doc(data):
             m = MagicMock()
-            m.get.side_effect = lambda field, *a: data.get(field, *a[0:]) if a else data[field]
+            m.to_dict.return_value = data
             return m
 
         docs = [
