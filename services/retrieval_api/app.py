@@ -313,9 +313,17 @@ def _load_session_history(
             .limit(limit)
         )
         docs.reverse()  # newest-first → chronological
-        messages = [
-            {"role": d.get("role", ""), "content": d.get("content", "")} for d in docs
-        ]
+        # ``Query.stream`` yields DocumentSnapshot objects in production (the
+        # unit suite historically supplied plain dictionaries).  Normalize at
+        # the boundary so missing fields remain safe without calling
+        # ``DocumentSnapshot.get`` with a dict-style default argument.
+        messages = []
+        for snapshot in docs:
+            data = snapshot.to_dict() if hasattr(snapshot, "to_dict") else snapshot
+            data = data or {}
+            messages.append(
+                {"role": data.get("role", ""), "content": data.get("content", "")}
+            )
         return messages, version
     except Exception as exc:
         logger.warning("Firestore messages load failed: %s", exc)
